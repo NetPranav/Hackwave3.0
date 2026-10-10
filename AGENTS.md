@@ -29,7 +29,7 @@ Three developers work in parallel, each with their own Claude Code session on th
 
 | GitHub | Role | Owns |
 |---|---|---|
-| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config; only person who updates `main` |
+| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config; only person who merges release PRs into `main` |
 | OVERxPOWERED | Architecture/logic | `github-app/`, `services/` |
 | adarzhpathade | Frontend | `shop/`, `dashboard/` |
 

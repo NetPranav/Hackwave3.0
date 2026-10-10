@@ -6,7 +6,7 @@ Three developers, three computers, three Claude Code sessions, one repo. These r
 
 | GitHub | Role | Owns (primary reviewer) |
 |---|---|---|
-| **@NetPranav** | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config (`.github/`, `.claude/`, `scripts/`), **the only person who updates `main`** |
+| **@NetPranav** | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config (`.github/`, `.claude/`, `scripts/`), **the only person who merges into `main`** (release PRs) |
 | **@OVERxPOWERED** | Architecture/logic | `github-app/`, `services/` (fake third-party APIs) |
 | **@adarzhpathade** | Frontend | `shop/` (demo app), `dashboard/` |
 | Everyone | — | `contracts/`, `docs/`, `tests/` (shared; changes need a PR everyone can see) |
@@ -18,7 +18,7 @@ The source of truth is [`.team/OWNERSHIP.md`](.team/OWNERSHIP.md), and [`.github
 ## 2. Branch model
 
 ```
-main ──●─────────────────────●──────────────●──▶   demo-ready releases (tags v0.x); only @NetPranav updates it
+main ──●─────────────────────●──────────────●──▶   demo-ready releases (tags v0.x); only @NetPranav merges into it
         \                   ↗ release PR    ↗
 develop  ●──●──●──●──●──●──●──●──●──●──●──●──▶   integration branch (default); protected; PRs only
              \  ↗   \     ↗   \      ↗
@@ -28,7 +28,7 @@ team-status  (separate branch, no code: each person's live status file, read by 
 
 | Branch | Who writes | How | Protection (GitHub rulesets) |
 |---|---|---|---|
-| `main` | @NetPranav only | Merge the **release PR** `develop → main` (merge commit), tag it | Only the repo admin can update; no deletion; no force push; CI must pass |
+| `main` | @NetPranav only | Merge the **release PR** `develop → main` on GitHub (merge commit), then tag it. Nobody pushes to `main` directly, not even the lead | Only the repo admin can merge, and only through a PR; no direct pushes; no deletion; no force push; CI must pass |
 | `develop` | Everyone, via PR | **Squash-merge** feature PRs | PR required · 1 approval · CI (`ci-ok`) green · branch up to date · conversations resolved · no force push · no deletion |
 | `feature/*` etc. | The branch author | Normal commits | None; your own branch |
 | `hotfix/*` | Lead (or with lead) | From `main`, PR into `main`, then back-merge `main → develop` | — |
@@ -98,6 +98,7 @@ These are enforced by [`.claude/settings.json`](.claude/settings.json) (committe
 
 - On every session start, a hook runs `scripts/team-status.sh` and gives Claude a **team briefing**: everyone's published status, active branches, open PRs, file overlaps with your branch, and whether you're behind `develop`.
 - Claude **cannot** push to `main`/`develop`, force-push, or merge PRs (`gh pr merge`). Humans merge.
+- Those Claude deny rules are pattern-based convenience: they catch the common commands, not every spelling. The **real guard is GitHub's rulesets** (server-side), backed up by the local `.githooks/pre-push` hook.
 - `/start-task`, `/handoff`, `/team-sync` skills live in `.claude/skills/`.
 - Personal Claude settings go in `.claude/settings.local.json` (git-ignored).
 

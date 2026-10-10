@@ -7,7 +7,9 @@ repo=${1:-NetPranav/Hackwave3.0}
 cd "$(git rev-parse --show-toplevel)"
 
 echo "1/4 Pushing main, develop, team-status…"
-git push origin main develop team-status
+# --no-verify: the local pre-push hook blocks main/develop by design; this one-time bootstrap is the exception.
+# On re-runs (branches already protected) a rejected push is expected and harmless.
+git push --no-verify origin main develop team-status || echo "  (push rejected or nothing to push; continuing)"
 
 echo "2/4 Repository settings (merge methods, default branch = develop)…"
 gh api -X PATCH "repos/$repo" \
@@ -29,16 +31,15 @@ upsert_ruleset() {
 }
 
 ci_check='{"context": "ci-ok", "integration_id": 15368}'   # 15368 = GitHub Actions
-admin_always='{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}'
 admin_pr_only='{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request"}'
 
 echo "3/4 Rulesets…"
-# main: only the repo admin (NetPranav) can update it; merge commits only; CI must pass.
+# main: nobody pushes directly; only the repo admin (NetPranav) can merge, and only through a PR; merge commits only; CI must pass.
 upsert_ruleset main-protection "$(cat <<JSON
 {
   "name": "main-protection", "target": "branch", "enforcement": "active",
   "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
-  "bypass_actors": [ $admin_always ],
+  "bypass_actors": [ $admin_pr_only ],
   "rules": [
     { "type": "deletion" },
     { "type": "non_fast_forward" },

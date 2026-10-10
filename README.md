@@ -10,7 +10,7 @@
 
 | GitHub | Role |
 |---|---|
-| @NetPranav | Lead · architecture/logic (backend, SDK) · owns `main` |
+| @NetPranav | Lead · architecture/logic (backend, SDK) · merges releases into `main` |
 | @OVERxPOWERED | Architecture/logic (GitHub App, fake services) |
 | @adarzhpathade | Frontend (demo shop, dashboard) |
 
@@ -27,4 +27,4 @@ Then, inside Claude Code: `/start-task` → build → `/handoff` → mark the PR
 
 ## Branches
 
-`main` (demo-ready, lead only) ← `develop` (integration, PRs only, default branch) ← `feature/<area>-<desc>` (your work). Live team status lives on the `team-status` branch. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+`main` (demo-ready; only the lead merges release PRs, nobody pushes directly) ← `develop` (integration, PRs only, default branch) ← `feature/<area>-<desc>` (your work). Live team status lives on the `team-status` branch. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).

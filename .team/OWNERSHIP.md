@@ -4,7 +4,7 @@ Who owns which part of the repo. Owners review PRs that touch their area (see `.
 
 | GitHub | Role | Primary areas | Typical work (from `docs/roadmap-demo.md`) |
 |---|---|---|---|
-| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, `.github/`, `.claude/`, `scripts/` | SDK, ingest, baselines, detectors, severity engine, probes, LLM explanations, releases to `main` |
+| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, `.github/`, `.claude/`, `scripts/` | SDK, ingest, baselines, detectors, severity engine, probes, LLM explanations, merging release PRs into `main` |
 | OVERxPOWERED | Architecture/logic | `github-app/`, `services/` | Fake third-party services (v1/v2 switches), GitHub App, code scan + code map, PR bot, CI wiring of fix PRs |
 | adarzhpathade | Frontend | `shop/`, `dashboard/` | Demo shop, dashboard, Obsidian-style graph, timeline, drift detail, review queue, demo panel |
 
