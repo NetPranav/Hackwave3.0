@@ -59,6 +59,8 @@ Cross-cutting specs (read by whoever builds that part):
 
 ## 3. Who does what (three parallel tracks)
 
+> **Update 2026-10-11:** OVERxPOWERED has no tasks for now; **every task in the OVERxPOWERED column belongs to @NetPranav**. @adarzhpathade owns the whole dashboard (login included) and the demo shop. Per-person task list: [`../../START_HERE.md`](../../START_HERE.md).
+
 | Day | Date | @NetPranav (backend · SDK · AI) | @OVERxPOWERED (GitHub App · services · alerts) | @adarzhpathade (dashboard · landing · demo shop) |
 |---|---|---|---|---|
 | 1 | Sun 11 | P0: monorepo, contracts pkg, Neon + drizzle, API skeleton; **spikes**: NIM, body capture | P0: dev GitHub App via manifest + smee; services skeleton; **spikes**: Probot, Twilio, host sleep | P0: Next.js dashboard + Auth.js GitHub login on Vercel; **spike**: graph lib with 500 nodes |

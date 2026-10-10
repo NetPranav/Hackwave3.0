@@ -6,8 +6,8 @@ Three developers, three computers, three Claude Code sessions, one repo. These r
 
 | GitHub | Role | Owns (primary reviewer) |
 |---|---|---|
-| **@NetPranav** | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config (`.github/`, `.claude/`, `scripts/`), **the only person who merges into `main`** (release PRs) |
-| **@OVERxPOWERED** | Architecture/logic | `github-app/`, `services/` (fake third-party APIs) |
+| **@NetPranav** | Lead · engine + everything except the dashboard | `backend/`, `sdk-node/`, `github-app/`, `services/`, repo config (`.github/`, `.claude/`, `scripts/`), **the only person who merges into `main`** (release PRs) |
+| @OVERxPOWERED | Invite pending; no tasks | Former areas moved to @NetPranav (see `START_HERE.md`) |
 | **@adarzhpathade** | Frontend | `dashboard/` (landing + dashboard), demo repo `NetPranav/seismo-demo-shop` |
 | Everyone | — | `contracts/`, `docs/`, `tests/` (shared; changes need a PR everyone can see) |
 

@@ -13,6 +13,7 @@ A living log of decisions, open questions and facts for this project. Newest ent
 
 | Date | Decision | Why | Where documented |
 |---|---|---|---|
+| 2026-10-11 | **Roles changed:** adarzhpathade (Adarsh) owns the whole dashboard incl. login + demo shop; NetPranav owns everything else incl. former OVERxPOWERED areas; OVERxPOWERED (invite pending) has no tasks | Lead's decision | `START_HERE.md` |
 | 2026-10-11 | **Roadmap: 14 days (2026-10-11 → 2026-10-24), vertical-slice phases P0–P8**, scope freeze end of day 11 | Each phase completes a demoable feature | `docs/roadmap/README.md` |
 | 2026-10-11 | **All TypeScript** (Fastify + pg-boss backend, Node SDK, Probot app, Fastify fake services, Next.js) | One language; zod contracts shared by all three devs. Supersedes the FastAPI decision | `docs/roadmap/setup-and-deploy.md` |
 | 2026-10-11 | **Deployed cloud** (Vercel + non-sleeping Node host + Neon) with Docker Compose as offline backup | Webhooks and the landing page need public URLs | `docs/roadmap/setup-and-deploy.md` |

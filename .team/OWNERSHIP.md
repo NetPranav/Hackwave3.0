@@ -4,9 +4,9 @@ Who owns which part of the repo. Owners review PRs that touch their area (see `.
 
 | GitHub | Role | Primary areas | Typical work (from `docs/PS/roadmap-demo.md`) |
 |---|---|---|---|
-| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, `.github/`, `.claude/`, `scripts/` | SDK, ingest, baselines, detectors, severity engine, probes, LLM explanations, merging release PRs into `main` |
-| OVERxPOWERED | Architecture/logic | `github-app/`, `services/`, `backend/src/alerts/` | Fake third-party services (v1/v2 switches), GitHub App, code scan + code map, PR bot, safety check run, alert dispatcher, radar sources |
-| adarzhpathade | Frontend | `dashboard/`, demo repo `seismo-demo-shop` | Landing page, dashboard, Obsidian-style graph, status, timeline, drift detail, review queue, Compare & Simulate, radar page, demo shop |
+| NetPranav | Lead · engine + everything except the dashboard | `contracts/` (lead), `backend/`, `sdk-node/`, `github-app/`, `services/`, `.github/`, `.claude/`, `scripts/` | SDK, ingest, baselines, detectors, severity engine, probes, LLM explanations, merging release PRs into `main` |
+| OVERxPOWERED | Invite pending; no tasks (2026-10-11). Former areas moved to NetPranav | — | Fake third-party services (v1/v2 switches), GitHub App, code scan + code map, PR bot, safety check run, alert dispatcher, radar sources |
+| adarzhpathade | Frontend: whole dashboard incl. login | `dashboard/`, demo repo `seismo-demo-shop` | Landing page, dashboard, Obsidian-style graph, status, timeline, drift detail, review queue, Compare & Simulate, radar page, demo shop |
 
 ## Shared areas (everyone; PR visible to all)
 

@@ -34,7 +34,7 @@ else base=""; fi
 
 echo "=== TEAM BRIEFING (scripts/team-status.sh · $(date '+%Y-%m-%d %H:%M %Z')) ==="
 [ "$fetched" -ne 0 ] && echo "(could not reach origin; showing last known state)"
-echo "You: ${me:-UNKNOWN, run: bash scripts/setup.sh <github-handle>} · branch: $branch"
+echo "You: ${me:-UNKNOWN, run: bash scripts/setup.sh <github-handle>} · branch: $branch · your tasks: START_HERE.md"
 
 # --- Warnings about where you are -------------------------------------------
 case "$branch" in

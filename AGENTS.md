@@ -1,5 +1,7 @@
 # AGENTS.md
 
+**Read [`START_HERE.md`](START_HERE.md) first: who you are and which tasks are yours.**
+
 Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for teammates working in this repository. Read this first, then [`MEMORY.md`](MEMORY.md) for decisions and open questions.
 
 ## Project
@@ -30,9 +32,9 @@ Three developers work in parallel, each with their own Claude Code session on th
 
 | GitHub | Role | Owns |
 |---|---|---|
-| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config; only person who merges release PRs into `main` |
-| OVERxPOWERED | Architecture/logic | `github-app/`, `services/` |
-| adarzhpathade | Frontend | `dashboard/` (landing + dashboard), demo repo `seismo-demo-shop` |
+| NetPranav | Lead · engine + everything except the dashboard | `contracts/`, `backend/`, `sdk-node/`, `github-app/`, `services/`, repo config; only person who merges release PRs into `main` |
+| OVERxPOWERED | Invite pending, no tasks (2026-10-11) | — |
+| adarzhpathade | Frontend: the whole dashboard incl. login | `dashboard/` (landing + login + all screens), demo repo `seismo-demo-shop` |
 
 1. **Read the TEAM BRIEFING** injected at session start (from `scripts/team-status.sh`). It lists each teammate's published status, active branches, open PRs, overlaps with your files, and how far behind `develop` you are. Act on its warnings. Re-run it with `/team-sync` before touching shared files.
 2. **Who you are:** `git config seismo.handle`. Work inside that person's areas (`.team/OWNERSHIP.md`). Touching another owner's area needs the user's OK, and the owner gets tagged on the PR.
