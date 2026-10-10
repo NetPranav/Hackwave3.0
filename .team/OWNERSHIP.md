@@ -5,8 +5,8 @@ Who owns which part of the repo. Owners review PRs that touch their area (see `.
 | GitHub | Role | Primary areas | Typical work (from `docs/PS/roadmap-demo.md`) |
 |---|---|---|---|
 | NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, `.github/`, `.claude/`, `scripts/` | SDK, ingest, baselines, detectors, severity engine, probes, LLM explanations, merging release PRs into `main` |
-| OVERxPOWERED | Architecture/logic | `github-app/`, `services/` | Fake third-party services (v1/v2 switches), GitHub App, code scan + code map, PR bot, CI wiring of fix PRs |
-| adarzhpathade | Frontend | `shop/`, `dashboard/` | Demo shop, dashboard, Obsidian-style graph, timeline, drift detail, review queue, demo panel |
+| OVERxPOWERED | Architecture/logic | `github-app/`, `services/`, `backend/src/alerts/` | Fake third-party services (v1/v2 switches), GitHub App, code scan + code map, PR bot, safety check run, alert dispatcher, radar sources |
+| adarzhpathade | Frontend | `dashboard/`, demo repo `seismo-demo-shop` | Landing page, dashboard, Obsidian-style graph, status, timeline, drift detail, review queue, Compare & Simulate, radar page, demo shop |
 
 ## Shared areas (everyone; PR visible to all)
 
@@ -24,5 +24,7 @@ Who owns which part of the repo. Owners review PRs that touch their area (see `.
 | SDK → backend ingest | `contracts/fingerprint.schema.json` | NetPranav | NetPranav |
 | Backend → dashboard | `contracts/dashboard-api.openapi.yaml` | NetPranav | adarzhpathade |
 | GitHub App → backend | `contracts/codemap.schema.json` | OVERxPOWERED | NetPranav |
-| Fake services → shop | `contracts/fake-services.md` | OVERxPOWERED | adarzhpathade |
+| Fake services → demo shop, dashboard | `contracts/fake-services` | OVERxPOWERED | adarzhpathade |
 | Backend → PR bot | `contracts/fix-request.schema.json` | NetPranav | OVERxPOWERED |
+
+The full list of contracts per phase is in [`../docs/roadmap/README.md`](../docs/roadmap/README.md) §5.

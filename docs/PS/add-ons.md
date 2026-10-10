@@ -10,7 +10,7 @@ For each add-on we state honestly whether something similar already exists (from
 |---|---|---|---|---|---|---|
 | 1 | **Changelog & deprecation radar** | Changes are announced in prose nobody's code can act on | Code map, D13 header detector | Medium | Partly (changelog trackers for docs; Bump.sh for your own specs). Matching third-party notices to *your* code: not seen in our research | ⭐ Build |
 | 2 | **"Us or them?" incident triage** | On-call's first question during an incident | Drift timeline + GitHub deploys/commits | Low–Medium | Observability tools mark deploys; joining with third-party drift: not seen | ⭐ Build if time |
-| 3 | **Drift network + public drift feed** | One customer sees a change before others | All drift events | Medium (simulate with 2 apps) | Not seen in our research | ⭐ Demo it (simulated) |
+| 3 | **Drift network + public drift feed** | One customer sees a change before others | All drift events | Medium (simulate with 2 apps) | Not seen in our research | Post-hackathon (dropped from the 14-day plan) |
 | 4 | **API lockfile + CI gate** | Developers want changes reviewed in git like dependencies | Baselines | Low | Yes: DriftGuard ships a GitHub Action; snapshot CLIs exist | Should (not a "novelty" claim) |
 | 5 | **MCP / AI tool definition pinning** | Tool schemas and descriptions change under AI agents | Fingerprints of tool lists | Low | Yes: Invariant mcp-scan (hashing tool descriptions), Bellwether, DriftCop, FlareCanary | Could; integrate, don't claim |
 | 6 | **Upgrade preview** | Moving to a new provider API version is scary | Recorded shapes, adapters, tests | High | Stripe offers upgrade guidance for its own API; generic cross-provider: not seen | Later |
@@ -101,9 +101,8 @@ From call counts and `x-ratelimit-*` headers: *"At current growth you hit Maps' 
 
 ## Recommendation for the hackathon
 
-1. **Core** (must): detection + code-aware severity + fix PRs + graph.
-2. **Add-on A:** Changelog & deprecation radar (proactive story, evidence-backed).
-3. **Add-on B:** Drift network, simulated with two apps (memorable demo moment, moat story).
-4. If ahead: "Us or them" on the timeline.
-
-Everything else goes on the roadmap slide.
+**Decided 2026-10-11** (see [`../roadmap/`](../roadmap/README.md)):
+1. **Core** (must): detection + code-aware severity + safe alias PRs + graph + API status layer.
+2. **Add-on:** Changelog & deprecation radar ([P7](../roadmap/P7-radar.md)).
+3. **Add-on:** Compare & Simulate, the API-change assistant (inside P1/P6).
+4. **Not in the 14-day plan:** drift network (stays a post-hackathon/business idea), "us or them", webhook drift, upgrade preview, compliance map, mocks, rate-limit forecaster.

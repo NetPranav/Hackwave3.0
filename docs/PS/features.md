@@ -1,5 +1,7 @@
 # Features
 
+> **Schedule, owners and up-to-date scope live in [`../roadmap/`](../roadmap/README.md)** (14-day plan, phases P0–P8). This file stays as the feature catalog.
+
 Priorities use MoSCoW: **Must** (demo fails without it), **Should** (big win, build if on schedule), **Could** (only if ahead), **Later** (post-hackathon roadmap).
 
 ## 1. Feature list
@@ -33,9 +35,9 @@ Priorities use MoSCoW: **Must** (demo fails without it), **Should** (big win, bu
 ### Fixing and validation
 | ID | Feature | Priority | Acceptance criteria |
 |---|---|---|---|
-| F19 | Adapter file per API ("introduce adapters" PR) | Must | Demo repo has `seismo/adapters/*.ts`, shop reads through them |
-| F20 | Rung 1 fallback PR (rename) | Must | PR opened automatically with diff, drift link, CI run |
-| F21 | Rung 2 transform PR (unit) in review mode | Must | PR labelled "needs review", explanation in description |
+| F19 | Setup PR: wrap API clients with `applyAliases`, add empty `seismo/aliases.json` + property test file | Must | Demo shop behaviour unchanged after merge |
+| F20 | Rung 1 alias PR (rename): one data rule, safety checks C1–C8 | Must | PR opened automatically with diff, drift link, check run, CI |
+| F21 | Rung 2 transform: review item with explanation + suggestion; optional human-triggered `needs-review` PR | Must (review item) / Should (PR) | Never auto-applied |
 | F22 | Review card with LLM explanation + "expected change" button | Must | Shipping enum case shows explanation; no PR created when confidence < 0.6 |
 | F23 | Shape replay tests (red → green) | Should | Workflow tests fail on v2 without adapter, pass with it; shown on dashboard |
 | F24 | Cleanup PR for dead fallbacks | Could | Triggered manually in demo ("fast-forward 30 days" button) |
@@ -62,7 +64,7 @@ Priorities use MoSCoW: **Must** (demo fails without it), **Should** (big win, bu
 3. **Timeline:** vertical list of drift events, filter by service/severity/state; deploys from GitHub shown as markers (prepares the "us or them" add-on).
 4. **Drift detail:** header (service, endpoint, field, detector, confidence, severity); before/after statistics (sparklines, percentiles, presence); "where it's used" (file:line list with usage kind); proposed fix (diff); validation (tests before/after); actions (approve PR, mark expected, snooze).
 5. **Review queue:** all items needing a human, sorted by severity.
-6. **Settings:** SDK key, sample rate, enum allow-list, probe credentials, workflows file, auto-merge policy.
+6. **Settings:** SDK key, sample rate, enum allow-list, probe credentials, workflows file, alert channels, AI on/off.
 7. **Demo panel** (hackathon only): v1/v2 switches, traffic generator, reset.
 
 ## 3. Dependency graph spec ("Obsidian view")

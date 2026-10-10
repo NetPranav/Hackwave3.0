@@ -8,7 +8,7 @@ Three developers, three computers, three Claude Code sessions, one repo. These r
 |---|---|---|
 | **@NetPranav** | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config (`.github/`, `.claude/`, `scripts/`), **the only person who merges into `main`** (release PRs) |
 | **@OVERxPOWERED** | Architecture/logic | `github-app/`, `services/` (fake third-party APIs) |
-| **@adarzhpathade** | Frontend | `shop/` (demo app), `dashboard/` |
+| **@adarzhpathade** | Frontend | `dashboard/` (landing + dashboard), demo repo `NetPranav/seismo-demo-shop` |
 | Everyone | — | `contracts/`, `docs/`, `tests/` (shared; changes need a PR everyone can see) |
 
 The source of truth is [`.team/OWNERSHIP.md`](.team/OWNERSHIP.md), and [`.github/CODEOWNERS`](.github/CODEOWNERS) auto-requests the right reviewer.
@@ -38,7 +38,7 @@ team-status  (separate branch, no code: each person's live status file, read by 
 `<type>/<area>-<short-description>`, lowercase, hyphens.
 
 - **Types:** `feature` · `fix` · `chore` · `docs` · `refactor` · `test` · `hotfix` · `release`
-- **Areas:** `backend` · `sdk` · `github-app` · `services` · `shop` · `dashboard` · `contracts` · `docs` · `infra`
+- **Areas:** `backend` · `sdk` · `github-app` · `services` · `alerts` · `dashboard` · `contracts` · `docs` · `infra`
 - Examples: `feature/backend-unit-change-detector`, `feature/dashboard-dependency-graph`, `fix/sdk-fail-open-timeout`, `docs/contracts-fingerprint-schema`
 
 CI and the local pre-push hook reject other names.

@@ -26,7 +26,7 @@ The core idea is to combine three signals that existing tools use separately:
 4. **Baseline.** Seismo learns each endpoint's normal profile from the first ~200 calls or 24 hours. Probes fill in endpoints with little traffic.
 5. **Drift happens.** A detector fires. Seismo joins it with the code map to decide whether the change touches code you actually run.
 6. **Alert with context.** Slack/email: *"Payments API: `amount` values jumped ~100× at 13:58. Used in `checkout.ts:42` and `invoice.ts:88` (Checkout, Invoice workflows). Likely rupees → paise. Needs review."*
-7. **Fix.** Seismo opens a PR against a single adapter file, runs CI, and links the drift event. Safe fixes are labelled "auto-safe"; risky ones are labelled "needs review" with an explanation.
+7. **Fix.** For a rename, Seismo opens a PR that adds one data rule to `seismo/aliases.json`, runs CI, and links the drift event (labelled "auto-safe"). Everything else becomes a review item with an explanation and a suggested change.
 8. **Close the loop.** After merge, the graph goes back to green. When the old field hasn't appeared for 30 days, Seismo opens a cleanup PR that removes the dead fallback.
 
 ## 4. Fix philosophy: add, never replace
@@ -34,52 +34,36 @@ The core idea is to combine three signals that existing tools use separately:
 ### 4.1 Tolerant Reader
 Our fixes follow the **Tolerant Reader** pattern ([Martin Fowler, 2011](https://martinfowler.com/bliki/TolerantReader.html)): read only what you need, tolerate unknown and missing fields, and don't bind tightly to the provider's schema. Applied to drift:
 
-- When `name` is renamed to `display_name`, we don't replace `name`. We read `display_name` **if present**, otherwise `name`.
-- If our rename guess is wrong, the old field is still read, so **the fix cannot make things worse**. That makes rename fixes *safe by construction*, which is what allows auto-fixing them.
+- When `name` is renamed to `display_name`, we don't replace `name` and we don't change the app's code. We **add `name` back, copied from `display_name`, only when `name` is missing**. The old field always wins.
+- So for any response that still looks like before, the output is exactly the same as before. A wrong rename guess can't change anything the app already received. That makes rename fixes *safe by construction*, which is what allows proposing them automatically.
+- Full safety spec (guarantees G1–G4, conflict checks C1–C8, property tests): [`../roadmap/P5-fix-it-safely.md`](../roadmap/P5-fix-it-safely.md).
 
 ### 4.2 The fix ladder
 
 | Rung | Change type | Fix | Who approves |
 |---|---|---|---|
-| **1. Fallback** | Rename, added wrapper object, alternative error shape | Read new field if present, else old | Auto-safe PR (CI must pass) |
-| **2. Transform** | Unit change (×100), format change (date string → epoch), type coercion | Convert value at the boundary, e.g. `amount / 100` | Human review; auto-apply only if confidence is very high **and** tests pass **and** the team opted in |
-| **3. Behaviour** | Page size cap, page → cursor, new rate limit, new enum value, removed endpoint | Code change: paginate until empty, add backoff, map new status, migrate endpoint | Always human review; PR is a suggestion |
+| **1. Alias** | Rename of a field the app reads | Add a data rule to `seismo/aliases.json`: add `target` from `source` when `target` is missing | Automatic PR (`auto-safe`), merged by a human after all checks and CI pass |
+| **2. Transform** | Unit change (×100), format change, type coercion | Explanation + deterministic suggestion (e.g. a `scale` rule) | **Always human review; never auto-applied.** A human may click "Open suggestion PR" (`needs-review`) |
+| **3. Behaviour** | Page size cap, page → cursor, new rate limit, new enum value, removed endpoint | Explanation + suggested code change from a template catalog | Always human review; no automatic PR |
 
-### 4.3 One adapter file per API, not edits scattered across the codebase
-If `user.name` is read in 40 places, editing 40 lines makes an unreviewable PR. Instead the bot owns **one normalisation file per external API** at the boundary:
+### 4.3 Fixes are data, applied by one tested function
+If `user.name` is read in 40 places, editing 40 lines makes an unreviewable PR, and generating code is risky. Instead:
 
-```ts
-// seismo/adapters/users.ts  (generated; one place to review)
-import { firstPresent } from "@seismo/runtime";
+- The repo gets a one-time **setup PR** that wraps each API client's parsed JSON with `applyAliases(raw, rules)` from `@seismo/sdk/runtime` and adds an empty `seismo/aliases.json` plus a property test file. With no rules, nothing changes (identity).
+- Every later fix is **one line of data** in `seismo/aliases.json`:
 
-export function normalizeUser(raw: any) {
-  return {
-    ...raw,
-    // drift #12 · 2026-10-14 · users API renamed name → display_name · confidence 0.93
-    name: firstPresent(raw, ["display_name", "name"]),
-  };
-}
+```json
+{ "id": "a12", "kind": "alias", "endpoint": "GET /users/{id}", "path": "$",
+  "target": "name", "source": "display_name", "driftEvent": "evt_8f2c", "addedAt": "2026-10-14" }
 ```
 
-```ts
-// seismo/adapters/payments.ts
-export function normalizePayment(raw: any) {
-  return {
-    ...raw,
-    // drift #13 · 2026-10-14 · amount ~100× larger (median 520 → 52,000)
-    // likely rupees → paise · confidence 0.88 · approved by a reviewer (money field: never auto-applied)
-    amount: raw.amount / 100,
-  };
-}
-```
+- `applyAliases` is small, audited and property-tested in our repo (identity on the old shape, additive only, no prototype keys, never throws). Neither the AI nor the bot writes code at fix time.
 
-Caveat for transforms: if the provider rolls out gradually, old- and new-unit responses can be mixed for a while. Transforms therefore stay in review until the detector sees the new distribution in nearly all recent samples (see the unit-change detector in [architecture.md](architecture.md)).
-
-First run: the bot opens a one-time "introduce adapters" PR that routes each API client's responses through its adapter. After that, every fix touches only adapter files.
+Caveat for unit changes: if the provider rolls out gradually, old- and new-unit responses can be mixed for a while, so suggestions wait until the detector sees the new distribution in nearly all recent samples (see the unit-change detector in [architecture.md](architecture.md)).
 
 ### 4.4 Pitfalls the fixes must avoid
-1. **Falsy values.** `raw.amount || raw.new_amount` breaks when `amount` is `0`, `""` or `false`. `firstPresent` checks "key exists and value is not `null`/`undefined`", never truthiness.
-2. **Meaning changes have no second field.** For rupees → paise the name stays `amount`; only a transform works. Never auto-apply a transform on money without review.
+1. **Falsy values.** `raw.amount || raw.new_amount` breaks when `amount` is `0`, `""` or `false`. `applyAliases` checks "key exists" (`hasOwn`), never truthiness.
+2. **Meaning changes have no second field.** For rupees → paise the name stays `amount`; only a transform works. Transforms are never auto-applied.
 3. **Writes are different from reads.** If the API now expects `display_name` in a request body, sending both fields can be rejected. Request-side fixes are always rung 3.
 4. **Fallback debt.** Every fallback is tracked; cleanup PRs remove dead ones.
 
@@ -114,6 +98,6 @@ First run: the bot opens a one-time "introduce adapters" PR that routes each API
 |---|---|
 | Accurate change detection incl. behavioural | 10+ detectors over a learned baseline, including truncation, pagination overlap, unit change and enum drift; confirmation probes reduce false alarms |
 | Dependency mapping | GitHub App code map: API → endpoint → field → function → workflow, shown as a graph |
-| Semantics-aware compatibility fixes | Fix ladder: fallback, transform, behaviour; adapter file per API |
+| Semantics-aware compatibility fixes | Fix ladder: alias (data rule, proven additive), transform and behaviour (human review with suggestions) |
 | Regression validation | Fix PR runs the repo's CI plus generated workflow tests replaying recorded response shapes |
 | Safe handling when uncertain | Confidence + impact rules route to human review with an explanation; PRs are always reversible |

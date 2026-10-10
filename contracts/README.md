@@ -10,12 +10,15 @@ Interfaces between the parts owned by different people. **Contract first, code s
 
 ## Planned contracts
 
+The authoritative list, with the phase each one is written in, is [`../docs/roadmap/README.md`](../docs/roadmap/README.md) §5. Contracts are zod schemas in this package (`@seismo/contracts`) that generate TS types, JSON Schema and OpenAPI.
+
+
 | File | Producer → consumer | Describes |
 |---|---|---|
 | `fingerprint.schema.json` | SDK → backend ingest (@NetPranav) | Shape-only response fingerprint + batch sketch (see `docs/PS/architecture.md` §3.3) |
 | `dashboard-api.openapi.yaml` | backend (@NetPranav) → dashboard (@adarzhpathade) | Services, endpoints, drift events, graph data, review queue, demo controls, WebSocket events |
 | `codemap.schema.json` | GitHub App (@OVERxPOWERED) → backend (@NetPranav) | Call sites, field reads, usage kinds, workflows |
 | `fix-request.schema.json` | backend (@NetPranav) → PR bot (@OVERxPOWERED) | Drift event + rung + adapter change to open as a PR |
-| `fake-services.md` | services (@OVERxPOWERED) → shop (@adarzhpathade) | Endpoints, v1/v2 payloads, admin toggle API |
+| `fake-services` | services (@OVERxPOWERED) → demo shop + dashboard (@adarzhpathade) | Endpoints, v1/v2 payloads, admin toggle API |
 
 Write these first (day 1–2) so frontend and backend work can start in parallel.

@@ -95,7 +95,7 @@ jobs:
       - id: detect
         run: |
           dirs=""
-          for d in sdk-node github-app shop dashboard; do
+          for d in contracts sdk-node backend github-app services dashboard; do
             if [ -f "$d/package.json" ]; then dirs="$dirs $d"; fi
           done
           echo "dirs=$dirs" >> "$GITHUB_OUTPUT"

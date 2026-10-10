@@ -68,7 +68,7 @@ The gap: **detection, impact analysis and the fix are all manual, and detection 
 
 ## 6. What the judges look for
 
-From `PS3_Overview.md` §7 (a paraphrase; the official PS PDF is not in this folder yet, see [`../MEMORY.md`](../../MEMORY.md)):
+From the official `Hackwave Problem_Statements.pdf` (root folder), PS 3, "What a strong solution shows":
 
 1. Accurate change detection, **including behavioural changes**
 2. Dependency mapping
@@ -76,7 +76,7 @@ From `PS3_Overview.md` §7 (a paraphrase; the official PS PDF is not in this fol
 4. Regression validation
 5. Safe handling when automatic repair is uncertain
 
-The PS also says not to rely only on documented schemas, so behavioural and meaning changes must be caught from observed behaviour.
+The PS also says not to rely only on documented schemas, so behavioural and meaning changes (altered defaults, different error responses, changed pagination, rate limits, valid JSON with changed meaning) must be caught from observed behaviour. Its problem framing also names SDKs, MCP servers and webhooks, and dependencies that disappear. **Demo requirement:** an application dependent on several simulated external services; introduce undocumented changes; demonstrate automatic detection, impact analysis, adaptation, and validation that affected workflows work again.
 
 ## 7. Scope for the hackathon
 

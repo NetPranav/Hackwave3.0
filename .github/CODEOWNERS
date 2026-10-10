@@ -11,9 +11,9 @@
 # Architecture / logic: OVERxPOWERED
 /github-app/          @OVERxPOWERED
 /services/            @OVERxPOWERED
+/backend/src/alerts/  @OVERxPOWERED
 
-# Frontend: adarzhpathade
-/shop/                @adarzhpathade
+# Frontend: adarzhpathade (the demo shop lives in NetPranav/seismo-demo-shop)
 /dashboard/           @adarzhpathade
 
 # Shared interfaces and docs: everyone

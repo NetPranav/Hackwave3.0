@@ -7,7 +7,7 @@ body:
     id: area
     attributes:
       label: Area
-      options: [backend, sdk, github-app, services, shop, dashboard, contracts, docs, infra]
+      options: [backend, sdk, github-app, services, alerts, dashboard, demo-shop, contracts, docs, infra]
     validations:
       required: true
   - type: dropdown

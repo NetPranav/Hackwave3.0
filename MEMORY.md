@@ -4,15 +4,26 @@ A living log of decisions, open questions and facts for this project. Newest ent
 
 ## Snapshot (2026-10-11)
 
-- **Event:** HackWave 3.0 (CDGI), PS 3 "The Internet After the API", ~10-day build.
+- **Event:** HackWave 3.0 (CDGI), PS 3 "The Internet After the API", 14-day build (2026-10-11 → 2026-10-24).
 - **Product (working name):** Seismo, "Dependabot for the APIs you depend on".
-- **Stage:** research and design done (`docs/`), team workflow + CI + Claude coordination set up, no product code yet.
-- **Core bet:** real-traffic, shape-only fingerprints + semantic/behavioural detectors + code-aware severity + fix PRs. Add-ons: changelog/deprecation radar and a (simulated) drift network.
+- **Stage:** research and design done (`docs/PS/`), team workflow + CI + Claude coordination live, **build roadmap written (`docs/roadmap/`, 14 days, Day 1 = 2026-10-11, demo 2026-10-24)**, no product code yet.
+- **Core bet:** real-traffic, shape-only fingerprints + semantic/behavioural detectors + code-aware severity + safe alias PRs (data rules, proven additive). Add-ons: changelog/deprecation radar + Compare & Simulate. No drift network in the 14-day plan.
 
 ## Decisions
 
 | Date | Decision | Why | Where documented |
 |---|---|---|---|
+| 2026-10-11 | **Roadmap: 14 days (2026-10-11 → 2026-10-24), vertical-slice phases P0–P8**, scope freeze end of day 11 | Each phase completes a demoable feature | `docs/roadmap/README.md` |
+| 2026-10-11 | **All TypeScript** (Fastify + pg-boss backend, Node SDK, Probot app, Fastify fake services, Next.js) | One language; zod contracts shared by all three devs. Supersedes the FastAPI decision | `docs/roadmap/setup-and-deploy.md` |
+| 2026-10-11 | **Deployed cloud** (Vercel + non-sleeping Node host + Neon) with Docker Compose as offline backup | Webhooks and the landing page need public URLs | `docs/roadmap/setup-and-deploy.md` |
+| 2026-10-11 | **Demo shop in a separate repo `NetPranav/seismo-demo-shop`** (owner adarzhpathade) | Real "install the app on a repo" flow; resolves Q7 | `docs/roadmap/P1-demo-world.md` |
+| 2026-10-11 | **Login: GitHub only**, through the GitHub App's OAuth (Auth.js) | Same identity as installations | `docs/roadmap/github-app.md` |
+| 2026-10-11 | **AI: NVIDIA NIM, Nemotron** (Ultra `nvidia/nemotron-3-ultra-550b-a55b` for quality, a faster Nemotron for classification; final by spike S1). OpenAI-compatible client, model by env | Team choice. Supersedes the Claude-model suggestion | `docs/roadmap/ai-layer.md` |
+| 2026-10-11 | **AI never writes code.** AI only explains (dashboard + alerts) and judges ambiguous cases, as zod-validated JSON; templates are the fallback | Team rule: "can't break even if it wanted to" | `docs/roadmap/ai-layer.md` |
+| 2026-10-11 | **Fixes are data rules** in the customer's `seismo/aliases.json`, applied by `applyAliases` (`@seismo/sdk/runtime`): add `target` from `source` only when `target` is missing; old field wins; guarantees G1–G4 proven by fast-check; conflict checks C1–C8. Only aliases get automatic PRs; transforms/behaviour changes are review-only | Supersedes "adapter file per API" and "firstPresent(new, old)" | `docs/roadmap/P5-fix-it-safely.md` |
+| 2026-10-11 | **Alerts:** dashboard, GitHub (issue/check/comment), WhatsApp (Twilio sandbox), Slack/Discord, email (Resend). No SMS | Team choice | `docs/roadmap/P6-meaning-changes-ai-alerts.md` |
+| 2026-10-11 | **Add-ons in plan:** changelog & deprecation radar; Compare & Simulate. **Drift network dropped** from the 14-day plan | Team choice; resolves Q3 | `docs/roadmap/README.md` |
+| 2026-10-11 | **Reuse libraries first** (catalog with verification status) | Team rule | `docs/roadmap/libraries.md` |
 | 2026-10-11 | Team: NetPranav = lead + architecture/logic (backend, SDK), OVERxPOWERED = architecture/logic (GitHub App, fake services), adarzhpathade = frontend (shop, dashboard) | Split agreed by the lead; backend split between the two logic devs is changeable in `.team/OWNERSHIP.md` | `.team/OWNERSHIP.md`, `.github/CODEOWNERS` |
 | 2026-10-11 | Branch model: `main` (no direct pushes by anyone; only the lead merges release PRs, merge commits, tags) ← `develop` (default branch; squash-merged PRs; 1 approval + CI `ci-ok` + up to date) ← `<type>/<area>-<desc>` branches; `hotfix/*` from main | Keep main demo-ready; nobody breaks develop | `CONTRIBUTING.md` |
 | 2026-10-11 | Enforcement: GitHub rulesets (server-side) + `.githooks/pre-push` (local) + Claude `permissions.deny` (no push to main/develop, no force push, no `gh pr merge`) | Defence in depth; rulesets are the real guard | `.claude/settings.json`, `CONTRIBUTING.md` §2 |
@@ -24,26 +35,29 @@ A living log of decisions, open questions and facts for this project. Newest ent
 | 2026-10-11 | Do **not** claim novelty for structural third-party drift, API lockfiles or MCP tool pinning | Research found 8+ polling drift tools (FlareCanary, DriftGuard, DriftMonitor, APIShift…), DriftGuard GitHub Action, Invariant mcp-scan, Bellwether, DriftCop | `docs/PS/competitors.md` |
 | 2026-10-11 | Differentiate on G1–G5: real-traffic shape-only profiling, semantic/behavioural detectors, code-aware severity, fix PRs with ladder, drift network | Not seen together in any tool during research | `docs/PS/market-gap.md` |
 | 2026-10-11 | Primary capture = in-process SDK (read-only, fail-open, sampled); probes secondary; no proxy in MVP | Proxy sits in the request path and is a hard security sell | `docs/PS/architecture.md` §2, `docs/PS/advantages-disadvantages.md` §3.1 |
-| 2026-10-11 | Fixes ship as PRs to one adapter file per API, following Tolerant Reader (add, never replace) | Reviewable, reversible, safe even when a rename guess is wrong | `docs/PS/solution.md` §4 |
-| 2026-10-11 | Fix ladder: fallback → transform → behaviour; money/branching/persistence always reviewed | Safe handling when uncertain is a judging criterion | `docs/PS/solution.md` §4.2 |
+| 2026-10-11 | ~~Fixes ship as PRs to one adapter file per API~~ **Superseded** by data rules in `seismo/aliases.json` (above) | Reviewable, reversible, safe even when a rename guess is wrong | `docs/PS/solution.md` §4 |
+| 2026-10-11 | Fix ladder: alias → transform → behaviour; transforms never auto-applied; money/branching/persistence always reviewed | Safe handling when uncertain is a judging criterion | `docs/PS/solution.md` §4.2 |
 | 2026-10-11 | Fingerprints never carry a record's values; numbers only as magnitude + batch percentiles (no min/max); salt stays customer-side; enum allow-list is the only plain-value exception | Privacy is the main adoption blocker for payment-heavy customers | `docs/PS/architecture.md` §3.3 |
 | 2026-10-11 | LLM only explains/classifies/extracts; detection is deterministic | Avoid "AI wrapper" perception; explainable to judges | `docs/PS/architecture.md` §9 |
-| 2026-10-11 | Hackathon add-ons: changelog & deprecation radar + simulated drift network (two demo apps); "us or them" if time | Evidence-backed proactive story + memorable moat demo | `docs/PS/add-ons.md` |
-| 2026-10-11 | Demo stack: FastAPI fake services (users, payments, shipping, orders), Next.js shop + dashboard, Node SDK, Probot GitHub App | Fast to build; one SDK language | `docs/PS/architecture.md` §11 |
+| 2026-10-11 | ~~Hackathon add-ons: radar + simulated drift network~~ **Superseded**: radar + Compare & Simulate, no drift network | Evidence-backed proactive story + memorable moat demo | `docs/PS/add-ons.md` |
+| 2026-10-11 | ~~Demo stack: FastAPI fake services~~ **Superseded** by all-TypeScript (above) | Fast to build; one SDK language | `docs/PS/architecture.md` §11 |
 | 2026-10-11 | Pricing hypothesis: Free / Team $49 / Business $299 / Enterprise; per monitored API | Anchored to competitor prices and Pandium's median of 15 integrations | `docs/PS/business-model.md` §4 |
 
 ## Open questions
 
 | # | Question | Owner | Status |
 |---|---|---|---|
-| Q1 | **The official PS 3 PDF is not in the repo.** `PS3_Overview.md` paraphrases it, and the evidence PDF refers to an "MCP servers" part of the problem statement. Does the official PS require MCP/AI-agent coverage, and what are the exact judging criteria/weights? | Team | Open; add the PDF to the root |
+| Q1 | Official PS 3 requirements | Team | **Resolved 2026-10-11:** `Hackwave Problem_Statements.pdf` added. MCP servers, SDKs and webhooks appear in the problem framing only; the demo requirement is several simulated services + undocumented changes → detection, impact, adaptation, validation. Roadmap adds D17 endpoint-gone and webhook drift (Should); MCP is Later. No judging weights given |
 | Q2 | Final product name (check domain, GitHub org, trademark) | Product | Open |
-| Q3 | Which add-on is primary if time runs short: changelog radar or drift network? | Team | Open; decide by day 6 |
-| Q4 | SDK language for MVP: Node only (current plan) or also Python? | Backend | Leaning Node only |
+| Q3 | Which add-on is primary if time runs short? | Team | **Resolved 2026-10-11:** radar + Compare & Simulate; no drift network |
+| Q4 | SDK language for MVP | Backend | **Resolved 2026-10-11:** Node/TypeScript only |
 | Q5 | Survey results: our own number on how teams find out about API changes | Product | Not started |
 | Q6 | Verify competitor features/prices on their own sites before the deck (all currently vendor claims via a competitor's article) | Product | Open |
-| Q7 | Should the demo shop live in this repo (`shop/`) or a separate demo repo that the Seismo GitHub App is installed on? A separate repo makes the "install the app" demo cleaner. CI already allows `seismo/*` bot branches in case it stays here | Lead + OVERxPOWERED | Open |
+| Q7 | Where does the demo shop live? | Lead + OVERxPOWERED | **Resolved 2026-10-11:** separate repo `NetPranav/seismo-demo-shop` |
 | Q8 | The repo is **public**: the evidence PDFs and docs are visible to anyone, including other teams. Keep public (rulesets are free on public repos) or go private (rulesets on private repos need GitHub Pro/Team; the Student Pack includes Pro)? | Lead | Open |
+| Q9 | P0 spikes S1–S6: NIM base URL/models/structured output/rate limit; body capture with @mswjs/interceptors; Probot maintenance; Twilio WhatsApp sandbox; non-sleeping Node host; graph library | NetPranav, OVERxPOWERED, adarzhpathade | Open; answer by end of day 2 (2026-10-12) |
+| Q10 | npm scope for publishing the SDK (`@<scope>/seismo-sdk`) | Lead | Open; P0.10 |
+| Q11 | Final deadline confirmation: is the demo on 2026-10-24? | Lead | Open |
 
 ## Key facts to remember (labelled)
 
@@ -65,5 +79,6 @@ A living log of decisions, open questions and facts for this project. Newest ent
 
 ## Changelog of this file
 
+- 2026-10-11: Added roadmap decisions (14 days, all TS, NIM, AI-never-writes-code, aliases.json data rules, alerts, radar, no drift network); superseded old rows; Q9–Q11.
 - 2026-10-11: Added team roles, branch model, enforcement and Claude coordination decisions; Q7–Q8.
 - 2026-10-11: Created with initial decisions, open questions and facts after the docs folder was written.

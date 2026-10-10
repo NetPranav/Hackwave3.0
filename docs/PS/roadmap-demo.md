@@ -1,5 +1,7 @@
 # Build plan, demo script and judge prep
 
+> **Superseded in part (2026-10-11).** The build plan (§1) and repo layout (§2) are replaced by [`../roadmap/`](../roadmap/README.md): 14 days, all TypeScript, separate demo repo `seismo-demo-shop`, NVIDIA NIM for AI, no drift network. The current demo script is in [`../roadmap/P8-launch.md`](../roadmap/P8-launch.md). The judge Q&A (§4) still applies, except that code scanning uses ts-morph and fixes are data rules in `seismo/aliases.json`.
+
 ## 1. Ten-day build plan
 
 Freeze rule: **no new features after day 7.** Days 8–10 are polish, demo safety and the pitch.
