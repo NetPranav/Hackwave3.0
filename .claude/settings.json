@@ -24,7 +24,7 @@
       "Bash(git push * -f*)",
       "Bash(git push * +*)",
       "Bash(gh pr merge*)",
-      "Bash(gh api * rulesets*)",
+      "Bash(gh api *rulesets*)",
       "Bash(git config core.hooksPath*)"
     ]
   },

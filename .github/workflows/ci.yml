@@ -50,7 +50,7 @@ jobs:
       - name: Relative Markdown links resolve
         run: bash scripts/check-md-links.sh
       - name: Shell scripts parse
-        run: for f in scripts/*.sh .githooks/*; do bash -n "$f"; done
+        run: for f in scripts/*.sh scripts/admin/*.sh .githooks/*; do bash -n "$f"; done
       - name: Claude settings are valid JSON
         run: jq empty .claude/settings.json
 
