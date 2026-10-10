@@ -86,3 +86,5 @@ fast-check · ts-morph · octokit-plugin-create-pull-request · @octokit/webhook
 
 ## Cut line
 Must: P5.1–P5.9 · Should: P5.10 · Later: P5.11, auto-merge option
+
+**Fallback for P5.3:** if the ts-morph codemod that wraps API clients slips, @adarzhpathade wires `applyAliases` into the demo shop's `lib/api/*` clients by hand (in P1), and the setup PR only adds `seismo/aliases.json` and `seismo/aliases.test.ts`. The demo works the same either way.
