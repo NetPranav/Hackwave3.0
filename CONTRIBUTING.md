@@ -21,7 +21,7 @@
 git switch <your-branch>            # netpranav / adarzhpathade
 git pull                            # get your own latest from GitHub
 # ... work ...
-git add -A && git commit -m "feat(dashboard): P2.7 graph highlight"
+git add -A && git commit -m "feat(dashboard): A2.2 graph highlight"
 git push                            # pushes to YOUR branch only
 ```
 In Claude Code, `/handoff` does the commit + push + status note for you.

@@ -2,7 +2,7 @@
 
 **Done when:** flipping users `name` → `display_name` turns the endpoint amber in < 30 s and red in < 60 s, the graph path users → name → invoice/checkout pulses red, a GitHub issue appears on the demo repo, and the dashboard bell shows the alert. Removing a field nobody reads stays a quiet "info" event.
 
-**Depends on:** P2 (code map), P3 (baselines) · **Contracts:** `drift-event`, `notification` · **Owners:** NetPranav (detectors, severity), OVERxPOWERED (GitHub notifications), adarzhpathade (timeline, drift detail, graph states)
+**Depends on:** P2 (code map), P3 (baselines) · **Contracts:** `drift-event`, `notification` · **Owner:** NetPranav (detectors, severity, notifications). Timeline, drift detail and graph states are Adarsh's [A4](A4-timeline-and-drift.md).
 
 ## Detector framework
 - A detector is a pure function `(baseline, window, context) → Finding[]`. Each `Finding` has: detector ID, endpoint, field path, confidence (0–1), evidence (before/after statistics), suggested rung (alias / review).
@@ -37,9 +37,7 @@
 | P4.3 | D1–D4 incl. rename scoring | NetPranav | Fixture tests green |
 | P4.4 | D11–D14, D16, D17 | NetPranav | Fixture tests green |
 | P4.5 | Severity engine joined with code map; impact paths via graphology BFS | NetPranav | `GET /v1/drift-events` |
-| P4.6 | Notification fan-out v1: dashboard (DB + SSE) and **GitHub**: one issue per breaking event on the affected repo (labels `seismo`, severity), updated on state change | OVERxPOWERED | Issues appear on the demo repo |
-| P4.7 | Timeline page, drift detail page (before/after stats, detector reasoning, where used), notification bell | adarzhpathade | See [dashboard.md](dashboard.md) §6–7 |
-| P4.8 | Graph states: amber/red/blue/green; red path pulse from changed field to workflows | adarzhpathade | Live via SSE |
+| P4.6 | Notification fan-out v1: dashboard (DB + SSE) and **GitHub**: one issue per breaking event on the affected repo (labels `seismo`, severity), updated on state change | NetPranav | Issues appear on the demo repo |
 | P4.9 | Soak test: 10 minutes of v1 traffic → zero non-info events | NetPranav | Recorded in PR |
 
 ## Libraries

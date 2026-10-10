@@ -11,7 +11,7 @@
 | GitHub | Role |
 |---|---|
 | @NetPranav | Lead · architecture/logic (backend, SDK) · merges releases into `main` |
-| @OVERxPOWERED | Architecture/logic (GitHub App, fake services) |
+| @OVERxPOWERED | No tasks (invite pending) |
 | @adarzhpathade | Frontend (landing, dashboard, demo shop repo) |
 
 ## Get started (each teammate, once)

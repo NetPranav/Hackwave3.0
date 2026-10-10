@@ -2,7 +2,7 @@
 
 **Done when:** after the rename flip, Seismo opens a PR on `seismo-demo-shop` whose only change is one line of **data** in `seismo/aliases.json`. The PR shows every safety check passed and CI is green. A human merges, the shop redeploys, the customer name is back, and the graph turns green. The guarantees below are proven by property tests, not just claimed.
 
-**Depends on:** P2, P4 · **Contracts:** `alias-spec`, `fix-request`, `validation-result` · **Owners:** NetPranav (runtime, planner, checks), OVERxPOWERED (setup PR, PR bot, CI tracking), adarzhpathade (fix panel, demo tests)
+**Depends on:** P2, P4 · **Contracts:** `alias-spec`, `fix-request`, `validation-result` · **Owner:** NetPranav (runtime, planner, checks, PR bot). Fix panel and shop tests are Adarsh's [A5](A5-fix-panel.md).
 
 ---
 
@@ -64,15 +64,13 @@ Units, enum meanings, pagination, limits, removed endpoints, type changes, reque
 |---|---|---|---|
 | P5.1 | `contracts/alias-spec`, `contracts/fix-request`, `contracts/validation-result` | NetPranav | Merged first |
 | P5.2 | `@seismo/sdk/runtime`: `applyAliases` + G1–G4 property tests (fast-check) | NetPranav | 100% branch coverage on the runtime |
-| P5.3 | **Setup PR** ("Install Seismo adapters"): adds `seismo/aliases.json` (empty), `seismo/aliases.test.ts`, and wraps each provider client's parsed JSON with `applyAliases(…)` using a deterministic **ts-morph codemod** limited to the files in `seismo.config.json` | OVERxPOWERED (bot) + NetPranav (codemod) | Identity-only change (empty rules ⇒ G1 holds everywhere); CI green |
+| P5.3 | **Setup PR** ("Install Seismo adapters"): adds `seismo/aliases.json` (empty), `seismo/aliases.test.ts`, and wraps each provider client's parsed JSON with `applyAliases(…)` using a deterministic **ts-morph codemod** limited to the files in `seismo.config.json` | NetPranav (bot) + NetPranav (codemod) | Identity-only change (empty rules ⇒ G1 holds everywhere); CI green |
 | P5.4 | Alias planner: rename drift event → alias rule; conflict checks C1–C6 | NetPranav | Planner unit tests incl. every conflict case |
-| P5.5 | PR bot: branch `seismo/alias-<id>`, one-file change via `octokit-plugin-create-pull-request`, title `fix(seismo): alias users.name ← display_name`, body with evidence, guarantees, checks, where used, how to revert; labels `seismo`, `auto-safe` | OVERxPOWERED | PR on the demo repo |
-| P5.6 | "Seismo safety checks" **check run** on the PR (C1–C6 results) + tracking `check_suite`/`pull_request` webhooks → `validation-result` → dashboard | OVERxPOWERED | Live PR status in dashboard |
-| P5.7 | Fix panel: diff view, C1–C8 checklist with ticks, CI status, PR link, revert link; review queue entry for non-alias changes | adarzhpathade | See [dashboard.md](dashboard.md) §7 |
-| P5.8 | Demo-shop tests: invoice renders the customer name with a v2 fixture **only** after the alias rule exists (red → green) | adarzhpathade | Visible on the PR's CI |
+| P5.5 | PR bot: branch `seismo/alias-<id>`, one-file change via `octokit-plugin-create-pull-request`, title `fix(seismo): alias users.name ← display_name`, body with evidence, guarantees, checks, where used, how to revert; labels `seismo`, `auto-safe` | NetPranav | PR on the demo repo |
+| P5.6 | "Seismo safety checks" **check run** on the PR (C1–C6 results) + tracking `check_suite`/`pull_request` webhooks → `validation-result` → dashboard | NetPranav | Live PR status in dashboard |
 | P5.9 | Resolution: PR merged → event `resolved` → baseline rebuilt from post-change samples → graph green | NetPranav | End-to-end demo |
-| P5.10 | *(Should)* Human-triggered suggestion PR for unit changes (`scale` rule, `needs-review`) | NetPranav + OVERxPOWERED | Never auto-merged |
-| P5.11 | *(Later)* Cleanup PR when `target` hasn't been missing for 30 days ("fast-forward 30 days" demo button) | OVERxPOWERED | Removes dead aliases |
+| P5.10 | *(Should)* Human-triggered suggestion PR for unit changes (`scale` rule, `needs-review`) | NetPranav | Never auto-merged |
+| P5.11 | *(Later)* Cleanup PR when `target` hasn't been missing for 30 days ("fast-forward 30 days" demo button) | NetPranav | Removes dead aliases |
 
 ## Libraries
 fast-check · ts-morph · octokit-plugin-create-pull-request · @octokit/webhooks · react-diff-viewer-continued. Status in [libraries.md](libraries.md).
@@ -87,4 +85,4 @@ fast-check · ts-morph · octokit-plugin-create-pull-request · @octokit/webhook
 ## Cut line
 Must: P5.1–P5.9 · Should: P5.10 · Later: P5.11, auto-merge option
 
-**Fallback for P5.3:** if the ts-morph codemod that wraps API clients slips, @adarzhpathade wires `applyAliases` into the demo shop's `lib/api/*` clients by hand (in P1), and the setup PR only adds `seismo/aliases.json` and `seismo/aliases.test.ts`. The demo works the same either way.
+**Fallback for P5.3:** if the ts-morph codemod that wraps API clients slips, @adarzhpathade wires `applyAliases` into the demo shop's `lib/api/*` clients by hand (A1.1, on NetPranav's request), and the setup PR only adds `seismo/aliases.json` and `seismo/aliases.test.ts`. The demo works the same either way.

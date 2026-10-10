@@ -2,7 +2,7 @@
 
 **Done when:** from the dashboard's Demo Control, flipping any fake API to v2 makes the demo shop visibly wrong, and a side-by-side diff shows v1 vs v2 responses.
 
-**Depends on:** P0 · **Contracts:** `fake-services` · **Owners:** OVERxPOWERED (services), adarzhpathade (shop, Demo Control, Compare)
+**Depends on:** P0 · **Contracts:** `fake-services` · **Owner:** NetPranav (fake services, traffic generator). The shop, Demo Control and Compare are Adarsh's [A1](A1-demo-shop.md).
 
 ## The fake third-party APIs (`services/`, one Fastify app, four "providers")
 
@@ -24,13 +24,9 @@ Each provider also publishes, for P7: `GET /openapi.json` (changes with toggles)
 
 | ID | Task | Owner | Output |
 |---|---|---|---|
-| P1.1 | `contracts/fake-services`: every endpoint's v1 and v2 payloads as zod schemas + realistic seed data (Indian names, ₹ prices) | OVERxPOWERED | Contract merged first |
-| P1.2 | Implement the four providers + scenario engine + admin API + rollout percentage | OVERxPOWERED | Deployed to staging |
-| P1.3 | Per-provider `openapi.json` and `/changelog` (HTML + RSS) | OVERxPOWERED | Used by P7 |
-| P1.4 | Create repo **`NetPranav/seismo-demo-shop`** (Next.js): products, product detail, checkout, invoice, order history; all provider calls server-side through one `lib/api/*` client per provider | adarzhpathade | Deployed on Vercel |
-| P1.5 | Make breakage visible: blank customer name, ₹49,900 instead of ₹499, missing orders, "Unknown status" badge, broken error toasts | adarzhpathade | Each v2 toggle visibly breaks one screen |
-| P1.6 | Dashboard **Demo Control** panel (only when `DEMO_MODE=true`): toggles, rollout slider, reset | adarzhpathade | Calls services admin API |
-| P1.7 | Dashboard **Compare** view v1: pick provider endpoint → fetch v1 and v2 sample → `jsondiffpatch` side-by-side diff | adarzhpathade | First piece of "Compare & Simulate" |
+| P1.1 | `contracts/fake-services`: every endpoint's v1 and v2 payloads as zod schemas + realistic seed data (Indian names, ₹ prices) | NetPranav | Contract merged first |
+| P1.2 | Implement the four providers + scenario engine + admin API + rollout percentage; `GET /admin/sample/{endpoint}?version=1|2` returns the v1 or v2 payload regardless of toggles (feeds the Compare view) | NetPranav | Deployed to staging |
+| P1.3 | Per-provider `openapi.json` and `/changelog` (HTML + RSS) | NetPranav | Used by P7 |
 | P1.8 | Traffic generator: a script hitting the shop's pages at a set rate (so baselines fill without clicking) | NetPranav | `npm run demo:traffic -- --rps 5` |
 
 ## Libraries

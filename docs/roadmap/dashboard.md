@@ -6,20 +6,20 @@ Owner: @adarzhpathade · Stack: Next.js (App Router) + Tailwind + shadcn/ui on V
 
 | Route | Access | Built in |
 |---|---|---|
-| `/` landing | Public | P8 (draft P7) |
-| `/docs/sdk` install guide | Public | P8 |
-| `/login` → GitHub | Public | P0 |
-| `/onboarding` (GitHub App setup URL) | Signed in | P2 |
-| `/app` overview | Signed in | P3 |
-| `/app/graph` | Signed in | P2 |
-| `/app/status` · `/app/status/[service]` | Signed in | P3 |
-| `/app/timeline` · `/app/drift/[id]` | Signed in | P4 |
-| `/app/fixes` | Signed in | P5 |
-| `/app/review` | Signed in | P6 |
-| `/app/compare` | Signed in | P1 → P6 |
-| `/app/radar` | Signed in | P7 |
-| `/app/settings` (repos, SDK keys, alerts, AI, enum allow-list) | Signed in | P3 → P6 |
-| `/app/demo` Demo Control | `DEMO_MODE` only | P1 |
+| `/` landing | Public | A7.3 (draft), A8.1 (final) |
+| `/docs/sdk` install guide | Public | A8.1 |
+| `/login` → GitHub | Public | A0.1 |
+| `/onboarding` (GitHub App setup URL) | Signed in | A2.1 |
+| `/app` overview | Signed in | A3.4 |
+| `/app/graph` | Signed in | A2.2 (states A4.4, badges A7.2) |
+| `/app/status` · `/app/status/[service]` | Signed in | A3.2 |
+| `/app/timeline` · `/app/drift/[id]` | Signed in | A4.1 · A4.2 |
+| `/app/fixes` | Signed in | A5.1 |
+| `/app/review` | Signed in | A6.2 |
+| `/app/compare` | Signed in | A1.4 → A6.3 |
+| `/app/radar` | Signed in | A7.1 |
+| `/app/settings` (repos, SDK keys, alerts, AI, enum allow-list) | Signed in | A2.4 · A3.5 · A6.1 |
+| `/app/demo` Demo Control | `DEMO_MODE` only | A1.3 |
 
 ## 2. Landing page (before login)
 Purpose: explain in 10 seconds, prove it's real, get a click on **Install on GitHub** or **Sign in**.

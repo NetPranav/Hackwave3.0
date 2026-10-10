@@ -23,8 +23,8 @@ Who owns which part of the repo. Owners review PRs that touch their area (see `.
 |---|---|---|---|
 | SDK → backend ingest | `contracts/fingerprint.schema.json` | NetPranav | NetPranav |
 | Backend → dashboard | `contracts/dashboard-api.openapi.yaml` | NetPranav | adarzhpathade |
-| GitHub App → backend | `contracts/codemap.schema.json` | OVERxPOWERED | NetPranav |
-| Fake services → demo shop, dashboard | `contracts/fake-services` | OVERxPOWERED | adarzhpathade |
-| Backend → PR bot | `contracts/fix-request.schema.json` | NetPranav | OVERxPOWERED |
+| GitHub App → backend | `contracts/codemap.schema.json` | NetPranav | NetPranav |
+| Fake services → demo shop, dashboard | `contracts/fake-services` | NetPranav | adarzhpathade |
+| Backend → PR bot | `contracts/fix-request.schema.json` | NetPranav | NetPranav |
 
 The full list of contracts per phase is in [`../docs/roadmap/README.md`](../docs/roadmap/README.md) §5.

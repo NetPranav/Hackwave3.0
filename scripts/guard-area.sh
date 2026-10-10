@@ -19,6 +19,15 @@ deny() {
   exit 0
 }
 
+# Rule 1: edit only on your own personal branch (netpranav / adarzhpathade).
+if [ -n "$me" ]; then
+  want=$(printf '%s' "$me" | tr '[:upper:]' '[:lower:]')
+  branch=$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  if [ -n "$branch" ] && [ "$branch" != "$want" ]; then
+    deny "Team rule: you work only on your own branch '$want' but you are on '$branch'. Ask your human to run: git fetch origin && git switch $want (see START_HERE.md, section Moving to your personal branch)."
+  fi
+fi
+
 if [ "$me" = "adarzhpathade" ]; then
   case "$rel" in
     dashboard/*|.team/status/*) exit 0 ;;

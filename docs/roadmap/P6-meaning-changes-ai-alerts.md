@@ -5,7 +5,7 @@
 2. The shipping `partially_shipped` flip is detected as a new enum value. The AI's JSON judgement ("closest to `shipped` 0.54 / `pending` 0.46; used in a refund `if`") appears on the review card.
 3. The orders limit cap is detected as silent truncation ("asked 500, got exactly 100 in 64% of calls").
 
-**Depends on:** P4, P5 · **Contracts:** `ai-explanation`, `review-item`, `notification` (extended) · **Owners:** NetPranav (detectors, AI layer), OVERxPOWERED (alert dispatcher), adarzhpathade (review queue, settings, Compare & Simulate)
+**Depends on:** P4, P5 · **Contracts:** `ai-explanation`, `review-item`, `notification` (extended) · **Owner:** NetPranav (detectors, AI layer, dispatcher, review API). Settings, review queue and Compare & Simulate UI are Adarsh's [A6](A6-review-and-settings.md).
 
 ## Detectors in this phase (semantic + behavioural)
 
@@ -44,12 +44,11 @@ Dispatcher rules: one alert per drift event per channel, updates are threaded or
 | P6.4 | D6 value drift, D10 pagination | NetPranav | Should |
 | P6.5 | AI client (NIM), prompt templates, zod schemas, retries, template fallback, cache, rate limiter | NetPranav | `ai.explain()`, `ai.judge()` |
 | P6.6 | Review items: created for every non-alias event with explanation + deterministic suggested change; actions: mark expected, snooze, open suggestion PR (P5.10) | NetPranav | `GET/POST /v1/review` |
-| P6.7 | Alert dispatcher (pg-boss jobs): Slack/Discord webhooks, Resend email, Twilio WhatsApp, GitHub comments; dedup + thresholds | OVERxPOWERED | Alerts on all channels |
-| P6.8 | Notification settings page (channels, thresholds, WhatsApp number, test-send button) | adarzhpathade | Settings UI |
-| P6.9 | Review queue + review card (evidence, AI explanation with model name + latency, suggested change, actions) | adarzhpathade | See [dashboard.md](dashboard.md) §8 |
-| P6.10 | **Compare & Simulate**: endpoint baseline vs current shape diff (synthetic examples from fingerprints, `jsondiffpatch`), and "what-if": pick a change type (rename/unit/enum/limit) → impact path + whether current aliases cover it + preview of the suggestion | adarzhpathade + NetPranav | See [dashboard.md](dashboard.md) §9 |
+| P6.7 | Alert dispatcher (pg-boss jobs): Slack/Discord webhooks, Resend email, Twilio WhatsApp, GitHub comments; dedup + thresholds | NetPranav | Alerts on all channels |
+| P6.10 | **Compare & Simulate API**: `GET /v1/compare?endpoint=` (baseline vs current synthetic shapes from fingerprints) and `POST /v1/simulate` (change type rename/unit/enum/limit → impact path, whether current aliases cover it, suggestion preview). UI is A6.3 | NetPranav | See [dashboard.md](dashboard.md) §9 |
+| P6.13 | **Notification settings API:** `GET/PUT /v1/settings/notifications` (channels, thresholds, Slack/Discord webhook, WhatsApp number, email), `POST /v1/notifications/test` (test-send), WhatsApp sandbox join instructions string | NetPranav | Backs A6.1 |
 | P6.11 | Pre-warm AI cache for the three demo scenarios | NetPranav | Demo never waits on the LLM |
-| P6.12 | *(Should)* **Webhook drift**: `seismo.webhook(handler)` wrapper fingerprints inbound provider webhooks; same detectors; the fake payments provider sends `payment.captured` webhooks with a v2 variant | NetPranav + OVERxPOWERED | Official PS mentions webhooks |
+| P6.12 | *(Should)* **Webhook drift**: `seismo.webhook(handler)` wrapper fingerprints inbound provider webhooks; same detectors; the fake payments provider sends `payment.captured` webhooks with a v2 variant | NetPranav | Official PS mentions webhooks |
 
 ## Libraries
 openai (OpenAI-compatible client) · zod · bottleneck (rate limit) · p-retry · twilio · resend · simple-statistics · jsondiffpatch. Status in [libraries.md](libraries.md).
