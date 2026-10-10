@@ -19,18 +19,18 @@ A living log of decisions, open questions and facts for this project. Newest ent
 | 2026-10-11 | Claude-to-Claude coordination via git: SessionStart hook runs `scripts/team-status.sh`; per-person status published to a separate `team-status` branch; skills `/start-task`, `/handoff`, `/team-sync`; draft PRs from the first commit | Three separate machines can't share a live session; git is the shared bus; status off code branches avoids merge conflicts | `.team/README.md` |
 | 2026-10-11 | Contracts first: cross-owner interfaces live in `contracts/` and change via their own PR | Lets frontend and backend build in parallel against mocks | `contracts/README.md` |
 | 2026-10-11 | Feature branches stay current by merging `origin/develop` (no rebase, no force push) | Squash merge keeps develop clean anyway; avoids force-push risk | `CONTRIBUTING.md` §3 |
-| 2026-10-11 | Working name "Seismo" (placeholder) | Docs need a name; check availability before public use | `docs/README.md` |
-| 2026-10-11 | Positioning: "Dependabot for the APIs you depend on" | Developers instantly understand PR-based dependency bots | `docs/solution.md` |
-| 2026-10-11 | Do **not** claim novelty for structural third-party drift, API lockfiles or MCP tool pinning | Research found 8+ polling drift tools (FlareCanary, DriftGuard, DriftMonitor, APIShift…), DriftGuard GitHub Action, Invariant mcp-scan, Bellwether, DriftCop | `docs/competitors.md` |
-| 2026-10-11 | Differentiate on G1–G5: real-traffic shape-only profiling, semantic/behavioural detectors, code-aware severity, fix PRs with ladder, drift network | Not seen together in any tool during research | `docs/market-gap.md` |
-| 2026-10-11 | Primary capture = in-process SDK (read-only, fail-open, sampled); probes secondary; no proxy in MVP | Proxy sits in the request path and is a hard security sell | `docs/architecture.md` §2, `docs/advantages-disadvantages.md` §3.1 |
-| 2026-10-11 | Fixes ship as PRs to one adapter file per API, following Tolerant Reader (add, never replace) | Reviewable, reversible, safe even when a rename guess is wrong | `docs/solution.md` §4 |
-| 2026-10-11 | Fix ladder: fallback → transform → behaviour; money/branching/persistence always reviewed | Safe handling when uncertain is a judging criterion | `docs/solution.md` §4.2 |
-| 2026-10-11 | Fingerprints never carry a record's values; numbers only as magnitude + batch percentiles (no min/max); salt stays customer-side; enum allow-list is the only plain-value exception | Privacy is the main adoption blocker for payment-heavy customers | `docs/architecture.md` §3.3 |
-| 2026-10-11 | LLM only explains/classifies/extracts; detection is deterministic | Avoid "AI wrapper" perception; explainable to judges | `docs/architecture.md` §9 |
-| 2026-10-11 | Hackathon add-ons: changelog & deprecation radar + simulated drift network (two demo apps); "us or them" if time | Evidence-backed proactive story + memorable moat demo | `docs/add-ons.md` |
-| 2026-10-11 | Demo stack: FastAPI fake services (users, payments, shipping, orders), Next.js shop + dashboard, Node SDK, Probot GitHub App | Fast to build; one SDK language | `docs/architecture.md` §11 |
-| 2026-10-11 | Pricing hypothesis: Free / Team $49 / Business $299 / Enterprise; per monitored API | Anchored to competitor prices and Pandium's median of 15 integrations | `docs/business-model.md` §4 |
+| 2026-10-11 | Working name "Seismo" (placeholder) | Docs need a name; check availability before public use | `docs/PS/README.md` |
+| 2026-10-11 | Positioning: "Dependabot for the APIs you depend on" | Developers instantly understand PR-based dependency bots | `docs/PS/solution.md` |
+| 2026-10-11 | Do **not** claim novelty for structural third-party drift, API lockfiles or MCP tool pinning | Research found 8+ polling drift tools (FlareCanary, DriftGuard, DriftMonitor, APIShift…), DriftGuard GitHub Action, Invariant mcp-scan, Bellwether, DriftCop | `docs/PS/competitors.md` |
+| 2026-10-11 | Differentiate on G1–G5: real-traffic shape-only profiling, semantic/behavioural detectors, code-aware severity, fix PRs with ladder, drift network | Not seen together in any tool during research | `docs/PS/market-gap.md` |
+| 2026-10-11 | Primary capture = in-process SDK (read-only, fail-open, sampled); probes secondary; no proxy in MVP | Proxy sits in the request path and is a hard security sell | `docs/PS/architecture.md` §2, `docs/PS/advantages-disadvantages.md` §3.1 |
+| 2026-10-11 | Fixes ship as PRs to one adapter file per API, following Tolerant Reader (add, never replace) | Reviewable, reversible, safe even when a rename guess is wrong | `docs/PS/solution.md` §4 |
+| 2026-10-11 | Fix ladder: fallback → transform → behaviour; money/branching/persistence always reviewed | Safe handling when uncertain is a judging criterion | `docs/PS/solution.md` §4.2 |
+| 2026-10-11 | Fingerprints never carry a record's values; numbers only as magnitude + batch percentiles (no min/max); salt stays customer-side; enum allow-list is the only plain-value exception | Privacy is the main adoption blocker for payment-heavy customers | `docs/PS/architecture.md` §3.3 |
+| 2026-10-11 | LLM only explains/classifies/extracts; detection is deterministic | Avoid "AI wrapper" perception; explainable to judges | `docs/PS/architecture.md` §9 |
+| 2026-10-11 | Hackathon add-ons: changelog & deprecation radar + simulated drift network (two demo apps); "us or them" if time | Evidence-backed proactive story + memorable moat demo | `docs/PS/add-ons.md` |
+| 2026-10-11 | Demo stack: FastAPI fake services (users, payments, shipping, orders), Next.js shop + dashboard, Node SDK, Probot GitHub App | Fast to build; one SDK language | `docs/PS/architecture.md` §11 |
+| 2026-10-11 | Pricing hypothesis: Free / Team $49 / Business $299 / Enterprise; per monitored API | Anchored to competitor prices and Pandium's median of 15 integrations | `docs/PS/business-model.md` §4 |
 
 ## Open questions
 

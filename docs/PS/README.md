@@ -26,9 +26,9 @@ HackWave 3.0 · Resilient Infrastructure · Working product name: **Seismo** (pl
 | 12 | [sources.md](sources.md) | Every source used, grouped and labelled |
 
 Project-level files at the repo root:
-- [`../AGENTS.md`](../AGENTS.md): instructions for AI coding agents and teammates working in this repo
-- [`../MEMORY.md`](../MEMORY.md): decision log, open questions, key facts
-- [`../PS3_Overview.md`](../PS3_Overview.md): the original overview this folder expands on
+- [`../AGENTS.md`](../../AGENTS.md): instructions for AI coding agents and teammates working in this repo
+- [`../MEMORY.md`](../../MEMORY.md): decision log, open questions, key facts
+- [`../PS3_Overview.md`](../../PS3_Overview.md): the original overview this folder expands on
 - The two evidence PDFs in the root (the research teammate's reviews) are the base for [evidence.md](evidence.md)
 
 ---

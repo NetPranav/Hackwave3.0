@@ -87,7 +87,7 @@ Anything that crosses an ownership boundary is defined in [`contracts/`](contrac
 ## 6. Releases to `main` (lead only)
 
 1. @NetPranav opens PR `develop → main`, titled `release: v0.N <name>` (e.g. `release: v0.3 detectors + graph`).
-2. CI green, demo smoke test passes (`docs/roadmap-demo.md` script).
+2. CI green, demo smoke test passes (`docs/PS/roadmap-demo.md` script).
 3. Merge with a **merge commit** (not squash; keeps `main` and `develop` in sync), then tag: `git tag v0.N && git push origin v0.N`.
 
 Hotfix: `git switch -c hotfix/<desc> origin/main` → PR into `main` → after merge, PR `main → develop` to bring the fix back.

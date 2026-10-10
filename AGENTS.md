@@ -6,22 +6,22 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for tea
 
 - **Event:** HackWave 3.0 (CDGI) · Track: Resilient Infrastructure · **PS 3: "The Internet After the API"** · ~10-day build.
 - **Product (working name):** **Seismo**, "Dependabot for the APIs you depend on". It detects silent changes in third-party APIs (shape, behaviour, meaning), maps them to the code that uses them, and opens safe fix PRs, asking a human when unsure.
-- **Status:** planning complete, team workflow set up, no product code yet. Full design is in [`docs/`](docs/README.md); team rules in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- **Status:** planning complete, team workflow set up, no product code yet. Full design is in [`docs/`](docs/PS/README.md); team rules in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Where things are
 
 | Path | What |
 |---|---|
-| `docs/` | All design docs. Start at `docs/README.md` |
+| `docs/` | All design docs. Start at `docs/PS/README.md` |
 | `PS3_Overview.md` | Original project overview |
-| `*.pdf` (root) | Research teammate's evidence reviews; the base for `docs/evidence.md` |
+| `*.pdf` (root) | Research teammate's evidence reviews; the base for `docs/PS/evidence.md` |
 | `MEMORY.md` | Decision log, open questions, key facts |
 | `CONTRIBUTING.md` | Branch model, naming, PR and release rules |
 | `.team/` | Ownership (`OWNERSHIP.md`), status template, how the three Claude sessions coordinate |
 | `contracts/` | Interfaces between owners; change these before the code |
 | `scripts/` | `setup.sh`, `team-status.sh` (session briefing), `team-publish-status.sh`, `check-md-links.sh` |
 | `.claude/` | Shared Claude Code settings (hook + permission rules) and skills `/start-task`, `/handoff`, `/team-sync` |
-| Planned code dirs | `services/` `shop/` `sdk-node/` `backend/` `github-app/` `dashboard/` `tests/` (see `docs/roadmap-demo.md` §2) |
+| Planned code dirs | `services/` `shop/` `sdk-node/` `backend/` `github-app/` `dashboard/` `tests/` (see `docs/PS/roadmap-demo.md` §2) |
 
 ## Team workflow (mandatory for every agent session)
 
@@ -43,7 +43,7 @@ Three developers work in parallel, each with their own Claude Code session on th
 
 ## Stack (planned)
 
-FastAPI (fake services + backend) · Postgres (SQLite OK for demo) · Node/TypeScript SDK wrapping `fetch`/`axios` · Next.js + Tailwind (shop + dashboard) · react-force-graph or sigma.js (graph) + React Flow (impact chain) · Probot GitHub App · tree-sitter (code scan) · Claude API for explanations/classification · Vitest/Jest + Playwright · Docker Compose. Details: `docs/architecture.md` §11.
+FastAPI (fake services + backend) · Postgres (SQLite OK for demo) · Node/TypeScript SDK wrapping `fetch`/`axios` · Next.js + Tailwind (shop + dashboard) · react-force-graph or sigma.js (graph) + React Flow (impact chain) · Probot GitHub App · tree-sitter (code scan) · Claude API for explanations/classification · Vitest/Jest + Playwright · Docker Compose. Details: `docs/PS/architecture.md` §11.
 
 ## Non-negotiable product rules
 
@@ -57,11 +57,11 @@ FastAPI (fake services + backend) · Postgres (SQLite OK for demo) · Node/TypeS
 
 ## Evidence rules (for docs, deck, README, UI copy)
 
-- Every number carries a label: Confirmed / Vendor claim / Secondary / Unverified / Interpretation / Assumption (`docs/README.md`).
-- Never use anything in the "Do NOT say" table in `docs/evidence.md` §4. In particular: no dollar cost for API drift, no "41% of APIs…" figure, no "first to detect third-party drift".
+- Every number carries a label: Confirmed / Vendor claim / Secondary / Unverified / Interpretation / Assumption (`docs/PS/README.md`).
+- Never use anything in the "Do NOT say" table in `docs/PS/evidence.md` §4. In particular: no dollar cost for API drift, no "41% of APIs…" figure, no "first to detect third-party drift".
 - Analogies (Mars Climate Orbiter, Knight Capital) are always labelled "analogy, not an API".
 - Competitor features and prices are vendor claims; say "per their public material".
-- Add every new source to `docs/sources.md`.
+- Add every new source to `docs/PS/sources.md`.
 
 ## Working conventions
 

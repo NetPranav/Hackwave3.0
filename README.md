@@ -2,7 +2,7 @@
 
 **HackWave 3.0 · PS 3 "The Internet After the API".** "Dependabot for the APIs you depend on": Seismo detects silent changes in third-party APIs (shape, behaviour, meaning), maps them to the code that uses them, and opens safe fix PRs, asking a human when unsure.
 
-- Design docs: [`docs/`](docs/README.md)
+- Design docs: [`docs/`](docs/PS/README.md)
 - How we work (branches, PRs, releases): [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Instructions for AI coding agents: [`AGENTS.md`](AGENTS.md) · decisions and open questions: [`MEMORY.md`](MEMORY.md)
 
