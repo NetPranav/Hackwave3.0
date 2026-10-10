@@ -1,22 +1,22 @@
 # NetPranav
-Updated: 2026-10-11 00:45 IST
-Branch: —
-PR: —
+Updated: 2026-10-11 01:00 IST
+Branch: docs/docs-move-into-ps-folder
+PR: https://github.com/NetPranav/Hackwave3.0/pull/1
 
 ## Now
-- Repo workflow, CI and Claude coordination set up (main/develop/team-status, rulesets, skills)
+- Repo workflow live: main/develop/team-status protected by rulesets, CI, Claude hook + skills
 
 ## Areas / files I'm touching
-- none right now
+- docs/ (moved into docs/PS/), AGENTS.md, MEMORY.md, CONTRIBUTING.md
 
 ## Done since last update
-- docs/ design set; CONTRIBUTING.md; .claude/ hook + skills; CI
+- Rulesets on main/develop/team-status; develop is the default branch
 
 ## Next
 - Write first contracts (fingerprint.schema.json, dashboard-api.openapi.yaml) so frontend can start against mocks
 
 ## Blockers / needs from others
-- Teammates: run `bash scripts/setup.sh <handle>` and publish a first status
+- OVERxPOWERED: accept the repo invite. Both: run `bash scripts/setup.sh <handle>` and publish a first status
 
 ## Contract changes (contracts/)
 - planned: fingerprint v1, dashboard API v1
