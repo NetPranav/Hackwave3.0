@@ -10,15 +10,15 @@ Hackwave3.0/
 ├── sdk-node/       @seismo/sdk: capture + fingerprints; @seismo/sdk/runtime: applyAliases        (NetPranav)
 ├── backend/        Fastify API + pg-boss worker: ingest, baselines, detectors, severity,
 │                   alias planner, AI, alerts dispatcher jobs, radar, status, graph               (NetPranav)
-├── github-app/     Probot app: install flow, scanner (ts-morph), PR bot, checks, issues          (OVERxPOWERED)
-├── services/       Fake third-party providers (users, payments, shipping, orders) + admin API    (OVERxPOWERED)
+├── github-app/     Probot app: install flow, scanner (ts-morph), PR bot, checks, issues          (NetPranav)
+├── services/       Fake third-party providers (users, payments, shipping, orders) + admin API    (NetPranav)
 ├── dashboard/      Next.js: landing, auth, dashboard, Demo Control                               (adarzhpathade)
 ├── docs/  scripts/  .github/  .claude/  .team/
 └── docker-compose.yml   Postgres (+ optional everything-in-containers profile for offline demo)
 
 Separate repo: NetPranav/seismo-demo-shop (Next.js shop; the app Seismo watches)                  (adarzhpathade)
 ```
-The alert dispatcher lives in `backend/` as jobs but is owned by OVERxPOWERED (folder `backend/src/alerts/`, CODEOWNERS entry added in P6).
+The alert dispatcher lives in `backend/` as jobs but is NetPranav's (folder `backend/src/alerts/`, P6.7).
 
 ## 2. One-command local setup
 ```bash

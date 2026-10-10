@@ -10,7 +10,7 @@ The build plan for the whole system, from an empty repo to a published GitHub Ap
 
 | Topic | Decision | Notes |
 |---|---|---|
-| Timeline | **14 days: Day 1 = Sun 11 Oct → Day 14 = Sat 24 Oct 2026.** Scope freeze end of Day 11 (Wed 21 Oct) | Shift dates if the official deadline differs |
+| Timeline | **14 days: Day 1 = Sun 11 Oct → Day 14 = Sat 24 Oct 2026.** Scope freeze end of Day 12 (Thu 22 Oct) for Musts, see [VERIFY.md](VERIFY.md) | Shift dates if the official deadline differs |
 | Language | **All TypeScript** (Node backend, SDK, GitHub App, fake services, Next.js dashboard) | Contracts written once in zod, shared by everyone. Replaces the earlier FastAPI plan |
 | Hosting | **Deployed cloud** + local Docker Compose as offline backup | Dashboard and landing on Vercel; API, worker, fake services and GitHub App on a Node host (chosen in P0 spike); Postgres on Neon |
 | Demo target | **Separate repo `seismo-demo-shop`** that the GitHub App is installed on | Judges see the real flow: install → graph → drift → PR |
@@ -36,19 +36,27 @@ Source: `Hackwave Problem_Statements.pdf` (root), PS 3 "The Internet After the A
 | Demo: an app depending on several simulated external services; introduce undocumented changes; show detection, impact analysis, adaptation, and validation that the workflows work again | P1 demo world (4 fake providers + demo shop) → P8 demo script |
 | Strong solution: accurate detection, dependency mapping, semantics-aware fixes, regression validation, safe handling when repair is uncertain | P4/P6 · P2 · P5 · P5.8 · P5 conflict checks + P6 review queue |
 
-## 2. Phase map
+## 2. Two tracks: P-phases are NetPranav's, A-phases are Adarsh's
 
-| Phase | Name | Demo moment when it's done | Days |
-|---|---|---|---|
-| [P0](P0-foundation.md) | Foundation & spikes | `npm run dev` starts everything; every app deploys to staging; all unknowns tested | 1–2 |
-| [P1](P1-demo-world.md) | Demo world | Flip a fake API to v2 and the demo shop visibly breaks; side-by-side v1/v2 diff | 2–4 |
-| [P2](P2-see-your-apis.md) | See your APIs | Install the GitHub App on the demo repo → Obsidian-style graph of every API, field, function and workflow | 3–6 |
-| [P3](P3-watch-live-traffic.md) | Watch live traffic | SDK in the shop → live API status page; kill our backend and the shop doesn't notice | 4–7 |
-| [P4](P4-catch-a-rename.md) | Catch a rename | Rename `name`→`display_name` → red path on the graph in < 60 s, GitHub issue + dashboard alert | 6–8 |
-| [P5](P5-fix-it-safely.md) | Fix it safely | Seismo opens an alias-only PR, proves it can't change old responses, CI green, merge → shop fixed | 7–10 |
-| [P6](P6-meaning-changes-ai-alerts.md) | Catch meaning changes + AI + alerts | Rupees→paise and a new status value caught; AI explanation on WhatsApp, Slack, email; no auto-PR on money | 8–11 |
-| [P7](P7-radar.md) | Changelog & deprecation radar | A provider announcement is matched to our code before the change lands | 9–11 |
-| [P8](P8-launch.md) | Launch | Landing page live, GitHub App public, production deploy, rehearsed demo + backup video | 11–14 |
+Each person has their own numbered phases and works only in their own area. **A*n* consumes what P*n* produces** (same stage of the product), always on mock data first, so nobody waits.
+
+| Stage | NetPranav (branch `netpranav`) | Adarsh (branch `adarzhpathade`) | Demo moment when both are done | Days |
+|---|---|---|---|---|
+| 0 Foundation | [**P0**](P0-foundation.md) monorepo, contracts + mocks, database, backend, dev GitHub App, fake-service skeleton, auth, spikes S1–S5 | [**A0**](A0-dashboard-foundation.md) Next.js, GitHub login, app shell, mock layer, spike S6 | `npm run dev` runs everything; login works on staging | 1–2 |
+| 1 Demo world | [**P1**](P1-demo-world.md) four fake APIs with v1/v2 toggles, admin API, traffic generator | [**A1**](A1-demo-shop.md) demo shop repo, breakage screens, Demo Control, Compare v1 | Flip an API to v2 and the shop visibly breaks | 2–4 |
+| 2 See your APIs | [**P2**](P2-see-your-apis.md) GitHub App install flow, code scanner, graph API | [**A2**](A2-onboarding-and-graph.md) onboarding, Obsidian-style graph, coverage | Install the app on the shop, get the graph in < 60 s | 3–6 |
+| 3 Watch traffic | [**P3**](P3-watch-live-traffic.md) SDK, fingerprints, ingest, baselines, status API, privacy + fail-open tests | [**A3**](A3-status-page.md) install SDK in shop, status page, overview, SDK keys | Live API status; backend down, shop fine | 4–7 |
+| 4 Catch a rename | [**P4**](P4-catch-a-rename.md) detectors D1–D4, D11–D17, severity, GitHub issues, notifications | [**A4**](A4-timeline-and-drift.md) timeline, drift page, bell, red-path graph | Rename → red path + issue + bell in < 60 s | 6–9 |
+| 5 Fix safely | [**P5**](P5-fix-it-safely.md) `applyAliases` + property tests, planner, conflict checks, PR bot | [**A5**](A5-fix-panel.md) fix panel, shop tests red → green | Alias PR → merge → green | 8–11 |
+| 6 Meaning + AI + alerts | [**P6**](P6-meaning-changes-ai-alerts.md) unit/enum/truncation detectors, NIM layer, review API, alert dispatcher, settings + compare APIs | [**A6**](A6-review-and-settings.md) review queue, notification settings, Compare & Simulate | Paise caught, WhatsApp buzzes, no auto-PR | 9–12 |
+| 7 Radar | [**P7**](P7-radar.md) changelog/OpenAPI fetchers, AI parser, matcher | [**A7**](A7-radar-ui.md) radar page, clock badges, landing draft | Announcement matched to code before the change | 10–12 |
+| 8 Launch | [**P8**](P8-launch.md) production deploy, public GitHub App, demo reset, reliability, final merge | [**A8**](A8-landing-and-launch.md) landing final, polish, backup video | Fresh account install-to-PR on production | 12–14 |
+
+**Rules of the two tracks**
+- The P-track number says what NetPranav builds; the A-track number says what Adarsh builds. A task ID tells you the owner: `P4.3` is NetPranav's, `A4.2` is Adarsh's.
+- When a P task finishes something an A task needs, NetPranav runs `bash scripts/team-request.sh adarzhpathade "P4 ready: GET /v1/drift-events, switch A4 from mocks"` and calls Adarsh. Adarsh does the reverse for the shop (for example "shop deployed at …").
+- The demo shop repo is Adarsh's. NetPranav's tests and traffic generator may **run** it but never edit it.
+- Coverage of the whole product, per-day load and gaps found: [`VERIFY.md`](VERIFY.md).
 
 Cross-cutting specs (read by whoever builds that part):
 - [github-app.md](github-app.md): permissions, environments, publishing, install flow, webhooks
@@ -57,40 +65,41 @@ Cross-cutting specs (read by whoever builds that part):
 - [setup-and-deploy.md](setup-and-deploy.md): monorepo, one-command setup, environments, CI/CD, secrets
 - [libraries.md](libraries.md): every library we plan to use and whether it's verified
 
-## 3. Who does what (three parallel tracks)
+## 3. Day by day
 
-> **Update 2026-10-11:** OVERxPOWERED has no tasks for now; **every task in the OVERxPOWERED column belongs to @NetPranav**. @adarzhpathade owns the whole dashboard (login included) and the demo shop. Per-person task list: [`../../START_HERE.md`](../../START_HERE.md).
+OVERxPOWERED has no tasks; everything formerly in its column is in the P-track. Commit messages carry the ID: `feat(backend): P4.3 rename detector`, `feat(dashboard): A2.2 graph highlight`.
 
-| Day | Date | @NetPranav (backend · SDK · AI) | @OVERxPOWERED (GitHub App · services · alerts) | @adarzhpathade (dashboard · landing · demo shop) |
+| Day | Date | NetPranav (P) | Adarsh (A) | Requests to send |
 |---|---|---|---|---|
-| 1 | Sun 11 | P0: monorepo, contracts pkg, Neon + drizzle, API skeleton; **spikes**: NIM, body capture | P0: dev GitHub App via manifest + smee; services skeleton; **spikes**: Probot, Twilio, host sleep | P0: Next.js dashboard + Auth.js GitHub login on Vercel; **spike**: graph lib with 500 nodes |
-| 2 | Mon 12 | P0 finish: deploy pipeline, pg-boss queue; contracts v1 drafted | P1: users/payments/shipping/orders services with v1/v2 toggles | P1: `seismo-demo-shop` scaffold (products, checkout, invoice, orders) |
-| 3 | Tue 13 | P2: installations, code-map ingest, graph API | P2: install flow, repo scanner (ts-morph) | P1: shop wired to services; Demo Control + Compare (jsondiffpatch) |
-| 4 | Wed 14 | P3: SDK capture + fingerprints + batching | P2: field-usage + workflows, re-scan on push | P2: onboarding flow + graph v1 from graph API |
-| 5 | Thu 15 | P3: ingest, baselines, windows, status metrics | P3: SDK in demo shop; privacy + fail-open tests | P2: graph interactions (highlight, side panel, filters) |
-| 6 | Fri 16 | P3: Statuspage poller, deprecation headers; P4: detector framework | P4: GitHub issue/check notifications | P3: API Status page + live updates (SSE) |
-| 7 | Sat 17 | P4: rename/missing/type/error/rate-limit/headers detectors, probes, severity | P5: PR bot (adapters PR, alias PR), CI tracking | P4: timeline, drift detail, red path on graph, bell |
-| 8 | Sun 18 | P5: alias planner, conflict checks, adapter renderer, property tests | P5: PR body, check-run reporting, cleanup PR | P5: fix panel (diff), validation red→green, PR status |
-| 9 | Mon 19 | P6: unit/enum/truncation/pagination detectors | P6: alert dispatcher (Slack/Discord, Resend, WhatsApp) | P5/P6: review queue, AI explanation cards |
-| 10 | Tue 20 | P6: AI layer (NIM client, explainer, semantic judge, cache) | P7: radar sources (RSS/HTML/OpenAPI) + matching | P6: notification settings, Compare & Simulate page |
-| 11 | Wed 21 | P7: changelog parser (AI JSON) + radar items · **scope freeze** | P7: radar → suggestions; prod GitHub App registered | P7: radar page + clock badges · landing page draft |
-| 12 | Thu 22 | P8: prod deploy, demo reset, soak test | P8: publish app (public), install-from-scratch test | P8: landing page final, polish, empty states |
-| 13 | Fri 23 | P8: rehearsal #1–2, fixes only | P8: rehearsal, webhook reliability | P8: rehearsal, record **backup video** |
-| 14 | Sat 24 | Merge personal branches into `main`, tag `v1.0` · **demo** | Demo | Demo |
+| 1 | Sun 11 | **P0.0 contract skeletons + mock generator first**, P0.1, P0.2, P0.3, S1, S2 | A0.1 login (own OAuth app), A0.2 graph spike, A0.3 shell | P→A: contracts v0 pushed |
+| 2 | Mon 12 | P0.4, P0.5, P0.6, P0.8, P0.11, S3–S5, P1.1 | A0.4 mocks, A0.5 CI, A1.1 start the shop | P→A: dev GitHub App credentials |
+| 3 | Tue 13 | P0.10, P1.2, P1.3, P2.1, P2.2 | A1.1, A1.2 | P→A: services URL, admin token |
+| 4 | Wed 14 | P1.8, P2.3, P2.4, P3.1 | A1.3, A1.4, A1.5, A2.1 | A→P: shop URL + `seismo.config.json` |
+| 5 | Thu 15 | P2.5, P2.8, P3.2, P3.3 | A2.2 graph | P→A: graph API live |
+| 6 | Fri 16 | P3.4, P3.5, P3.6 | A2.3, A2.4 | P→A: SDK published, install it (P3.7) |
+| 7 | Sat 17 | P3.7, P3.8, P4.1, P4.2 | A3.1–A3.5 | A→P: SDK in shop sending |
+| 8 | Sun 18 | P4.3, P4.4, P4.5 | A4.1, A4.2 | P→A: drift-events API |
+| 9 | Mon 19 | P4.6, P4.9, P5.1, P5.2 | A4.3, A4.4 | P→A: notifications + SSE |
+| 10 | Tue 20 | P5.3, P5.4, P5.5, P5.6 | A5.1, A5.2, A5.3 | P→A: setup PR open, fixes API |
+| 11 | Wed 21 | P5.9, P6.1, P6.2, P6.3, P6.5 | A5.4, A6.2 | **Scope freeze for Musts is now Day 12**, see [`VERIFY.md`](VERIFY.md) §3 |
+| 12 | Thu 22 | P6.6, P6.7, P6.10, P6.13, P6.11, P7 Musts, P8.2 start | A6.1, A6.3, A7.1, A7.2, A7.3 | P→A: review, settings, compare, radar APIs |
+| 13 | Fri 23 | P8.2, P8.3, P8.5, P8.6, P8.4 | A8.1, A8.2, A8.4 | P→A: production URLs, public app slug |
+| 14 | Sat 24 | P8.8 rehearsals, P8.10 merge, tag `v1.0` · **demo** | A8.3, A8.5 backup video, A8.6 · **demo** | |
 
-Branch model (simplified 2026-10-11): everyone works only on their own personal branch and ends sessions with `/handoff`; cross-team asks go through `scripts/team-request.sh`; personal branches are merged into `main` at the end (see [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)). Put the sub-phase ID in commit messages: `feat(backend): P4.3 rename detector`.
+Branch model: everyone works only on their own personal branch and ends sessions with `/handoff`; cross-team asks go through `scripts/team-request.sh`; personal branches are merged into `main` at the end (see [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)).
 
-## 4. Dependencies between phases
+## 4. Dependencies
 
 ```
-P0 ──► P1 ──► P2 ──► P4 ──► P5 ──► P8
-        │      ▲      ▲      │
-        └────► P3 ────┘      ▼
-                             P6 ──► P7 ──► P8
+P-track:  P0 ─► P1 ─► P2 ─► P4 ─► P5 ─► P6 ─► P7 ─► P8
+                 └──► P3 ──┘
+A-track:  A0 ─► A1 ─► A2 ─► A3 ─► A4 ─► A5 ─► A6 ─► A7 ─► A8
+Cross:    P0.0 ► A0.4 (mocks)    P0.11 ► A0.1 (auth)     A1.1 ► P2 (scan target), P1.8 (traffic)
+          P2.5 ► A2.2            P3.7 ► A3.1 ► P3.8      P4.5 ► A4.2
+          P5.3/5.5 ► A5.2        P6.x APIs ► A6          P7 ► A7        P8.3 ► A8.1
 ```
-- P2 and P3 can run in parallel once P1's fake services and contracts exist.
-- P4 needs both the code map (P2) and live traffic (P3).
-- The frontend never waits: every screen is built first against **mock data generated from the zod contracts**, then switched to the real API.
+- P2 and P3 can run in parallel once the P1 fake services exist; P4 needs both the code map (P2) and live traffic (P3).
+- A-phases never wait for a P-phase: they start on mocks from `contracts/` and switch to the real API when NetPranav sends the request.
 
 ## 5. Contracts (all in `contracts/`, zod → TypeScript types + JSON Schema + OpenAPI)
 

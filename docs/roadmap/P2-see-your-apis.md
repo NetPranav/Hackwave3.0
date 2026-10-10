@@ -2,7 +2,7 @@
 
 **Done when:** installing the Seismo GitHub App on `seismo-demo-shop` produces, within 60 seconds and with no SDK installed, an Obsidian-style graph of every external API the code calls → endpoints → fields read → functions → user workflows.
 
-**Depends on:** P0, P1 (demo repo exists) · **Contracts:** `codemap`, `graph`, `installations` · **Owners:** OVERxPOWERED (app + scanner), NetPranav (graph API), adarzhpathade (onboarding + graph UI)
+**Depends on:** P0, P1 (demo repo exists) · **Contracts:** `codemap`, `graph`, `installations` · **Owner:** NetPranav (app, scanner, graph API). Onboarding and graph UI are Adarsh's [A2](A2-onboarding-and-graph.md).
 
 ## How the code map is built
 
@@ -20,14 +20,12 @@
 
 | ID | Task | Owner | Output |
 |---|---|---|---|
-| P2.1 | `contracts/codemap`, `contracts/graph`, `contracts/installations` | OVERxPOWERED + NetPranav | Merged first |
-| P2.2 | App permissions/events (see [github-app.md](github-app.md)); installation + repo storage; setup URL → dashboard onboarding | OVERxPOWERED | Install flow works with the dev app |
-| P2.3 | Scan job: tarball download, ts-morph call-site + field-read extraction, usage kinds | OVERxPOWERED | Unit tests on fixture repos (≥ 10 patterns) |
-| P2.4 | Workflows from `seismo.workflows.yml` + route-folder default; re-scan on push | OVERxPOWERED | Graph updates after a push |
-| P2.5 | Backend: store code map; build the graph with **graphology** (nodes: service, endpoint, field, code location, workflow); `GET /v1/graph`, `GET /v1/graph/impact?field=…` (BFS to workflows) | NetPranav | Graph API on staging |
-| P2.6 | Dashboard onboarding: "Install on GitHub" → GitHub → setup URL → "Scanning…" progress → graph | adarzhpathade | Smooth first-run flow |
-| P2.7 | Graph view v1 (Obsidian style): force layout, node types/colours, click-to-highlight path, side panel, search, filters (see [dashboard.md](dashboard.md) §4) | adarzhpathade | Works on mock data first, then real API |
-| P2.8 | Coverage indicator: "N field reads mapped, M unresolved" | NetPranav + adarzhpathade | Honest about static-analysis limits |
+| P2.1 | `contracts/codemap`, `contracts/graph`, `contracts/installations` | NetPranav | Merged first |
+| P2.2 | App permissions/events (see [github-app.md](github-app.md)); installation + repo storage; setup URL → dashboard onboarding | NetPranav | Install flow works with the dev app |
+| P2.3 | Scan job: tarball download, ts-morph call-site + field-read extraction, usage kinds | NetPranav | Unit tests on fixture repos (≥ 10 patterns) |
+| P2.4 | Workflows from `seismo.workflows.yml` + route-folder default; re-scan on push | NetPranav | Graph updates after a push |
+| P2.5 | Backend: store code map; build the graph with **graphology** (nodes: service, endpoint, field, code location, workflow); `GET /v1/graph`, `GET /v1/graph/impact?field=…` (BFS to workflows); installations + repos endpoints for onboarding (`GET /v1/installations`, scan progress); SSE `graph.updated` | NetPranav | Graph API on staging |
+| P2.8 | Coverage numbers in the graph API: "N field reads mapped, M unresolved" (UI is A2.3) | NetPranav | Honest about static-analysis limits |
 
 ## Libraries
 Probot/@octokit/app · ts-morph · tar · graphology (+ graphology-traversal) · react-force-graph-2d (or Sigma, per spike S6) · js-yaml. Status in [libraries.md](libraries.md).

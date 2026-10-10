@@ -1,6 +1,6 @@
 # The Seismo GitHub App
 
-Owner: @OVERxPOWERED · Built in [P0](P0-foundation.md) (dev apps), [P2](P2-see-your-apis.md) (install + scan), [P4](P4-catch-a-rename.md) (issues), [P5](P5-fix-it-safely.md) (PRs + checks), [P8](P8-launch.md) (publish)
+Owner: @NetPranav · Built in [P0](P0-foundation.md) (dev apps), [P2](P2-see-your-apis.md) (install + scan), [P4](P4-catch-a-rename.md) (issues), [P5](P5-fix-it-safely.md) (PRs + checks), [P8](P8-launch.md) (publish)
 
 ## 1. What the app does
 1. **Identity:** users sign in to the dashboard with GitHub through this app's OAuth (user-to-server tokens). One app = login + repo access, so installations and users line up automatically.

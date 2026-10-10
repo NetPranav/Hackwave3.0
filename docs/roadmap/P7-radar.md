@@ -2,7 +2,7 @@
 
 **Done when:** posting an announcement on the fake orders provider's changelog ("from 25 Oct, `limit` is capped at 100") produces, within a minute and **before** the change is switched on, a radar item that names the affected code (`lib/api/orders.ts:42 limit=500`). It includes an AI explanation and a deterministic suggestion (paginate until empty), and the endpoint shows a clock badge on the graph. `Sunset`/`Deprecation` headers seen in traffic appear on the same radar.
 
-**Depends on:** P2 (code map), P3 (headers), P6 (AI layer) · **Contracts:** `radar-item` · **Owners:** OVERxPOWERED (sources + matching), NetPranav (AI parsing), adarzhpathade (radar page, badges)
+**Depends on:** P2 (code map), P3 (headers), P6 (AI layer) · **Contracts:** `radar-item` · **Owner:** NetPranav (sources, AI parsing, matching). Radar page and badges are Adarsh's [A7](A7-radar-ui.md).
 
 ## Signals the radar reads
 
@@ -26,12 +26,11 @@ Sources per provider live in a registry file (`backend/radar/providers.json`): t
 
 | ID | Task | Owner | Output |
 |---|---|---|---|
-| P7.1 | `contracts/radar-item`; provider registry; verify real feed URLs | OVERxPOWERED | Merged first |
-| P7.2 | Fetchers: RSS, HTML snapshot diff, OpenAPI diff; scheduling via pg-boss | OVERxPOWERED | New-entry events |
+| P7.1 | `contracts/radar-item`; provider registry; verify real feed URLs | NetPranav | Merged first |
+| P7.2 | Fetchers: RSS, HTML snapshot diff, OpenAPI diff; scheduling via pg-boss | NetPranav | New-entry events |
 | P7.3 | AI changelog parser with quote verification | NetPranav | JSON changes |
-| P7.4 | Matcher against the code map + suggestion templates | OVERxPOWERED + NetPranav | Radar items |
-| P7.5 | Radar page (upcoming changes by date, filters), clock badges on graph endpoints, links to sources | adarzhpathade | See [dashboard.md](dashboard.md) §10 |
-| P7.6 | Alerts for new radar items (same dispatcher, lower default severity) | OVERxPOWERED | Slack/email |
+| P7.4 | Matcher against the code map + suggestion templates | NetPranav | Radar items |
+| P7.6 | Alerts for new radar items (same dispatcher, lower default severity) | NetPranav | Slack/email |
 
 ## Definition of Done
 - [ ] Demo announcement → matched radar item in < 60 s, before the flip
