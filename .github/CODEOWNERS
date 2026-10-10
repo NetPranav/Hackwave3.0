@@ -1,0 +1,31 @@
+# Code owners are auto-requested as reviewers. Keep in sync with .team/OWNERSHIP.md.
+# Later rules override earlier ones.
+
+# Default: the lead
+*                     @NetPranav
+
+# Architecture / logic: NetPranav
+/backend/             @NetPranav
+/sdk-node/            @NetPranav
+
+# Architecture / logic: OVERxPOWERED
+/github-app/          @OVERxPOWERED
+/services/            @OVERxPOWERED
+
+# Frontend: adarzhpathade
+/shop/                @adarzhpathade
+/dashboard/           @adarzhpathade
+
+# Shared interfaces and docs: everyone
+/contracts/           @NetPranav @OVERxPOWERED @adarzhpathade
+/docs/                @NetPranav @OVERxPOWERED @adarzhpathade
+/tests/               @NetPranav @OVERxPOWERED @adarzhpathade
+/.team/               @NetPranav @OVERxPOWERED @adarzhpathade
+
+# Repo configuration: lead
+/.github/             @NetPranav
+/.claude/             @NetPranav
+/.githooks/           @NetPranav
+/scripts/             @NetPranav
+/AGENTS.md            @NetPranav
+/CONTRIBUTING.md      @NetPranav

@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-rules:
+    name: pr-rules
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch flow, branch name and PR title
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ "$BASE_REF" = "main" ]; then
+            case "$HEAD_REF" in
+              develop|hotfix/*|release/*) ;;
+              *) echo "::error::PRs into main must come from develop, release/* or hotfix/* (got '$HEAD_REF')."; exit 1 ;;
+            esac
+          elif [ "$HEAD_REF" != "main" ]; then
+            if ! echo "$HEAD_REF" | grep -Eq '^(feature|fix|chore|docs|refactor|test|hotfix|release|seismo)/[a-z0-9][a-z0-9._-]*$'; then
+              echo "::error::Branch '$HEAD_REF' must look like feature/backend-unit-change-detector (see CONTRIBUTING.md)."
+              exit 1
+            fi
+          fi
+          if ! echo "$TITLE" | grep -Eq '^(feat|fix|docs|refactor|test|chore|perf|ci|build|release)(\([a-z0-9-]+\))?!?: .+'; then
+            echo "::error::PR title must follow Conventional Commits, e.g. 'feat(backend): add unit-change detector'."
+            exit 1
+          fi
+          echo "Branch flow, name and title OK."
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relative Markdown links resolve
+        run: bash scripts/check-md-links.sh
+      - name: Shell scripts parse
+        run: for f in scripts/*.sh .githooks/*; do bash -n "$f"; done
+      - name: Claude settings are valid JSON
+        run: jq empty .claude/settings.json
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: |
+          dirs=""
+          for d in backend services; do
+            if [ -f "$d/pyproject.toml" ] || [ -f "$d/requirements.txt" ]; then dirs="$dirs $d"; fi
+          done
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "Python projects:${dirs:- none yet}"
+      - if: steps.detect.outputs.dirs != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - if: steps.detect.outputs.dirs != ''
+        name: Lint and test
+        run: |
+          python -m pip install -q --upgrade pip ruff pytest
+          for d in ${{ steps.detect.outputs.dirs }}; do
+            echo "::group::$d"
+            (
+              cd "$d"
+              if [ -f requirements.txt ]; then pip install -q -r requirements.txt; fi
+              if [ -f pyproject.toml ]; then pip install -q -e ".[dev]" || pip install -q -e .; fi
+              ruff check .
+              pytest -q || test $? -eq 5   # exit code 5 = no tests collected yet
+            )
+            echo "::endgroup::"
+          done
+
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: |
+          dirs=""
+          for d in sdk-node github-app shop dashboard; do
+            if [ -f "$d/package.json" ]; then dirs="$dirs $d"; fi
+          done
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "Node projects:${dirs:- none yet}"
+      - if: steps.detect.outputs.dirs != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - if: steps.detect.outputs.dirs != ''
+        name: Install, lint, typecheck, test, build
+        run: |
+          for d in ${{ steps.detect.outputs.dirs }}; do
+            echo "::group::$d"
+            (
+              cd "$d"
+              if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+              npm run lint --if-present
+              npm run typecheck --if-present
+              npm test --if-present
+              npm run build --if-present
+            )
+            echo "::endgroup::"
+          done
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [pr-rules, docs, python, node]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed
+        run: |
+          for r in "${{ needs.pr-rules.result }}" "${{ needs.docs.result }}" "${{ needs.python.result }}" "${{ needs.node.result }}"; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::A required job ended with '$r'."; exit 1 ;;
+            esac
+          done
+          echo "CI OK"

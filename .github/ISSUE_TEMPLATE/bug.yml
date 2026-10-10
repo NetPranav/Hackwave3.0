@@ -1,0 +1,28 @@
+name: Bug
+description: Something on develop or main is broken
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: branch
+    attributes:
+      label: Where
+      options: [develop, main, a feature branch]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened vs what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots

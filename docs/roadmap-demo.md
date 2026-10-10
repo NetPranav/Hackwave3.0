@@ -21,7 +21,12 @@ Freeze rule: **no new features after day 7.** Days 8–10 are polish, demo safet
 
 ```
 /
-├── AGENTS.md  MEMORY.md  CLAUDE.md
+├── AGENTS.md  MEMORY.md  CLAUDE.md  CONTRIBUTING.md
+├── .github/                   ← CI, CODEOWNERS, PR/issue templates
+├── .claude/                   ← shared Claude Code settings + skills (/start-task, /handoff, /team-sync)
+├── .team/                     ← ownership, status template (live status lives on the team-status branch)
+├── contracts/                 ← interfaces between owners (contract-first)
+├── scripts/                   ← setup, team briefing, status publishing, link check
 ├── docs/                      ← this folder
 ├── services/                  ← fake third-party APIs (FastAPI): users, payments, shipping, orders
 ├── shop/                      ← demo shop app (Next.js) using the SDK + adapters

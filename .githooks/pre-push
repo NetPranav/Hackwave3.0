@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Local guard: fails fast before GitHub's rulesets would reject the push anyway.
+# Installed by scripts/setup.sh (git config core.hooksPath .githooks).
+lead="NetPranav"
+me=$(git config --get seismo.handle || true)
+pattern='^(feature|fix|chore|docs|refactor|test|hotfix|release|seismo)/[a-z0-9][a-z0-9._-]*$'
+zero="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  name=${remote_ref#refs/heads/}
+  [ "$name" = "$remote_ref" ] && continue          # tags and other refs: allowed
+  [ "$local_sha" = "$zero" ] && continue           # deleting a remote branch: allowed (rulesets guard protected ones)
+
+  case "$name" in
+    develop)
+      echo "✋ Direct pushes to 'develop' are blocked. Push your feature branch and open a PR into develop." >&2
+      exit 1 ;;
+    main)
+      if [ "$me" != "$lead" ]; then
+        echo "✋ Only $lead updates 'main' (via the develop → main release PR)." >&2
+        exit 1
+      fi ;;
+    team-status)
+      ;;                                           # published by scripts/team-publish-status.sh
+    *)
+      if ! printf '%s' "$name" | grep -Eq "$pattern"; then
+        echo "✋ Branch name '$name' doesn't follow <type>/<area>-<desc> (e.g. feature/backend-unit-change-detector). See CONTRIBUTING.md." >&2
+        exit 1
+      fi ;;
+  esac
+done
+exit 0

@@ -6,13 +6,19 @@ A living log of decisions, open questions and facts for this project. Newest ent
 
 - **Event:** HackWave 3.0 (CDGI), PS 3 "The Internet After the API", ~10-day build.
 - **Product (working name):** Seismo, "Dependabot for the APIs you depend on".
-- **Stage:** research and design done (`docs/`), no code yet.
+- **Stage:** research and design done (`docs/`), team workflow + CI + Claude coordination set up, no product code yet.
 - **Core bet:** real-traffic, shape-only fingerprints + semantic/behavioural detectors + code-aware severity + fix PRs. Add-ons: changelog/deprecation radar and a (simulated) drift network.
 
 ## Decisions
 
 | Date | Decision | Why | Where documented |
 |---|---|---|---|
+| 2026-10-11 | Team: NetPranav = lead + architecture/logic (backend, SDK), OVERxPOWERED = architecture/logic (GitHub App, fake services), adarzhpathade = frontend (shop, dashboard) | Split agreed by the lead; backend split between the two logic devs is changeable in `.team/OWNERSHIP.md` | `.team/OWNERSHIP.md`, `.github/CODEOWNERS` |
+| 2026-10-11 | Branch model: `main` (lead only, merge-commit release PRs, tags) ← `develop` (default branch; squash-merged PRs; 1 approval + CI `ci-ok` + up to date) ← `<type>/<area>-<desc>` branches; `hotfix/*` from main | Keep main demo-ready; nobody breaks develop | `CONTRIBUTING.md` |
+| 2026-10-11 | Enforcement: GitHub rulesets (server-side) + `.githooks/pre-push` (local) + Claude `permissions.deny` (no push to main/develop, no force push, no `gh pr merge`) | Defence in depth; rulesets are the real guard | `.claude/settings.json`, `CONTRIBUTING.md` §2 |
+| 2026-10-11 | Claude-to-Claude coordination via git: SessionStart hook runs `scripts/team-status.sh`; per-person status published to a separate `team-status` branch; skills `/start-task`, `/handoff`, `/team-sync`; draft PRs from the first commit | Three separate machines can't share a live session; git is the shared bus; status off code branches avoids merge conflicts | `.team/README.md` |
+| 2026-10-11 | Contracts first: cross-owner interfaces live in `contracts/` and change via their own PR | Lets frontend and backend build in parallel against mocks | `contracts/README.md` |
+| 2026-10-11 | Feature branches stay current by merging `origin/develop` (no rebase, no force push) | Squash merge keeps develop clean anyway; avoids force-push risk | `CONTRIBUTING.md` §3 |
 | 2026-10-11 | Working name "Seismo" (placeholder) | Docs need a name; check availability before public use | `docs/README.md` |
 | 2026-10-11 | Positioning: "Dependabot for the APIs you depend on" | Developers instantly understand PR-based dependency bots | `docs/solution.md` |
 | 2026-10-11 | Do **not** claim novelty for structural third-party drift, API lockfiles or MCP tool pinning | Research found 8+ polling drift tools (FlareCanary, DriftGuard, DriftMonitor, APIShift…), DriftGuard GitHub Action, Invariant mcp-scan, Bellwether, DriftCop | `docs/competitors.md` |
@@ -36,6 +42,8 @@ A living log of decisions, open questions and facts for this project. Newest ent
 | Q4 | SDK language for MVP: Node only (current plan) or also Python? | Backend | Leaning Node only |
 | Q5 | Survey results: our own number on how teams find out about API changes | Product | Not started |
 | Q6 | Verify competitor features/prices on their own sites before the deck (all currently vendor claims via a competitor's article) | Product | Open |
+| Q7 | Should the demo shop live in this repo (`shop/`) or a separate demo repo that the Seismo GitHub App is installed on? A separate repo makes the "install the app" demo cleaner. CI already allows `seismo/*` bot branches in case it stays here | Lead + OVERxPOWERED | Open |
+| Q8 | The repo is **public**: the evidence PDFs and docs are visible to anyone, including other teams. Keep public (rulesets are free on public repos) or go private (rulesets on private repos need GitHub Pro/Team; the Student Pack includes Pro)? | Lead | Open |
 
 ## Key facts to remember (labelled)
 
@@ -50,10 +58,12 @@ A living log of decisions, open questions and facts for this project. Newest ent
 
 ## People (roles)
 
-- **Project lead / builder:** the repo owner.
-- **Research teammate:** author of the two evidence PDFs in the root (handle appears in the PDFs).
-- Remaining team roles: see `docs/business-model.md` §7.
+- **@NetPranav:** lead, architecture/logic (backend, SDK), owns `main` and repo config.
+- **@OVERxPOWERED:** architecture/logic (GitHub App, fake services).
+- **@adarzhpathade:** frontend (demo shop, dashboard).
+- **Research:** the two evidence PDFs in the root were written by a teammate (handle appears in the PDFs).
 
 ## Changelog of this file
 
+- 2026-10-11: Added team roles, branch model, enforcement and Claude coordination decisions; Q7–Q8.
 - 2026-10-11: Created with initial decisions, open questions and facts after the docs folder was written.

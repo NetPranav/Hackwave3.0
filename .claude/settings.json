@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/team-status.sh*)",
+      "Bash(bash scripts/team-publish-status.sh*)",
+      "Bash(bash scripts/check-md-links.sh*)",
+      "Bash(git fetch*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr checks*)"
+    ],
+    "deny": [
+      "Bash(git push origin main*)",
+      "Bash(git push origin develop*)",
+      "Bash(git push origin HEAD:main*)",
+      "Bash(git push origin HEAD:develop*)",
+      "Bash(git push * --force*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh api * rulesets*)",
+      "Bash(git config core.hooksPath*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/team-status.sh\"",
+            "timeout": 30,
+            "statusMessage": "Loading team briefing…"
+          }
+        ]
+      }
+    ]
+  }
+}

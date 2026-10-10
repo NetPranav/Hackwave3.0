@@ -6,7 +6,7 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for tea
 
 - **Event:** HackWave 3.0 (CDGI) · Track: Resilient Infrastructure · **PS 3: "The Internet After the API"** · ~10-day build.
 - **Product (working name):** **Seismo**, "Dependabot for the APIs you depend on". It detects silent changes in third-party APIs (shape, behaviour, meaning), maps them to the code that uses them, and opens safe fix PRs, asking a human when unsure.
-- **Status:** planning complete, no code yet. Full design is in [`docs/`](docs/README.md).
+- **Status:** planning complete, team workflow set up, no product code yet. Full design is in [`docs/`](docs/README.md); team rules in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Where things are
 
@@ -16,7 +16,30 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for tea
 | `PS3_Overview.md` | Original project overview |
 | `*.pdf` (root) | Research teammate's evidence reviews; the base for `docs/evidence.md` |
 | `MEMORY.md` | Decision log, open questions, key facts |
+| `CONTRIBUTING.md` | Branch model, naming, PR and release rules |
+| `.team/` | Ownership (`OWNERSHIP.md`), status template, how the three Claude sessions coordinate |
+| `contracts/` | Interfaces between owners; change these before the code |
+| `scripts/` | `setup.sh`, `team-status.sh` (session briefing), `team-publish-status.sh`, `check-md-links.sh` |
+| `.claude/` | Shared Claude Code settings (hook + permission rules) and skills `/start-task`, `/handoff`, `/team-sync` |
 | Planned code dirs | `services/` `shop/` `sdk-node/` `backend/` `github-app/` `dashboard/` `tests/` (see `docs/roadmap-demo.md` §2) |
+
+## Team workflow (mandatory for every agent session)
+
+Three developers work in parallel, each with their own Claude Code session on their own computer:
+
+| GitHub | Role | Owns |
+|---|---|---|
+| NetPranav | Lead · architecture/logic | `backend/`, `sdk-node/`, repo config; only person who updates `main` |
+| OVERxPOWERED | Architecture/logic | `github-app/`, `services/` |
+| adarzhpathade | Frontend | `shop/`, `dashboard/` |
+
+1. **Read the TEAM BRIEFING** injected at session start (from `scripts/team-status.sh`). It lists each teammate's published status, active branches, open PRs, overlaps with your files, and how far behind `develop` you are. Act on its warnings. Re-run it with `/team-sync` before touching shared files.
+2. **Who you are:** `git config seismo.handle`. Work inside that person's areas (`.team/OWNERSHIP.md`). Touching another owner's area needs the user's OK, and the owner gets tagged on the PR.
+3. **Never work on `main`, `develop` or `team-status`.** Start every task with `/start-task`: a `<type>/<area>-<desc>` branch from `origin/develop`, the status claimed, a draft PR opened.
+4. **Contracts first.** Anything crossing an ownership boundary goes through `contracts/` in its own PR before implementation (`contracts/README.md`).
+5. **Keep the branch current by merging** `origin/develop` (never rebase pushed branches, never force-push).
+6. **End with `/handoff`:** checks pass, branch pushed, status published to `team-status`, PR updated. Humans mark PRs ready and merge; agents never run `gh pr merge` or push to protected branches (denied in `.claude/settings.json`; GitHub rulesets enforce it server-side too).
+7. **Conflicts in a teammate's files:** stop and ask; don't resolve them on your own.
 
 ## Stack (planned)
 
@@ -51,4 +74,11 @@ FastAPI (fake services + backend) · Postgres (SQLite OK for demo) · Node/TypeS
 
 ## Commands
 
-To be filled in once code exists (expected: `docker compose up`, `pnpm dev` in `shop/` and `dashboard/`, `uvicorn` for `backend/` and `services/`, `pnpm test`, `pytest`). Update this section when they're real.
+Available now:
+```bash
+bash scripts/setup.sh <github-handle>     # once per machine
+bash scripts/team-status.sh               # team briefing
+bash scripts/team-publish-status.sh       # publish .team/status/<handle>.md
+bash scripts/check-md-links.sh            # docs link check (also in CI)
+```
+To be filled in once code exists (expected: `docker compose up`; `npm run dev` / `npm test` in `shop/`, `dashboard/`, `sdk-node/`, `github-app/` with a committed `package-lock.json`; `uvicorn` + `pytest` + `ruff check .` in `backend/` and `services/`). CI (`.github/workflows/ci.yml`) runs lint/typecheck/test/build for any of these folders that has a `package.json` / `pyproject.toml` / `requirements.txt`. Update this section when they're real.

@@ -1,0 +1,38 @@
+name: Task
+description: A piece of work for one person, one branch, one PR
+title: "[task] "
+labels: ["task"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [backend, sdk, github-app, services, shop, dashboard, contracts, docs, infra]
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      options: [NetPranav, OVERxPOWERED, adarzhpathade]
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should exist when this is done? Link the relevant docs/ section or feature ID (e.g. F8).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] ...\n- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Contracts / dependencies on teammates
+      placeholder: "Needs contracts/dashboard-api.openapi.yaml v1 from @NetPranav"
