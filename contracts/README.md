@@ -12,7 +12,7 @@ Interfaces between the parts owned by different people. **Contract first, code s
 
 | File | Producer → consumer | Describes |
 |---|---|---|
-| `fingerprint.schema.json` | SDK → backend ingest (@NetPranav) | Shape-only response fingerprint + batch sketch (see `docs/architecture.md` §3.3) |
+| `fingerprint.schema.json` | SDK → backend ingest (@NetPranav) | Shape-only response fingerprint + batch sketch (see `docs/PS/architecture.md` §3.3) |
 | `dashboard-api.openapi.yaml` | backend (@NetPranav) → dashboard (@adarzhpathade) | Services, endpoints, drift events, graph data, review queue, demo controls, WebSocket events |
 | `codemap.schema.json` | GitHub App (@OVERxPOWERED) → backend (@NetPranav) | Call sites, field reads, usage kinds, workflows |
 | `fix-request.schema.json` | backend (@NetPranav) → PR bot (@OVERxPOWERED) | Drift event + rung + adapter change to open as a PR |

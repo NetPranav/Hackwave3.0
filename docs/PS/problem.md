@@ -68,7 +68,7 @@ The gap: **detection, impact analysis and the fix are all manual, and detection 
 
 ## 6. What the judges look for
 
-From `PS3_Overview.md` §7 (a paraphrase; the official PS PDF is not in this folder yet, see [`../MEMORY.md`](../MEMORY.md)):
+From `PS3_Overview.md` §7 (a paraphrase; the official PS PDF is not in this folder yet, see [`../MEMORY.md`](../../MEMORY.md)):
 
 1. Accurate change detection, **including behavioural changes**
 2. Dependency mapping

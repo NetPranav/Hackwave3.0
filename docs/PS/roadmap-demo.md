@@ -27,7 +27,7 @@ Freeze rule: **no new features after day 7.** Days 8–10 are polish, demo safet
 ├── .team/                     ← ownership, status template (live status lives on the team-status branch)
 ├── contracts/                 ← interfaces between owners (contract-first)
 ├── scripts/                   ← setup, team briefing, status publishing, link check
-├── docs/                      ← this folder
+├── docs/PS/                   ← this folder (design docs for the problem statement)
 ├── services/                  ← fake third-party APIs (FastAPI): users, payments, shipping, orders
 ├── shop/                      ← demo shop app (Next.js) using the SDK + adapters
 ├── sdk-node/                  ← @seismo/sdk
