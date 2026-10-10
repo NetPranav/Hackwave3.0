@@ -31,20 +31,22 @@ if [ ! -f "$status" ]; then
   fi
 fi
 
-current=$(git rev-parse --abbrev-ref HEAD)
-if [ "$current" = "main" ] && git rev-parse -q --verify refs/remotes/origin/develop >/dev/null; then
-  git switch develop 2>/dev/null || git switch -c develop --track origin/develop
+mybranch=$(printf '%s' "$handle" | tr '[:upper:]' '[:lower:]')
+if git rev-parse -q --verify "refs/remotes/origin/$mybranch" >/dev/null; then
+  git switch "$mybranch" 2>/dev/null || git switch -c "$mybranch" --track "origin/$mybranch"
+else
+  echo "warning: origin/$mybranch doesn't exist yet; ask the lead to create it" >&2
 fi
 
 cat <<EOF
 
 Setup done for $handle.
-  • git hooks installed (.githooks: blocks direct pushes to main/develop, checks branch names)
+  • git hooks installed (.githooks: you can push only your own branch)
   • your status file: $status  (publish with: bash scripts/team-publish-status.sh)
   • current branch: $(git rev-parse --abbrev-ref HEAD)
 
 Next:
   1. gh auth status            # GitHub CLI must be logged in
   2. claude                    # the team briefing loads automatically
-  3. /start-task               # inside Claude Code, to begin your first task
+  3. Read START_HERE.md (your tasks) · finish a session with /handoff
 EOF

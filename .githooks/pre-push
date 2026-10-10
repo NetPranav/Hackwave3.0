@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
-# Local guard: fails fast before GitHub's rulesets would reject the push anyway.
+# Local guard: you may push only your own personal branch (and team-status via scripts).
 # Installed by scripts/setup.sh (git config core.hooksPath .githooks).
-pattern='^(feature|fix|chore|docs|refactor|test|hotfix|release|seismo)/[a-z0-9][a-z0-9._-]*$'
+me=$(git config --get seismo.handle || true)
+mine=$(printf '%s' "$me" | tr '[:upper:]' '[:lower:]')
 zero="0000000000000000000000000000000000000000"
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   name=${remote_ref#refs/heads/}
-  [ "$name" = "$remote_ref" ] && continue          # tags and other refs: allowed
-  [ "$local_sha" = "$zero" ] && continue           # deleting a remote branch: allowed (rulesets guard protected ones)
-
+  [ "$name" = "$remote_ref" ] && continue          # tags: allowed
+  [ "$local_sha" = "$zero" ] && continue           # deleting: allowed (GitHub guards main)
   case "$name" in
-    develop)
-      echo "✋ Direct pushes to 'develop' are blocked. Push your feature branch and open a PR into develop." >&2
-      exit 1 ;;
     main)
-      echo "✋ Nobody pushes to 'main'. The lead merges the develop → main release PR on GitHub." >&2
-      exit 1 ;;
+      echo "✋ Nobody pushes to 'main'. The lead merges personal branches into main through a PR." >&2; exit 1 ;;
     team-status)
-      ;;                                           # published by scripts/team-publish-status.sh
+      ;;                                           # used by scripts/team-*.sh
+    "$mine")
+      ;;                                           # your own branch
+    netpranav|adarzhpathade|overxpowered)
+      echo "✋ '$name' is someone else's branch. Push only to '$mine'. Need something from them? bash scripts/team-request.sh" >&2; exit 1 ;;
     *)
-      if ! printf '%s' "$name" | grep -Eq "$pattern"; then
-        echo "✋ Branch name '$name' doesn't follow <type>/<area>-<desc> (e.g. feature/backend-unit-change-detector). See CONTRIBUTING.md." >&2
-        exit 1
-      fi ;;
+      echo "✋ Push only to your own branch '$mine' (got '$name'). See CONTRIBUTING.md." >&2; exit 1 ;;
   esac
 done
 exit 0

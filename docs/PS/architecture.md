@@ -204,8 +204,8 @@ For each external call site:
 - **Function → route → workflow** (workflow names from a small config file, route prefixes or test names: `checkout`, `invoice`, `order-history`)
 
 ### 6.2 How
-1. **tree-sitter** parse for JS/TS (MVP) and Python (next); follow variables within a function and one level across calls.
-2. **LLM-assisted extraction** for dynamic code the AST can't resolve (string-built URLs, generic clients): the model gets the snippet and returns a structured JSON of endpoint + fields; results are cached per file hash and marked "inferred".
+1. **ts-morph** for JS/TS (MVP, see [`../roadmap/P2-see-your-apis.md`](../roadmap/P2-see-your-apis.md)); tree-sitter for Python later. Follow variables within a function and one level across calls.
+2. *(Post-MVP)* **LLM-assisted extraction** for dynamic code the AST can't resolve (string-built URLs, generic clients): the model gets the snippet and returns a structured JSON of endpoint + fields; results are cached per file hash and marked "inferred".
 3. **Runtime join**: the SDK's call-site stack frame (file:line, sampled) confirms which code produced which call, improving the map over time.
 
 Honest limit: static analysis of dynamic languages is incomplete. The map is labelled with coverage ("312 field reads mapped, 18 inferred, 4 unresolved") and the runtime join fills gaps.
@@ -231,9 +231,9 @@ severity = confidence × impact × exposure
 | ✅ Resolved | PR merged or marked expected | Baseline rebuilt |
 
 **Fix routing:**
-- Rung 1 (fallback) + CI green → "auto-safe" PR, can auto-merge if the repo opts in.
-- Rung 2 (transform) → review PR; never auto-merge on money/branching/persistence fields.
-- Rung 3 (behaviour) → review PR as a suggestion, with an explanation.
+- Rung 1 (alias) that passes conflict checks C1–C6 → "auto-safe" PR adding one data rule to `seismo/aliases.json`; a human merges after CI (C7–C8) is green. Spec: [`../roadmap/P5-fix-it-safely.md`](../roadmap/P5-fix-it-safely.md).
+- Rung 2 (transform) → review item with explanation and suggestion; never auto-applied. A human may open a `needs-review` suggestion PR.
+- Rung 3 (behaviour) → review item with explanation and a suggested change; no automatic PR.
 - Confidence < 0.6 on any rung → no PR; review card with the evidence and a "this is expected" button.
 
 ## 8. Validation (regression tests)
@@ -251,7 +251,7 @@ severity = confidence × impact × exposure
 | Extracting endpoints/fields from dynamic code the AST can't resolve | Seeing raw customer data (it gets statistics and code only) |
 | Summarising provider changelog entries into structured changes (add-on) | — |
 
-Model choice (suggestion): a small fast model for classification and extraction (e.g. `claude-haiku-5-5`), a stronger one for PR explanations (e.g. `claude-sonnet-5-5`). Outputs are JSON with a schema; invalid output → fall back to "needs review".
+Model choice (decided 2026-10-11): **NVIDIA NIM, Nemotron family**: a quality model (Nemotron 3 Ultra) for explanations and a faster one for classification, picked by a benchmark spike. Outputs are JSON validated with zod; invalid output → template fallback. Full spec: [`../roadmap/ai-layer.md`](../roadmap/ai-layer.md).
 
 ## 10. Data model (MVP)
 
@@ -273,21 +273,24 @@ Model choice (suggestion): a small fast model for classification and extraction 
 
 ## 11. Tech stack
 
+**Updated 2026-10-11: all TypeScript.** The full list with verification status is in [`../roadmap/libraries.md`](../roadmap/libraries.md); layout and environments in [`../roadmap/setup-and-deploy.md`](../roadmap/setup-and-deploy.md).
+
 | Part | Choice | Why |
 |---|---|---|
-| Fake services | Python **FastAPI**, each with v1/v2 switch via admin endpoint | Fast to build, auto OpenAPI |
-| Demo shop app | **Next.js** (server-side API calls) | Node SDK demo; judges see a real UI |
-| SDK | TypeScript (Node) for MVP; Python next | Matches demo app |
-| Backend | **FastAPI** + background workers (asyncio or RQ) | Same language as fake services |
-| Storage | **Postgres** (SQLite acceptable for demo) with JSONB | Flexible stats storage |
-| Sketches | `tdigest` / simple quantile arrays for demo | Percentiles cheaply |
-| GitHub App | **Probot** (Node) or Octokit + FastAPI webhooks; `smee.io` for local webhooks | Standard tooling |
-| Code scan | **tree-sitter** (JS/TS) + LLM fallback | Robust parsing |
-| LLM | Claude API, JSON-schema outputs | Explanations, enum classification |
-| Dashboard | Next.js + Tailwind; **react-force-graph** or **sigma.js** for the Obsidian-style graph; **React Flow** for the left-to-right impact chain | Graph look + clarity |
-| Live updates | WebSockets (or 2 s polling for demo safety) | Live demo |
-| Tests | Vitest/Jest in demo app; Playwright for workflow tests | Red → green visual |
-| Auth | GitHub OAuth (comes with the GitHub App) | No separate login system |
+| Fake services | Node + **Fastify**, v1/v2 scenario toggles + admin API | Same language as everything else |
+| Demo shop | **Next.js**, separate repo `seismo-demo-shop` | The GitHub App is installed on a real separate repo |
+| SDK | TypeScript (Node); runtime `applyAliases` in `@seismo/sdk/runtime` | Matches demo app |
+| Backend | **Fastify** API + **pg-boss** worker | One language; Postgres-only queue |
+| Storage | **Postgres** (Neon in the cloud, Docker locally) via drizzle | JSON columns for statistics |
+| Contracts | **zod** → TS types, JSON Schema, OpenAPI, mock data | Shared by all three developers |
+| GitHub App | **Probot** (or @octokit/app), manifest flow | Standard tooling |
+| Code scan | **ts-morph** (no LLM in the MVP) | Precise TS/JS analysis |
+| LLM | **NVIDIA NIM** (Nemotron), OpenAI-compatible client, JSON outputs | See [`../roadmap/ai-layer.md`](../roadmap/ai-layer.md) |
+| Dashboard | Next.js + Tailwind + shadcn/ui; react-force-graph-2d or Sigma (graph); React Flow (impact chain) | Graph look + clarity |
+| Live updates | Server-sent events (polling as fallback) | Simple |
+| Tests | Vitest, Playwright, fast-check (property tests) | Red → green + proven guarantees |
+| Auth | GitHub OAuth through the GitHub App (Auth.js) | No separate login system |
+| Hosting | Vercel (dashboard), a non-sleeping Node host (API, worker, services, app), Neon | Public URLs for webhooks and the landing page |
 
 ## 12. Security and privacy model
 

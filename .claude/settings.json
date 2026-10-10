@@ -11,13 +11,12 @@
       "Bash(git diff*)",
       "Bash(gh pr list*)",
       "Bash(gh pr view*)",
-      "Bash(gh pr checks*)"
+      "Bash(gh pr checks*)",
+      "Bash(bash scripts/team-request.sh*)"
     ],
     "deny": [
       "Bash(git push origin main*)",
-      "Bash(git push origin develop*)",
       "Bash(git push origin HEAD:main*)",
-      "Bash(git push origin HEAD:develop*)",
       "Bash(git push * --force*)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
@@ -37,6 +36,18 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/team-status.sh\"",
             "timeout": 30,
             "statusMessage": "Loading team briefing…"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/guard-area.sh\"",
+            "timeout": 10
           }
         ]
       }

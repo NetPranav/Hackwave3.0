@@ -57,6 +57,25 @@ Web research date: **10 Oct 2026**. Most web sources were read through search-re
 | Stripe date-based versioning | https://levelup.gitconnected.com/why-stripes-api-never-breaks-the-genius-of-date-based-versioning-2c4683cf8adb | S |
 | India DPDP Rules 2025 | https://www.hlc.com/en/publications/indias-digital-personal-data-protection-act-2023-brought-into-force- · https://www.tcsa.in/resources/dpdp-rules-2025-implementation-roadmap | S (law firm / consultancy) |
 
+## Build-plan research (2026-10-11, for `docs/roadmap/`)
+| Topic | Source | Label |
+|---|---|---|
+| Nemotron 3 Ultra model card (`nvidia/nemotron-3-ultra-550b-a55b`) | https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-ultra-550b-a55b | P |
+| Nemotron 3 Ultra announcement (NVIDIA developer blog) | https://developer.nvidia.com/blog/nvidia-nemotron-3-ultra-powers-faster-more-efficient-reasoning-for-long-running-agents/ | V |
+| NIM structured generation (`guided_json`, self-hosted NIM docs) | https://docs.nvidia.com/nim/large-language-models/latest/structured-generation.html | V |
+| NIM free-tier ~40 RPM (third-party, unofficial) and rate-limit forum thread | https://freellm.net/providers/nvidia-nim · https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-40-200-rpm/380956 | S, Unverified |
+| Deterministic codemods vs AI fixes (Pixee codemodder docs) | https://docs.pixee.ai/open-source/codemodder | V |
+| Background coding agents with verification loops (Spotify, via ZenML) | https://zenml.io/llmops-database/building-reliable-background-coding-agents-with-verification-loops | S |
+| @mswjs/interceptors (read-only response listener) | https://github.com/mswjs/interceptors | V |
+| octokit-plugin-create-pull-request | https://github.com/gr2m/octokit-create-pull-request/ | V |
+| GitHub App manifest flow (Probot implements it) | https://docs.github.com/en/enterprise-server@3.16/apps/sharing-github-apps/registering-a-github-app-from-a-manifest | P |
+| Twilio WhatsApp sandbox quickstart (24-hour window) | https://www.twilio.com/docs/sms/whatsapp/quickstart | P |
+| react-force-graph | https://github.com/vasturiano/react-force-graph | V |
+| Graph library comparison (Cosmograph) | https://cosmograph.app/docs-lib/comparison/ | V |
+| Statuspage `summary.json` (example API page) | https://bitbucket.status.atlassian.com/api | P |
+| quicktype (multi-sample JSON inference) | https://cdn.jsdelivr.net/gh/glideapps/quicktype@master/README.md | V |
+| pg-boss vs BullMQ (2026 comparison) | https://www.pkgpulse.com/guides/bullmq-vs-bee-queue-vs-pg-boss-job-queues-nodejs-2026 | S |
+
 ## Searched but not found (do not cite)
 - KushoAI report claiming "41% of APIs see undocumented schema changes within 30 days": original not found.
 - Postman Insights using eBPF: not confirmed.

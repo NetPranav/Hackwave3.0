@@ -8,19 +8,19 @@
 /backend/             @NetPranav
 /sdk-node/            @NetPranav
 
-# Architecture / logic: OVERxPOWERED
-/github-app/          @OVERxPOWERED
-/services/            @OVERxPOWERED
+# Former OVERxPOWERED areas (moved to the lead 2026-10-11)
+/github-app/          @NetPranav
+/services/            @NetPranav
+/backend/src/alerts/  @NetPranav
 
-# Frontend: adarzhpathade
-/shop/                @adarzhpathade
+# Frontend: adarzhpathade (the demo shop lives in NetPranav/seismo-demo-shop)
 /dashboard/           @adarzhpathade
 
 # Shared interfaces and docs: everyone
-/contracts/           @NetPranav @OVERxPOWERED @adarzhpathade
-/docs/                @NetPranav @OVERxPOWERED @adarzhpathade
-/tests/               @NetPranav @OVERxPOWERED @adarzhpathade
-/.team/               @NetPranav @OVERxPOWERED @adarzhpathade
+/contracts/           @NetPranav @adarzhpathade
+/docs/                @NetPranav @adarzhpathade
+/tests/               @NetPranav @adarzhpathade
+/.team/               @NetPranav @adarzhpathade
 
 # Repo configuration: lead
 /.github/             @NetPranav

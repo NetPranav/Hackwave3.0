@@ -1,35 +1,22 @@
 ---
 name: handoff
-description: Publish what was done and what's next so the other two developers and their Claude sessions can see it. Commits and pushes the feature branch, merges in the latest develop, updates the shared team status and the PR. Use at the end of a work session, after finishing a chunk of work, before switching tasks, or when the user says "handoff", "wrap up", "sync my work" or "update the team".
+description: Save and share this session's work. Runs checks, commits, pushes to the user's OWN personal branch, and publishes their team status note. Use at the end of a work session, after finishing a chunk of work, or when the user says "handoff", "wrap up", "save my work" or "push my work".
 ---
 
 # Handoff
 
-1. **Summarise the session** for yourself:
-   ```bash
-   git log --oneline origin/develop..HEAD
-   git diff --stat origin/develop...HEAD
-   git status --porcelain
-   ```
+1. **Check where you are.** `git config seismo.handle` gives the person; their branch is the lowercase handle (`netpranav`, `adarzhpathade`). If `git rev-parse --abbrev-ref HEAD` isn't that branch, **stop and ask**; never commit on `main` or someone else's branch.
 
-2. **Run the checks for the areas you touched** (tests, lint, typecheck; see `AGENTS.md` → Commands). If something fails, fix it or tell the user before going further.
+2. **Summarise the session:** `git status --porcelain`, `git diff --stat`, `git log --oneline -5`.
 
-3. **Commit pending work** with Conventional Commit messages (`feat(backend): …`). Ask the user about half-finished or experimental changes. Never commit secrets, `.env` files, or `.team/status/` (it's git-ignored on purpose).
+3. **Run the checks for the folders you touched** (lint, typecheck, tests; see `AGENTS.md` → Commands). If something fails, fix it or tell the user before going further.
 
-4. **Bring the branch up to date without rewriting history:**
-   ```bash
-   git fetch origin
-   git merge origin/develop
-   ```
-   Resolve conflicts only in files the user owns (`.team/OWNERSHIP.md`). For conflicts in a teammate's files, **stop and ask**. Re-run checks after a merge. Never rebase a pushed branch, never force-push.
+4. **Commit** with Conventional Commit messages (`feat(dashboard): …`, `feat(backend): …`). Ask about half-finished experiments. Never commit secrets or `.env` files.
 
-5. **Push:** `git push` (sets upstream with `-u origin HEAD` if needed).
+5. **Push your own branch only:** `git push` (first time: `git push -u origin <your-branch>`). Never force-push; never push `main` or another person's branch.
 
-6. **Update the shared status.** Rewrite `.team/status/<handle>.md`: Updated time, Branch, PR, Now, Areas/files, **Done since last update**, Next, Blockers / needs from others, Contract changes. Keep it short and concrete, because teammates' Claude sessions read it at startup. Then:
-   ```bash
-   bash scripts/team-publish-status.sh
-   ```
+6. **Status note:** update `.team/status/<handle>.md` (Now, Done, Next, Blockers) in a few short lines, then `bash scripts/team-publish-status.sh`.
 
-7. **Update the PR.** Make sure the description reflects what's done and how it was tested (`gh pr edit --body …`). Only if the user says it's ready: `gh pr ready`. Never merge PRs; humans merge.
+7. **Requests:** if this work finishes something another person was waiting for, or you now need something from them, run `bash scripts/team-request.sh <handle> "text"` (or `done <id>`), and remind your human to call or message them.
 
-8. **Report** in a few lines: what was pushed, PR link and CI state (`gh pr checks`), what the status now says, anything a teammate needs to act on.
+8. **Report** in a few lines: what was pushed, to which branch, open requests.

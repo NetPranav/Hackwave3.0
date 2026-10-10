@@ -1,40 +1,39 @@
 #!/usr/bin/env bash
-# Lead only (needs repo admin). Safe to re-run: pushes the base branches, sets merge settings,
-# makes develop the default branch, and creates/updates the branch rulesets.
+# Lead only (needs repo admin). Safe to re-run. Sets up the simple branch model:
+#   main = default + protected (lead merges PRs) · one personal branch per person · team-status shared
 # Usage: bash scripts/admin/bootstrap-github.sh [owner/repo]
 set -euo pipefail
 repo=${1:-NetPranav/Hackwave3.0}
 cd "$(git rev-parse --show-toplevel)"
 
-echo "1/4 Pushing main, develop, team-status…"
-# --no-verify: the local pre-push hook blocks main/develop by design; this one-time bootstrap is the exception.
-# On re-runs (branches already protected) a rejected push is expected and harmless.
-git push --no-verify origin main develop team-status || echo "  (push rejected or nothing to push; continuing)"
-
-echo "2/4 Repository settings (merge methods, default branch = develop)…"
+echo "1/5 Repository settings (default branch = main, merge methods)…"
 gh api -X PATCH "repos/$repo" \
   -F allow_squash_merge=true -F allow_merge_commit=true -F allow_rebase_merge=false \
   -F allow_update_branch=true -F delete_branch_on_merge=false \
-  -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY \
-  -f default_branch=develop >/dev/null
+  -f default_branch=main >/dev/null
 
 upsert_ruleset() {
   local name=$1 body=$2 id
   id=$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$name\") | .id")
   if [ -n "$id" ]; then
-    gh api -X PUT "repos/$repo/rulesets/$id" --input - <<<"$body" >/dev/null
-    echo "  updated: $name"
+    gh api -X PUT "repos/$repo/rulesets/$id" --input - <<<"$body" >/dev/null; echo "  updated: $name"
   else
-    gh api -X POST "repos/$repo/rulesets" --input - <<<"$body" >/dev/null
-    echo "  created: $name"
+    gh api -X POST "repos/$repo/rulesets" --input - <<<"$body" >/dev/null; echo "  created: $name"
   fi
+}
+delete_ruleset() {
+  local id
+  id=$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$1\") | .id")
+  if [ -n "$id" ]; then gh api -X DELETE "repos/$repo/rulesets/$id" >/dev/null; echo "  deleted: $1"; fi
 }
 
 ci_check='{"context": "ci-ok", "integration_id": 15368}'   # 15368 = GitHub Actions
 admin_pr_only='{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request"}'
 
-echo "3/4 Rulesets…"
-# main: nobody pushes directly; only the repo admin (NetPranav) can merge, and only through a PR; merge commits only; CI must pass.
+echo "2/5 Rulesets…"
+delete_ruleset develop-protection
+
+# main: nobody pushes directly; only the repo admin (NetPranav) merges, through a PR, with CI green.
 upsert_ruleset main-protection "$(cat <<JSON
 {
   "name": "main-protection", "target": "branch", "enforcement": "active",
@@ -55,36 +54,22 @@ upsert_ruleset main-protection "$(cat <<JSON
 JSON
 )"
 
-# develop: PR + 1 approval + green, up-to-date CI; admin may bypass only through a PR (emergencies).
-upsert_ruleset develop-protection "$(cat <<JSON
-{
-  "name": "develop-protection", "target": "branch", "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["refs/heads/develop"], "exclude": [] } },
-  "bypass_actors": [ $admin_pr_only ],
-  "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    { "type": "pull_request", "parameters": {
-        "required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": false, "require_last_push_approval": false,
-        "required_review_thread_resolution": true, "allowed_merge_methods": ["squash", "merge"] } },
-    { "type": "required_status_checks", "parameters": {
-        "strict_required_status_checks_policy": true, "required_status_checks": [ $ci_check ] } }
-  ]
-}
-JSON
-)"
-
-# team-status: anyone can publish, nobody can delete it or rewrite its history.
+# personal branches + team-status: normal pushes allowed, nobody can delete them or rewrite history.
 upsert_ruleset team-status-guard "$(cat <<JSON
 {
   "name": "team-status-guard", "target": "branch", "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["refs/heads/team-status"], "exclude": [] } },
+  "conditions": { "ref_name": { "include": ["refs/heads/team-status", "refs/heads/netpranav", "refs/heads/adarzhpathade", "refs/heads/overxpowered"], "exclude": [] } },
   "bypass_actors": [],
   "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" } ]
 }
 JSON
 )"
 
-echo "4/4 Done. Rulesets now on $repo:"
+echo "3/5 Deleting the old develop branch (if it exists)…"
+gh api -X DELETE "repos/$repo/git/refs/heads/develop" >/dev/null 2>&1 && echo "  deleted develop" || echo "  (no develop branch)"
+
+echo "4/5 Closing PR #1 (its change is included in PR #2)…"
+gh pr close 1 -R "$repo" -c "Superseded: included in #2 (simplified branch model)." >/dev/null 2>&1 || true
+
+echo "5/5 Done. Rulesets now on $repo:"
 gh ruleset list -R "$repo"

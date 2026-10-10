@@ -22,13 +22,14 @@ HackWave 3.0 · Resilient Infrastructure · Working product name: **Seismo** (pl
 | 8 | [market-gap.md](market-gap.md) | Market size (honestly labelled), the gaps we found, why now |
 | 9 | [advantages-disadvantages.md](advantages-disadvantages.md) | Real strengths, real weaknesses, design trade-offs, risk register, SWOT |
 | 10 | [business-model.md](business-model.md) | Startup view: customers, go-to-market, pricing, moats, validation |
-| 11 | [roadmap-demo.md](roadmap-demo.md) | 10-day build plan, demo script, fake services, judge Q&A, post-hackathon roadmap |
+| 11 | [roadmap-demo.md](roadmap-demo.md) | Original 10-day plan (superseded by [`../roadmap/`](../roadmap/README.md)), judge Q&A, post-hackathon roadmap |
 | 12 | [sources.md](sources.md) | Every source used, grouped and labelled |
+| → | [`../roadmap/`](../roadmap/README.md) | **The build plan:** phases P0–P8, owners, days, specs for the GitHub App, dashboard, AI layer, setup and libraries |
 
 Project-level files at the repo root:
-- [`../AGENTS.md`](../AGENTS.md): instructions for AI coding agents and teammates working in this repo
-- [`../MEMORY.md`](../MEMORY.md): decision log, open questions, key facts
-- [`../PS3_Overview.md`](../PS3_Overview.md): the original overview this folder expands on
+- [`../AGENTS.md`](../../AGENTS.md): instructions for AI coding agents and teammates working in this repo
+- [`../MEMORY.md`](../../MEMORY.md): decision log, open questions, key facts
+- [`../PS3_Overview.md`](../../PS3_Overview.md): the original overview this folder expands on
 - The two evidence PDFs in the root (the research teammate's reviews) are the base for [evidence.md](evidence.md)
 
 ---
@@ -56,7 +57,7 @@ Research date for web sources: **10 Oct 2026**. Re-check figures before any publ
 2. **Add a one-line SDK** that wraps the HTTP client. It never changes responses, never blocks the app, and never sends a record's values out. It sends only **shape and statistics** (types, presence, batch percentiles, customer-salted hashes, list sizes).
 3. **Learn a baseline** per endpoint, then compare a rolling window against it with small, explainable detectors: missing field, rename, type change, **unit change (×100)**, **new enum value**, **silent truncation**, **pagination overlap**, error-shape change, rate-limit change, and `Sunset`/`Deprecation` headers.
 4. **Score severity by code usage.** A change to a field nobody reads is logged. A change to `amount` used in checkout pages someone.
-5. **Fix with a pull request** using the Tolerant Reader pattern: add a fallback, never replace. Unit or meaning changes go to human review with an explanation.
+5. **Fix with a pull request** that adds one data rule to `seismo/aliases.json`: put the old field name back from the new one only when it's missing, never replace anything (proven by property tests). Unit or meaning changes go to human review with an AI explanation.
 6. **Show it all** in an Obsidian-style graph: API → endpoint → field → code → workflow, coloured green/amber/red.
 
 What makes it different from the cheap 2026 "schema drift monitors" (see [competitors.md](competitors.md)): **real traffic instead of polling only**, **semantic and behavioural detectors**, **code-aware severity**, **auto-fix PRs with a review ladder**, and later a **cross-customer drift network**.
