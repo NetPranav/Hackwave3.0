@@ -36,16 +36,16 @@ Extra scripts: `npm run demo:traffic -- --rps 5`, `npm run demo:reset`, `npm run
 | Env | Branch | Dashboard | Node services | Database | GitHub App |
 |---|---|---|---|---|---|
 | Local | any | localhost:3000 | localhost (Turbo) | Docker Postgres | personal dev app + smee |
-| Staging | `develop` | Vercel (staging domain) | Node host, staging | Neon `staging` branch | `seismo-staging` |
+| Staging | `netpranav` (backend etc.) / `adarzhpathade` (dashboard) | Vercel (staging domain) | Node host, staging | Neon `staging` branch | `seismo-staging` |
 | Preview | every PR | Vercel preview URL | (uses staging API) | — | — |
 | Production | `main` | Vercel production domain | Node host, prod | Neon `main` | `Seismo` (public) |
 
 Node host is chosen by spike S5 (must not sleep: webhooks). Candidates: Render, Railway, Fly.io, Koyeb.
 
 ## 4. CI/CD
-- **CI** (`.github/workflows/ci.yml`, already live): `pr-rules`, `docs`, `node`, `python`, aggregate `ci-ok`. P0.9 switches `node` to a Turbo pipeline (`turbo run lint typecheck test build --filter=...[origin/develop]` so only changed workspaces run) and adds an `e2e` job (privacy test, fail-open test, alias property tests).
-- **CD:** Vercel deploys `dashboard/` (preview per PR, staging from `develop`, prod from `main`). The Node host auto-deploys `backend`, `services`, `github-app` from `develop` (staging) and `main` (prod). Migrations run as a release step before the new version starts.
-- **Releases:** `develop → main` release PR merged by @NetPranav (merge commit), tag `v0.N`; `v1.0` on Day 14.
+- **CI** (`.github/workflows/ci.yml`, already live): `pr-rules`, `docs`, `node`, `python`, aggregate `ci-ok`. P0.9 switches `node` to a Turbo pipeline (`turbo run lint typecheck test build --filter=...[origin/main]` so only changed workspaces run) and adds an `e2e` job (privacy test, fail-open test, alias property tests).
+- **CD:** Vercel deploys `dashboard/` (staging from `adarzhpathade`, prod from `main`). The Node host auto-deploys `backend`, `services`, `github-app` from `netpranav` (staging) and `main` (prod). Migrations run as a release step before the new version starts.
+- **Releases:** the lead merges personal branches into `main` through PRs (merge commit), tag `v0.N`; `v1.0` on Day 14.
 - **The demo repo** (`seismo-demo-shop`) has its own CI (lint, typecheck, Vitest incl. `seismo/aliases.test.ts`) and deploys to Vercel on push to its `main`.
 
 ## 5. Secrets and config

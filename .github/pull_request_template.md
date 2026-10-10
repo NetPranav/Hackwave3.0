@@ -12,7 +12,7 @@
 <!-- Commands run, tests added, screenshots/GIF for UI -->
 
 ## Checklist
-- [ ] Branch is from `develop` and named `<type>/<area>-<desc>`
+- [ ] Comes from the author's own personal branch (`netpranav` / `adarzhpathade`)
 - [ ] Title is a Conventional Commit (`feat(backend): …`)
 - [ ] Stays inside my ownership area, or the owner is tagged here: @…
 - [ ] Tests/lint pass locally; CI green

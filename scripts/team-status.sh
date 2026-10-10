@@ -28,27 +28,36 @@ branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
 run_with_timeout 8 git fetch --prune --quiet origin >/dev/null 2>&1
 fetched=$?
 
-if git rev-parse -q --verify refs/remotes/origin/develop >/dev/null; then base=origin/develop
-elif git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then base=origin/main
-else base=""; fi
+if git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then base=origin/main; else base=""; fi
+mybranch=$(printf '%s' "$me" | tr '[:upper:]' '[:lower:]')
 
 echo "=== TEAM BRIEFING (scripts/team-status.sh · $(date '+%Y-%m-%d %H:%M %Z')) ==="
 [ "$fetched" -ne 0 ] && echo "(could not reach origin; showing last known state)"
 echo "You: ${me:-UNKNOWN, run: bash scripts/setup.sh <github-handle>} · branch: $branch · your tasks: START_HERE.md"
 
 # --- Warnings about where you are -------------------------------------------
-case "$branch" in
-  main|develop|team-status)
-    echo "⚠ You are on '$branch'. Never commit here. Start work with /start-task (creates feature/<area>-<desc> from origin/develop)." ;;
-esac
+if [ -n "$mybranch" ] && [ "$branch" != "$mybranch" ]; then
+  echo "⚠ You are on '$branch', but your branch is '$mybranch'. Work only there: git switch $mybranch"
+fi
 if [ -n "$base" ] && [ "$branch" != "HEAD" ]; then
   counts=$(git rev-list --left-right --count "$base...HEAD" 2>/dev/null || echo "0 0")
   behind=${counts%%[[:space:]]*}; ahead=${counts##*[[:space:]]}
   echo "vs $base: $ahead ahead, $behind behind"
-  [ "${behind:-0}" -gt 10 ] 2>/dev/null && echo "⚠ You are $behind commits behind $base. Run: git fetch origin && git merge $base"
+  [ "${behind:-0}" -gt 0 ] 2>/dev/null && echo "($behind new commit(s) on main; merge them when convenient: git merge $base)"
 fi
 dirty=$(git status --porcelain 2>/dev/null | grep -vc '^??' || true)
 [ "${dirty:-0}" -gt 0 ] 2>/dev/null && echo "Uncommitted changes in $dirty tracked file(s)."
+
+# --- Requests (REQUESTS.md on team-status) ----------------------------------
+echo
+echo "--- Open requests (scripts/team-request.sh) ---"
+reqs=$(git show refs/remotes/origin/team-status:REQUESTS.md 2>/dev/null | grep '^- \[ \]' || true)
+if [ -z "$reqs" ]; then echo "(none)"; else
+  mine_reqs=$(printf '%s\n' "$reqs" | grep -i "→ to $me:" || true)
+  [ -n "$mine_reqs" ] && { echo "FOR YOU (do these first, on your own branch, then: bash scripts/team-request.sh done <id>):"; printf '%s\n' "$mine_reqs"; }
+  others_reqs=$(printf '%s\n' "$reqs" | grep -iv "→ to $me:" || true)
+  [ -n "$others_reqs" ] && { echo "Others:"; printf '%s\n' "$others_reqs"; }
+fi
 
 # --- Teammates' published status --------------------------------------------
 echo
@@ -111,6 +120,6 @@ if command -v gh >/dev/null 2>&1; then
 fi
 
 echo
-echo "Rules: one task = one branch from origin/develop · stay in your areas (.team/OWNERSHIP.md) · contract changes go through contracts/ first · publish your status with /handoff · humans merge PRs, Claude never pushes to main/develop."
+echo "Rules: work and push only on your own branch · stay in your area (START_HERE.md) · need something from someone else: bash scripts/team-request.sh <handle> \"text\" · humans merge into main, Claude never does."
 echo "=== END TEAM BRIEFING ==="
 exit 0

@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
   push:
-    branches: [develop, main]
+    branches: [main, netpranav, adarzhpathade, overxpowered]
 
 permissions:
   contents: read
@@ -19,28 +19,15 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Branch flow, branch name and PR title
+      - name: PR title is a Conventional Commit
         env:
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          if [ "$BASE_REF" = "main" ]; then
-            case "$HEAD_REF" in
-              develop|hotfix/*|release/*) ;;
-              *) echo "::error::PRs into main must come from develop, release/* or hotfix/* (got '$HEAD_REF')."; exit 1 ;;
-            esac
-          elif [ "$HEAD_REF" != "main" ]; then
-            if ! echo "$HEAD_REF" | grep -Eq '^(feature|fix|chore|docs|refactor|test|hotfix|release|seismo)/[a-z0-9][a-z0-9._-]*$'; then
-              echo "::error::Branch '$HEAD_REF' must look like feature/backend-unit-change-detector (see CONTRIBUTING.md)."
-              exit 1
-            fi
-          fi
           if ! echo "$TITLE" | grep -Eq '^(feat|fix|docs|refactor|test|chore|perf|ci|build|release)(\([a-z0-9-]+\))?!?: .+'; then
-            echo "::error::PR title must follow Conventional Commits, e.g. 'feat(backend): add unit-change detector'."
+            echo "::error::PR title must follow Conventional Commits, e.g. 'feat(dashboard): dashboard v1'."
             exit 1
           fi
-          echo "Branch flow, name and title OK."
+          echo "Title OK."
 
   docs:
     name: docs

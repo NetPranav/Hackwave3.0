@@ -1,6 +1,6 @@
 # P8 · Launch: landing page, public GitHub App, production, demo hardening (Days 11–14)
 
-**Done when:** a judge with a fresh GitHub account can open the landing page, sign in with GitHub, install the public Seismo app on a fork of the demo shop, and see the graph, a drift, an alias PR and a WhatsApp alert, in under 5 minutes, on production. A backup video of the full demo exists. `develop` is released to `main` and tagged `v1.0`.
+**Done when:** a judge with a fresh GitHub account can open the landing page, sign in with GitHub, install the public Seismo app on a fork of the demo shop, and see the graph, a drift, an alias PR and a WhatsApp alert, in under 5 minutes, on production. A backup video of the full demo exists. Both personal branches are merged into `main` and tagged `v1.0`.
 
 **Depends on:** P0–P7 (P7 may be partial) · **Owners:** all
 
@@ -17,7 +17,7 @@
 | P8.7 | UI polish: loading/empty/error states, dark mode, responsive down to laptop projector resolution | adarzhpathade | — |
 | P8.8 | Rehearsals (×3) of the demo script ([`../PS/roadmap-demo.md`](../PS/roadmap-demo.md) §3, updated below); judge Q&A drill | All | Timings recorded |
 | P8.9 | **Backup video** of the full flow on production | adarzhpathade | MP4 + uploaded copy |
-| P8.10 | Release PR `develop → main`, tag `v1.0`; README badges and links | NetPranav | Release |
+| P8.10 | Merge `netpranav` and `adarzhpathade` into `main` via PRs (merge commits), tag `v1.0`; README badges and links | NetPranav | Release |
 
 ## Demo script (3 minutes, updated for the new scope)
 1. **Hook:** shop invoice shows ₹49,900 for a ₹499 order while every monitor is green.

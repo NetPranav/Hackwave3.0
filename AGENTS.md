@@ -22,7 +22,7 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for tea
 | `.team/` | Ownership (`OWNERSHIP.md`), status template, how the three Claude sessions coordinate |
 | `contracts/` | Interfaces between owners; change these before the code |
 | `scripts/` | `setup.sh`, `team-status.sh` (session briefing), `team-publish-status.sh`, `check-md-links.sh` |
-| `.claude/` | Shared Claude Code settings (hook + permission rules) and skills `/start-task`, `/handoff`, `/team-sync` |
+| `.claude/` | Shared Claude Code settings (briefing hook, area-guard hook, permission rules) and skills `/handoff`, `/team-sync` |
 | `docs/roadmap/` | **The build plan**: phases P0–P8 with owners, days, Definition of Done; cross-cutting specs (GitHub App, dashboard, AI layer, setup, libraries). Start here before coding |
 | Planned code dirs | `contracts/` `sdk-node/` `backend/` `github-app/` `services/` `dashboard/` (npm workspaces; see `docs/roadmap/setup-and-deploy.md`). The demo shop lives in the separate repo `NetPranav/seismo-demo-shop` |
 
@@ -36,17 +36,13 @@ Three developers work in parallel, each with their own Claude Code session on th
 | OVERxPOWERED | Invite pending, no tasks (2026-10-11) | — |
 | adarzhpathade | Frontend: the whole dashboard incl. login | `dashboard/` (landing + login + all screens), demo repo `seismo-demo-shop` |
 
-1. **Read the TEAM BRIEFING** injected at session start (from `scripts/team-status.sh`). It lists each teammate's published status, active branches, open PRs, overlaps with your files, and how far behind `develop` you are. Act on its warnings. Re-run it with `/team-sync` before touching shared files.
-2. **Who you are:** `git config seismo.handle`. Work inside that person's areas (`.team/OWNERSHIP.md`). Touching another owner's area needs the user's OK, and the owner gets tagged on the PR.
-3. **Never work on `main`, `develop` or `team-status`.** Start every task with `/start-task`: a `<type>/<area>-<desc>` branch from `origin/develop`, the status claimed, a draft PR opened.
-4. **Contracts first.** Anything crossing an ownership boundary goes through `contracts/` in its own PR before implementation (`contracts/README.md`).
-5. **Keep the branch current by merging** `origin/develop` (never rebase pushed branches, never force-push).
-6. **End with `/handoff`:** checks pass, branch pushed, status published to `team-status`, PR updated. Humans mark PRs ready and merge; agents never run `gh pr merge` or push to protected branches (denied in `.claude/settings.json`; GitHub rulesets enforce it server-side too).
-7. **Conflicts in a teammate's files:** stop and ask; don't resolve them on your own.
-
-## Stack (planned)
-
-**All TypeScript** (decided 2026-10-11): npm workspaces + Turborepo · zod contracts · Fastify API + pg-boss worker · Postgres (Neon / Docker) via drizzle · Node SDK (`@seismo/sdk`, runtime `applyAliases`) · Probot GitHub App + ts-morph scanner · Next.js + Tailwind + shadcn/ui (landing + dashboard) · react-force-graph-2d or Sigma (graph) + React Flow · **NVIDIA NIM (Nemotron)** via an OpenAI-compatible client for explanations/classification only · Twilio WhatsApp, Slack/Discord webhooks, Resend email · Vitest, Playwright, fast-check · Vercel + a non-sleeping Node host. Details: `docs/roadmap/libraries.md`, `docs/roadmap/setup-and-deploy.md`.
+1. **Read [`START_HERE.md`](START_HERE.md)** and the TEAM BRIEFING injected at session start. Do **open requests addressed to you** first.
+2. **Who you are:** `git config seismo.handle`. Your branch is the lowercase handle (`netpranav`, `adarzhpathade`). **Work, commit and push only on your own branch.** Never push to `main` or another person's branch; never merge PRs.
+3. **Stay in your area.** adarzhpathade's Claude edits only `dashboard/` (and works in the separate demo shop repo). NetPranav's Claude never edits `dashboard/` or the demo shop. A PreToolUse hook (`scripts/guard-area.sh`) blocks violations.
+4. **Need something outside your area?** Don't edit it. Run `bash scripts/team-request.sh <their-handle> "what you need"` (stored in `REQUESTS.md` on the `team-status` branch) and tell your human to call or message that person. When you finish a request addressed to you: `bash scripts/team-request.sh done <id>`.
+5. **Contracts first.** Interfaces between the backend and the dashboard live in `contracts/` (owned by NetPranav). The dashboard uses mock data shaped like the contracts until the real API exists.
+6. **End each session with `/handoff`:** checks, commit, push your own branch, status note.
+7. **Merging:** each person finishes their own phases first; the lead then merges personal branches into `main` through PRs (merge commit). Everyone gets others' work only from `main` (`git merge origin/main`).
 
 ## Non-negotiable product rules
 

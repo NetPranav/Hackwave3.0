@@ -1,6 +1,6 @@
 # P0 · Foundation & spikes (Days 1–2)
 
-**Done when:** one command starts the whole system locally, every app deploys to staging from `develop`, and every unknown below has a tested answer written in [`../../MEMORY.md`](../../MEMORY.md).
+**Done when:** one command starts the whole system locally, every app deploys to staging from its owner's branch (dashboard from `adarzhpathade`, everything else from `netpranav`), and every unknown below has a tested answer written in [`../../MEMORY.md`](../../MEMORY.md).
 
 **Depends on:** nothing · **Contracts:** creates the `contracts/` package · **Owners:** all three
 

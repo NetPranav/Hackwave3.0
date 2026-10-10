@@ -76,9 +76,9 @@ Cross-cutting specs (read by whoever builds that part):
 | 11 | Wed 21 | P7: changelog parser (AI JSON) + radar items · **scope freeze** | P7: radar → suggestions; prod GitHub App registered | P7: radar page + clock badges · landing page draft |
 | 12 | Thu 22 | P8: prod deploy, demo reset, soak test | P8: publish app (public), install-from-scratch test | P8: landing page final, polish, empty states |
 | 13 | Fri 23 | P8: rehearsal #1–2, fixes only | P8: rehearsal, webhook reliability | P8: rehearsal, record **backup video** |
-| 14 | Sat 24 | Release PR `develop → main`, tag `v1.0` · **demo** | Demo | Demo |
+| 14 | Sat 24 | Merge personal branches into `main`, tag `v1.0` · **demo** | Demo | Demo |
 
-Everyone uses `/start-task` and `/handoff` (see [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)). Each sub-phase ID (e.g. `P4.3`) goes in the branch name and PR title: `feature/backend-p4-3-rename-detector`, `feat(backend): P4.3 rename detector`.
+Branch model (simplified 2026-10-11): everyone works only on their own personal branch and ends sessions with `/handoff`; cross-team asks go through `scripts/team-request.sh`; personal branches are merged into `main` at the end (see [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)). Put the sub-phase ID in commit messages: `feat(backend): P4.3 rename detector`.
 
 ## 4. Dependencies between phases
 
@@ -107,7 +107,7 @@ P0 ──► P1 ──► P2 ──► P4 ──► P5 ──► P8
 | `radar-item` | P7 | backend → dashboard |
 
 ## 6. Global Definition of Done (every sub-phase)
-- Merged to `develop` through a reviewed PR with green CI.
+- Committed and pushed to the owner's personal branch with green CI.
 - Works on **staging** (deployed), not only on a laptop.
 - Has at least one automated test (unit or e2e) for its main path.
 - Contract changes merged before the code that uses them.

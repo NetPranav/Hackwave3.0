@@ -23,8 +23,8 @@ bash scripts/setup.sh <your-github-handle>
 claude            # Claude Code shows a team briefing automatically
 ```
 
-Then, inside Claude Code: `/start-task` → build → `/handoff` → mark the PR ready → a teammate reviews → squash-merge into `develop`.
+Then work only on your own branch (`netpranav` or `adarzhpathade`) and end each session with `/handoff` in Claude Code. Your tasks: [`START_HERE.md`](START_HERE.md).
 
 ## Branches
 
-`main` (demo-ready; only the lead merges release PRs, nobody pushes directly) ← `develop` (integration, PRs only, default branch) ← `feature/<area>-<desc>` (your work). Live team status lives on the `team-status` branch. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+`main` is the default branch: pull from it to get everyone's merged work. Each person has one personal branch (`netpranav`, `adarzhpathade`, `overxpowered`) and pushes only there. The lead merges personal branches into `main` through PRs. Cross-team asks go through `bash scripts/team-request.sh`. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
