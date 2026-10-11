@@ -32,6 +32,7 @@ const PROVIDERS = `http://localhost:${process.env.SERVICES_PORT ?? 4100}`;
 const DASHBOARD = process.env.DASHBOARD_URL ?? `http://localhost:${process.env.DASHBOARD_PORT ?? 3000}`;
 const STATE = join(ROOT, '.seismo-online.json');   // git-ignored: the hosted shop's SDK key + salt
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const fail = (msg) => { throw new Error(msg); };
 const die = (msg) => { console.error(`\n✗ ${msg}\n`); cleanup(); process.exit(1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const children = [];
@@ -86,7 +87,65 @@ function probe(url) {
 }
 async function untilAnswers(url, what) {
   for (let i = 0; i < 60; i++) { if (await probe(url)) return; await sleep(2000); }
-  die(`${what} does not answer at ${url} (2 minutes)`);
+  fail(`${what} does not answer at ${url} (2 minutes)`);
+}
+
+/** Tunnels -> Vercel env -> rebuild -> public alias -> registered. Run at start and again whenever a tunnel drops. */
+async function goLive(state) {
+  for (const c of children.splice(0)) try { c.kill(); } catch { /* gone */ }
+  // 2. public URLs for this machine
+  log('opening tunnels (Cloudflare quick tunnels, no account needed)…');
+  const [pubBackend, pubProviders] = await Promise.all([tunnel(new URL(BACKEND).port, 'backend'), tunnel(new URL(PROVIDERS).port, 'providers')]);
+  await untilAnswers(`${pubBackend}/health`, 'the backend tunnel');
+  await untilAnswers(`${pubProviders}/health`, 'the providers tunnel');
+  log(`backend   ${pubBackend}`);
+  log(`providers ${pubProviders}`);
+
+  // 4. Vercel env (Production + Preview), then a fresh Production build from git
+  const env = {
+    USERS_API_URL: pubProviders, PAYMENTS_API_URL: pubProviders, SHIPPING_API_URL: pubProviders, ORDERS_API_URL: pubProviders,
+    SEISMO_ENDPOINT: pubBackend, SEISMO_KEY: state.key, SEISMO_SALT: state.salt, SEISMO_SAMPLE_RATE: '1',
+    DEMO_PANEL: 'true', DEMO_ADMIN_TOKEN: process.env.DEMO_ADMIN_TOKEN, NEXT_PUBLIC_SEISMO_DASHBOARD_URL: DASHBOARD,
+  };
+  const secret = new Set(['SEISMO_KEY', 'SEISMO_SALT', 'DEMO_ADMIN_TOKEN']);
+  log('writing the env into the Vercel project (production + preview)…');
+  for (const [name, value] of Object.entries(env)) for (const target of ['production', 'preview']) {
+    try { vercel(['env', 'add', name, target, '--value', value, '--force', ...(secret.has(name) ? ['--sensitive'] : ['--no-sensitive']), '--yes']); }
+    catch (e) { fail(`vercel env add ${name} ${target} failed: ${String(e.stderr ?? e.message).trim().split('\n').pop()}`); }
+  }
+  let deployment;
+  if (!args.includes('--no-redeploy')) {
+    const list = vercelJson(['ls', '--prod', '--format', 'json']);
+    const latest = list.deployments?.find((d) => d.target === 'production');
+    if (!latest) fail('no production deployment yet: push the shop to main once (Vercel builds it), then run this again');
+    log(`rebuilding production from git (${latest.url})… about a minute`);
+    const out = vercel(['redeploy', `https://${latest.url}`, '--target', 'production']);
+    deployment = /https:\/\/[^\s]+\.vercel\.app/.exec(out)?.[0];
+    if (!deployment) fail(`could not read the new deployment URL from: ${out.slice(-300)}`);
+    vercel(['inspect', deployment, '--wait', '--timeout', '5m']);
+  } else {
+    const list = vercelJson(['ls', '--prod', '--format', 'json']);
+    deployment = `https://${list.deployments?.find((d) => d.target === 'production')?.url}`;
+  }
+
+  // 5. its public address: the first alias that answers 200 (per-deployment URLs sit behind Vercel's login)
+  const aliases = [...vercel(['inspect', deployment]).matchAll(/https:\/\/[a-z0-9.-]+\.vercel\.app/g)].map((m) => m[0]).filter((u, i, a) => a.indexOf(u) === i && u !== deployment);
+  let shop;
+  for (const a of [...aliases].sort((x, y) => x.length - y.length)) {
+    const r = await fetch(a, { redirect: 'manual', signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
+    if (r?.status === 200) { shop = a; break; }
+  }
+  if (!shop) fail(`none of the deployment's aliases is public (${aliases.join(', ')}): turn off Vercel Authentication for Production or add a domain`);
+  // the hosted shop really talks to this machine: the checkout makes provider calls through the tunnel
+  const checkout = await ok(`${shop}/checkout`);
+  log(checkout ? `✓ ${shop}/checkout works through the tunnels` : `⚠ ${shop}/checkout did not answer 200 (check the shop's Vercel logs)`);
+  await fetch(`${BACKEND}/internal/demo/shop`, { method: 'POST', headers: { 'x-internal-token': process.env.INTERNAL_TOKEN, 'content-type': 'application/json' }, body: JSON.stringify({ url: shop }) }).catch(() => undefined);
+  if (!args.includes('--no-homepage')) {
+    const repo = JSON.parse(execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner,homepageUrl'], { cwd: SHOP_DIR, encoding: 'utf8' }));
+    if (repo.homepageUrl !== shop) { execFileSync('gh', ['repo', 'edit', repo.nameWithOwner, '--homepage', shop], { cwd: SHOP_DIR }); log(`set ${repo.nameWithOwner}'s homepage to ${shop}`); }
+  }
+
+  return { pubBackend, pubProviders, shop };
 }
 
 async function main() {
@@ -98,14 +157,6 @@ async function main() {
   if (!existsSync(join(SHOP_DIR, '.vercel', 'project.json'))) die(`${SHOP_DIR} is not linked to a Vercel project: run \`vercel link\` there once.`);
   if (!(await ok(`${BACKEND}/health`))) die(`the Seismo backend is not running at ${BACKEND}: start npm run dev first.`);
   if (!(await ok(`${PROVIDERS}/health`))) die(`the fake providers are not running at ${PROVIDERS}: start npm run dev first.`);
-
-  // 2. public URLs for this machine
-  log('opening tunnels (Cloudflare quick tunnels, no account needed)…');
-  const [pubBackend, pubProviders] = await Promise.all([tunnel(new URL(BACKEND).port, 'backend'), tunnel(new URL(PROVIDERS).port, 'providers')]).catch((e) => die(e.message));
-  await untilAnswers(`${pubBackend}/health`, 'the backend tunnel');
-  await untilAnswers(`${pubProviders}/health`, 'the providers tunnel');
-  log(`backend   ${pubBackend}`);
-  log(`providers ${pubProviders}`);
 
   // 3. SDK key for the hosted shop (a real project key, not dev-key) + a salt that is the same on every instance
   const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : {};
@@ -124,64 +175,29 @@ async function main() {
   state.salt ??= randomBytes(16).toString('hex');
   writeFileSync(STATE, JSON.stringify(state, null, 2), { mode: 0o600 });
 
-  // 4. Vercel env (Production + Preview), then a fresh Production build from git
-  const env = {
-    USERS_API_URL: pubProviders, PAYMENTS_API_URL: pubProviders, SHIPPING_API_URL: pubProviders, ORDERS_API_URL: pubProviders,
-    SEISMO_ENDPOINT: pubBackend, SEISMO_KEY: state.key, SEISMO_SALT: state.salt, SEISMO_SAMPLE_RATE: '1',
-    DEMO_PANEL: 'true', DEMO_ADMIN_TOKEN: process.env.DEMO_ADMIN_TOKEN, NEXT_PUBLIC_SEISMO_DASHBOARD_URL: DASHBOARD,
-  };
-  const secret = new Set(['SEISMO_KEY', 'SEISMO_SALT', 'DEMO_ADMIN_TOKEN']);
-  log('writing the env into the Vercel project (production + preview)…');
-  for (const [name, value] of Object.entries(env)) for (const target of ['production', 'preview']) {
-    try { vercel(['env', 'add', name, target, '--value', value, '--force', ...(secret.has(name) ? ['--sensitive'] : ['--no-sensitive']), '--yes']); }
-    catch (e) { die(`vercel env add ${name} ${target} failed: ${String(e.stderr ?? e.message).trim().split('\n').pop()}`); }
-  }
-  let deployment;
-  if (!args.includes('--no-redeploy')) {
-    const list = vercelJson(['ls', '--prod', '--format', 'json']);
-    const latest = list.deployments?.find((d) => d.target === 'production');
-    if (!latest) die('no production deployment yet: push the shop to main once (Vercel builds it), then run this again');
-    log(`rebuilding production from git (${latest.url})… about a minute`);
-    const out = vercel(['redeploy', `https://${latest.url}`, '--target', 'production']);
-    deployment = /https:\/\/[^\s]+\.vercel\.app/.exec(out)?.[0];
-    if (!deployment) die(`could not read the new deployment URL from: ${out.slice(-300)}`);
-    vercel(['inspect', deployment, '--wait', '--timeout', '5m']);
-  } else {
-    const list = vercelJson(['ls', '--prod', '--format', 'json']);
-    deployment = `https://${list.deployments?.find((d) => d.target === 'production')?.url}`;
-  }
-
-  // 5. its public address: the first alias that answers 200 (per-deployment URLs sit behind Vercel's login)
-  const aliases = [...vercel(['inspect', deployment]).matchAll(/https:\/\/[a-z0-9.-]+\.vercel\.app/g)].map((m) => m[0]).filter((u, i, a) => a.indexOf(u) === i && u !== deployment);
-  let shop;
-  for (const a of [...aliases].sort((x, y) => x.length - y.length)) {
-    const r = await fetch(a, { redirect: 'manual', signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
-    if (r?.status === 200) { shop = a; break; }
-  }
-  if (!shop) die(`none of the deployment's aliases is public (${aliases.join(', ')}): turn off Vercel Authentication for Production or add a domain`);
-  // the hosted shop really talks to this machine: the checkout makes provider calls through the tunnel
-  const checkout = await ok(`${shop}/checkout`);
-  log(checkout ? `✓ ${shop}/checkout works through the tunnels` : `⚠ ${shop}/checkout did not answer 200 (check the shop's Vercel logs)`);
-  await fetch(`${BACKEND}/internal/demo/shop`, { method: 'POST', headers: { 'x-internal-token': process.env.INTERNAL_TOKEN, 'content-type': 'application/json' }, body: JSON.stringify({ url: shop }) }).catch(() => undefined);
-  if (!args.includes('--no-homepage')) {
-    const repo = JSON.parse(execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner,homepageUrl'], { cwd: SHOP_DIR, encoding: 'utf8' }));
-    if (repo.homepageUrl !== shop) { execFileSync('gh', ['repo', 'edit', repo.nameWithOwner, '--homepage', shop], { cwd: SHOP_DIR }); log(`set ${repo.nameWithOwner}'s homepage to ${shop}`); }
-  }
-
+  let live;
+  try { live = await goLive(state); } catch (e) { die(e.message); }
   console.log(`
   ┌─────────────────────────────────────────────────────────────────────
-  │ Live shop:  ${shop}
+  │ Live shop:  ${live.shop}
   │ Seismo:     ${DASHBOARD}/app   (this machine)
-  │ Traffic:    npm run demo:traffic -- --shop --target ${shop} --rps 1
+  │ Traffic:    npm run demo:traffic -- --shop --target ${live.shop} --rps 1
   │
   │ Change a provider in the live shop's panel (bottom-right), watch the dashboard,
   │ merge the fix PR: Vercel rebuilds the shop from main and the live shop works again.
   │ Keep this running (the tunnels close with it). Ctrl-C to stop.
   └─────────────────────────────────────────────────────────────────────`);
-  // stay alive; say so if a tunnel stops answering
+  // stay alive. Free quick tunnels drop now and then (seen live after ~1-2 h): after 3 failed checks in a row
+  // (about 90 s) open new ones and publish them, so the hosted shop comes back without anyone noticing.
+  let misses = 0;
   for (;;) {
     await sleep(30_000);
-    if (!(await ok(`${pubBackend}/health`)) || !(await ok(`${pubProviders}/health`))) log('⚠ a tunnel stopped answering: restart npm run demo:online');
+    const up = (await probe(`${live.pubBackend}/health`)) && (await probe(`${live.pubProviders}/health`));
+    misses = up ? 0 : misses + 1;
+    if (misses < 3) continue;
+    log('⚠ a tunnel stopped answering for 90 s: opening new tunnels and republishing the shop…');
+    try { live = await goLive(state); misses = 0; log(`✓ back online: ${live.shop}`); }
+    catch (err) { log(`✗ republish failed (${err.message}); trying again in 30 s`); }
   }
 }
 
