@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Fingerprint } from '@seismo/contracts';
-import { eq, gt } from 'drizzle-orm';
+import { eq, gt, lt } from 'drizzle-orm';
 import { connect } from './db/index.js';
 import { fingerprints, projects, sdkKeys } from './db/schema.js';
 
@@ -9,6 +9,8 @@ export interface IngestStore {
   since(projectId: string, sinceMs: number): Promise<Fingerprint[]>;
   /** Demo reset only. */
   clear(projectId: string): Promise<void>;
+  /** v3-P0.3 retention: delete fingerprints whose window started before `beforeMs`; returns how many. */
+  prune(beforeMs: number): Promise<number>;
 }
 
 export function memoryIngest(): IngestStore {
@@ -17,6 +19,7 @@ export function memoryIngest(): IngestStore {
     add: async (projectId, fp) => void rows.push({ projectId, at: Date.parse(fp.windowStart), fp }),
     since: async (projectId, sinceMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs).map((r) => r.fp),
     clear: async (projectId) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.projectId === projectId) rows.splice(i, 1); },
+    prune: async (beforeMs) => { let n = 0; for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.at < beforeMs) { rows.splice(i, 1); n++; } return n; },
   };
 }
 
@@ -31,6 +34,7 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
       return rows.filter((r) => r.projectId === projectId).map((r) => r.payload as Fingerprint);
     },
     async clear(projectId) { await db.delete(fingerprints).where(eq(fingerprints.projectId, projectId)); },
+    async prune(beforeMs) { return (await db.delete(fingerprints).where(lt(fingerprints.windowStart, new Date(beforeMs))).returning({ id: fingerprints.id })).length; },
   };
 }
 

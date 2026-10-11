@@ -8,6 +8,9 @@ import { httpFixDispatcher, httpGithubApp, httpInstallations } from './fix-dispa
 import { memoryStore } from './codemap-store.js';
 import { memoryIngest, pgKeys, SdkKeys } from './ingest-store.js';
 import { Projects, pgOwners } from './projects.js';
+import { guardProduction } from './prod-guard.js';
+
+guardProduction();
 
 const port = Number(process.env.PORT ?? 4000);
 const pg = !!process.env.DATABASE_URL;
@@ -24,3 +27,8 @@ setInterval(() => { (app as unknown as { detectNow: () => Promise<unknown> }).de
 // Radar poll (P7.2): every 15 min by default, every minute in demo mode.
 const radarEvery = Number(process.env.RADAR_INTERVAL_MS ?? (process.env.DEMO_MODE === 'true' ? 60_000 : 15 * 60_000));
 setInterval(() => { (app as unknown as { pollRadar: () => Promise<unknown> }).pollRadar().catch((e: unknown) => app.log.error(e)); }, radarEvery).unref();
+// v3-P0.3 retention: raw fingerprints older than the baseline window (+ margin) are deleted every 10 minutes
+const keepMs = Number(process.env.FINGERPRINT_RETENTION_HOURS ?? 26) * 3600_000;
+const prune = () => ingest.prune(Date.now() - keepMs).then((n) => { if (n) app.log.info({ deleted: n }, 'fingerprint retention'); }).catch((e: unknown) => app.log.error(e));
+void prune();
+setInterval(prune, 10 * 60_000).unref();

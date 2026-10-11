@@ -22,6 +22,7 @@ import { Radar, demoSources } from './radar/radar.js';
 import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
 import { codemapView, enrichEvent } from './codemap-view.js';
 import { templateFor } from './fix-templates.js';
+import { forwardRules, tryForward } from './forward.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -145,6 +146,12 @@ export function buildApp(opts: AppOptions = {}) {
       const raw = req.headers['content-encoding'] === 'gzip' ? gunzipSync(body) : body;
       done(null, raw.length ? JSON.parse(raw.toString('utf8')) : {});
     } catch (e) { done(e as Error, undefined); }
+  });
+
+  // v3-P0.5: GitHub webhooks and the demo's fake providers go through this one public service (raw, before parsing)
+  const forwards = forwardRules();
+  app.addHook('onRequest', async (req, reply) => {
+    if (forwards.some((r) => r.target && req.url.startsWith(r.prefix)) && tryForward(req.raw, reply.raw, forwards)) return reply.hijack();
   });
 
   // Every /v1 route except SDK ingest and SSE is user-scoped (P0.11).
