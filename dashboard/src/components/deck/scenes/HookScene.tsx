@@ -40,6 +40,7 @@ const TILES = [
 export default function HookScene({ step }: { step: number }) {
   const root = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
+  const pendingReset = useRef<gsap.core.Tween | null>(null);
 
   useGSAP(
     () => {
@@ -60,10 +61,12 @@ export default function HookScene({ step }: { step: number }) {
       if (step < 1 || step > 2) {
         hide("[data-hook]");
         hide("[data-tile]", 40);
-        gsap.delayedCall(0.5, () => setKey("amount", "#1a1918"));
+        pendingReset.current = gsap.delayedCall(0.5, () => setKey("amount", "#1a1918"));
         return;
       }
 
+      // A reset queued while leaving this slide must not land after we have come back to it.
+      pendingReset.current?.kill();
       show("[data-frame]", 0.35);
       show("[data-json]", 0.6);
 
@@ -120,9 +123,11 @@ export default function HookScene({ step }: { step: number }) {
         </span>
       </div>
 
-      <div data-hook data-json className="absolute left-1/2 top-[640px] -translate-x-1/2 whitespace-nowrap rounded-2xl border-2 border-text-primary bg-section px-12 py-7 font-aeonik-mono text-[46px] leading-none text-text-primary opacity-0 shadow-[10px_10px_0_0_var(--color-text-primary)]">
-        <span className="text-text-primary/50">{"{ "}</span>
-        &quot;id&quot;: &quot;pay_81&quot;, &quot;<span data-key>amount</span>&quot;: 1000 <span className="text-text-primary/50">{"}"}</span>
+      <div className="absolute inset-x-0 top-[640px] flex justify-center">
+        <div data-hook data-json className="whitespace-nowrap rounded-2xl border-2 border-text-primary bg-section px-12 py-7 font-aeonik-mono text-[46px] leading-none text-text-primary opacity-0 shadow-[10px_10px_0_0_var(--color-text-primary)]">
+          <span className="text-text-primary/50">{"{ "}</span>
+          &quot;id&quot;: &quot;pay_81&quot;, &quot;<span data-key>amount</span>&quot;: 1000 <span className="text-text-primary/50">{"}"}</span>
+        </div>
       </div>
 
       <p data-hook data-diff className="absolute inset-x-0 top-[870px] flex justify-center gap-16 font-aeonik-mono text-[40px] leading-none opacity-0">

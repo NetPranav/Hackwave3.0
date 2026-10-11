@@ -77,7 +77,6 @@ export default function PitchDeck() {
   return (
     <>
       <Stage>
-        <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_right,var(--color-graph-stroke)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-graph-stroke)_1px,transparent_1px)] bg-[size:96px_96px] opacity-50" />
         <Seismograph signal={signal} />
         <TitleScene step={step} />
         <HookScene step={step} />

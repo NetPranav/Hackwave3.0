@@ -66,7 +66,7 @@ export default function EvidenceScene({ step, signal }: { step: number; signal: 
       </h2>
 
       {CASES.map((c, i) => (
-        <div key={c.who} data-ev={`card-${i}`} className="absolute top-[268px] w-[480px] -translate-x-1/2 opacity-0" style={{ left: SHOCK_X[i] }}>
+        <div key={c.who} data-ev={`card-${i}`} className="absolute top-[268px] w-[480px] opacity-0" style={{ left: SHOCK_X[i] - 240 }}>
           <div className="flex h-[272px] flex-col rounded-2xl border-2 border-text-primary bg-section px-8 py-6 shadow-[8px_8px_0_0_var(--color-text-primary)]">
             <p className="font-aeonik-mono text-[20px] uppercase tracking-[0.18em] text-text-primary">{c.who}</p>
             <p className="mt-3 whitespace-nowrap font-aeonik-mono text-[50px] leading-none tracking-tight text-accent">{c.big}</p>
