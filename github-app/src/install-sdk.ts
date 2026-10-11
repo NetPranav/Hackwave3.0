@@ -124,7 +124,7 @@ export function planSdkInstall(dir: string, sdk: SdkSource): InstallPlan {
   const envExample = join(dir, '.env.example');
   const envText = existsSync(envExample) ? readFileSync(envExample, 'utf8') : '';
   if (!envText.includes('SEISMO_KEY')) {
-    files.push({ path: '.env.example', content: `${envText}${envText && !envText.endsWith('\n') ? '\n' : ''}# Seismo (watches the third-party APIs this app calls; never blocks it)\nSEISMO_KEY=\nSEISMO_ENDPOINT=\n` });
+    files.push({ path: '.env.example', content: `${envText}${envText && !envText.endsWith('\n') ? '\n' : ''}# Seismo (watches the third-party APIs this app calls; never blocks it)\nSEISMO_KEY=\nSEISMO_ENDPOINT=\n# optional: any long random string, the same on every server (keeps value fingerprints comparable across restarts)\nSEISMO_SALT=\n` });
     done.push('adds `SEISMO_KEY` and `SEISMO_ENDPOINT` to `.env.example`');
   }
   return { files, notes, done };

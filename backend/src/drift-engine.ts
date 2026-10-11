@@ -1,6 +1,6 @@
 import { PROJECT_ID } from './projects.js';
 import type { AliasRule, CodeMap, DriftEvent, DriftState, SeismoRule } from '@seismo/contracts';
-import { buildBaselines } from './baseline.js';
+import { alignSalts, buildBaselines } from './baseline.js';
 import { stressCheck, stressTest, templateFor } from './fix-templates.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
@@ -37,6 +37,8 @@ export class DriftEngine {
   private events = new Map<string, Tracked>();
   /** endpoint -> when the first finding of the current investigation was seen (baseline frozen from there) */
   private investigating = new Map<string, number>();
+  /** learning progress per endpoint (2xx history samples) from the last pass: a change before `ready` is learned, not reported */
+  private learned = new Map<string, { service: string; endpoint: string; samples: number }>();
   /** endpoint -> time ranges when a change was live and later reverted: kept out of the baseline (they were not normal) */
   private quarantine = new Map<string, [number, number][]>();
   private loaded?: Promise<void>;
@@ -58,6 +60,12 @@ export class DriftEngine {
   /** Events that need a human: everything non-alias, and renames the planner blocked. */
   reviewQueue(): { event: DriftEvent; reason: string }[] {
     return [...this.events.values()].filter((t) => t.reviewReason && !['resolved', 'expected', 'snoozed'].includes(t.event.state)).map((t) => ({ event: t.event, reason: t.reviewReason! }));
+  }
+
+  /** Endpoints seen in the last minute and how far their baseline is (needs `minBaselineSamples` before changes count). */
+  readiness() {
+    const needed = this.opts.minBaselineSamples;
+    return [...this.learned.values()].map((r) => ({ ...r, needed, ready: r.samples >= needed })).sort((a, b) => a.endpoint.localeCompare(b.endpoint));
   }
 
   list(): DriftEvent[] {
@@ -186,13 +194,20 @@ export class DriftEngine {
     });
     const winFps = all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 >= cut);
     const bases = buildBaselines(baseFps, now), wins = buildBaselines(winFps, now);
+    this.learned = new Map();
+    for (const w of wins.filter((x) => x.statusClass === '2xx')) {
+      const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === '2xx');
+      this.learned.set(`${w.service}|${w.method} ${w.endpoint}`, { service: w.service, endpoint: `${w.method} ${w.endpoint}`, samples: b?.samples ?? 0 });
+    }
     const maps = await this.maps();
 
     const findings: Finding[] = [];
     const ctxOf = new Map<Finding, { base: ReturnType<typeof buildBaselines>[number]; win: ReturnType<typeof buildBaselines>[number] }>();
-    for (const w of wins) {
-      const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === w.statusClass);
-      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
+    for (const w0 of wins) {
+      const b0 = bases.find((x) => x.service === w0.service && x.method === w0.method && x.endpoint === w0.endpoint && x.statusClass === w0.statusClass);
+      if (!b0 || b0.samples < this.opts.minBaselineSamples) continue;
+      const [b, w] = alignSalts(b0, w0);
+      for (const f of runDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
     const basesAll = buildBaselines(baseFps, now, true);
     for (const w of buildBaselines(winFps, now, true)) {
@@ -203,10 +218,15 @@ export class DriftEngine {
     const changed: DriftEvent[] = [];
     const seen = new Set<string>();
     for (const f of findings) { const ep = `${f.service}|${f.method} ${f.endpoint}`; if (!this.investigating.has(ep)) this.investigating.set(ep, now); }
-    for (const f of findings) {
+    for (let f of findings) {
       const key = `${f.service}|${f.method}|${f.endpoint}|${f.detector}|${f.field ?? f.title}`;
       seen.add(key);
       const usages = usagesFor(f, maps);
+      // A 'rename' whose NEW name is the field your code reads, while the old name is read nowhere, is the provider going
+      // back to the shape your code expects (after Seismo had learned the changed shape, e.g. during learning or after a
+      // reset). Proposing the reverse alias would add the throwaway name from the real field: report it, never fix it.
+      const restored = f.detector === 'D3' && !!f.rename && !usages.length && usagesFor({ ...f, field: f.rename.to }, maps).length > 0;
+      if (restored) f = { ...f, title: `Field restored: ${f.rename!.to} is back (it was ${f.rename!.from}); your code reads ${f.rename!.to}`, rung: 'review', rename: undefined };
       const s = score(f, usages);
       let prev = this.events.get(key);
       // the provider went back to normal earlier and now made the same change again: that is a new change, not the old one

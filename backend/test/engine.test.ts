@@ -274,3 +274,55 @@ describe('suggestion PR for a unit change (P5.10, v2 templates)', () => {
     expect(rename.error).toBe('unknown_event');
   });
 });
+
+describe('provider goes back to the shape the code reads (found live: a reverse alias was proposed)', () => {
+  it('a learned rename being reverted is reported as "restored" with no fix, never as alias display_name ← name', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    // Seismo learned the CHANGED shape (the rename happened during learning / before a reset), then the provider reverts
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename', false);
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const ev = e.list().find((x) => x.detector === 'D3')!;
+    expect(ev.title).toBe('Field restored: name is back (it was display_name); your code reads name');
+    expect(ev.fix).toBeUndefined();
+    expect(ev.state).toBe('normal');
+  });
+});
+
+describe('the app restarts with a new salt (found live: "New carrier value: value #d5ca07" after a restart)', () => {
+  const run = async (withSaltIds: boolean) => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const keep = (fp: Awaited<ReturnType<typeof capture>>[number]) => (withSaltIds ? fp : { ...fp, saltId: undefined });
+    for (let i = 0; i < 12; i++) for (const fp of await capture(s, '/shipments/sh_1', 20, { service: 'shipping', at: NOW - 15 * 60_000 + i * 5000, salt: 'salt-before' })) await ingest.add('dev', keep(fp));
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/shipments/sh_1', 20, { service: 'shipping', at: NOW - 30_000 + i * 5000, salt: 'salt-after-restart' })) await ingest.add('dev', keep(fp));
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW); await e.run(NOW + 5000);
+    return e.list().map((x) => x.title);
+  };
+  it('without salt ids a restart looks like new values (the old behaviour this guards against)', async () => {
+    expect((await run(false)).some((t) => t.startsWith('New '))).toBe(true);
+  });
+  it('with salt ids: no change, nothing reported', async () => {
+    expect(await run(true)).toEqual([]);
+  });
+});
+
+describe('learning progress (found live: a change made while Seismo was still learning was silently learned)', () => {
+  it('reports per endpoint how many baseline samples it has and whether changes count yet', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 5 * 60_000 })) await ingest.add('dev', fp);
+    for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 10_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW);
+    expect(e.readiness()).toEqual([{ service: 'users', endpoint: 'GET /users/{id}', samples: 20, needed: 50, ready: false }]);
+    for (let i = 1; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 5 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await e.run(NOW + 1000);
+    expect(e.readiness()[0]).toMatchObject({ samples: 60, ready: true });
+  });
+});

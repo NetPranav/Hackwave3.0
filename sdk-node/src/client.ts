@@ -1,4 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { gzipSync } from 'fflate';
 import { BatchInterceptor } from '@mswjs/interceptors';
@@ -62,12 +65,15 @@ export class Seismo {
   private cfg!: FpConfig;
   dropped = 0;
   errors = 0;
+  private saltId = '';
 
   init(opts: InitOptions) {
     try {
       this.stop();
       this.o = { sampleRate: 0.1, flushMs: 5000, maxBodyBytes: 256 * 1024, maxQueue: 1000, endpoint: 'http://localhost:4000', ...opts };
-      this.cfg = { salt: opts.salt ?? randomBytes(16).toString('hex'), enumAllowList: opts.enumAllowList ?? [], neverInspect: opts.neverInspect ?? [], maxFields: 500, maxDepth: 8, maxArrayItems: 50 };
+      const salt = opts.salt ?? process.env['SEISMO_SALT'] ?? stableSalt(opts.key);
+      this.saltId = createHash('sha256').update(`seismo-salt-id|${salt}`).digest('hex').slice(0, 12);
+      this.cfg = { salt, enumAllowList: opts.enumAllowList ?? [], neverInspect: opts.neverInspect ?? [], maxFields: 500, maxDepth: 8, maxArrayItems: 50 };
       // fetch: wrapped directly. The library's socket-level fetch interception misses requests on keep-alive
       // sockets opened before init() (verified: half of all calls were invisible), a direct wrapper sees every call.
       this.wrapFetch();
@@ -250,6 +256,7 @@ export class Seismo {
   /** true = delivered (or rejected for good, e.g. a bad key); false = try again later. */
   private async send(fp: Record<string, unknown>): Promise<boolean> {
     fp['batchId'] ??= randomBytes(9).toString('base64url');   // the same id on every retry: the backend ignores repeats
+    if (this.saltId) fp['saltId'] ??= this.saltId;
     const body = gzipSync(new TextEncoder().encode(JSON.stringify(fp)));
     try {
       const r = await fetch(`${this.o.endpoint}/v1/ingest`, {
@@ -285,3 +292,18 @@ export class Seismo {
 }
 
 export const seismo = new Seismo();
+
+/**
+ * The salt must stay on this machine and should survive restarts: with a new salt every hashed value looks new, which
+ * hides renames (value similarity drops) and invents "new values". SEISMO_SALT wins; otherwise a random salt is kept
+ * in the OS temp dir (per key). Anything failing falls back to a per-process salt (saltId tells the backend it changed).
+ */
+function stableSalt(key: string): string {
+  try {
+    const file = join(tmpdir(), `seismo-salt-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`);
+    try { const s = readFileSync(file, 'utf8').trim(); if (/^[0-9a-f]{32}$/.test(s)) return s; } catch { /* first run */ }
+    const s = randomBytes(16).toString('hex');
+    writeFileSync(file, s, { mode: 0o600 });
+    return s;
+  } catch { return randomBytes(16).toString('hex'); }
+}

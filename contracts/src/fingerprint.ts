@@ -29,6 +29,8 @@ export const Fingerprint = z.object({
   v: z.literal(1),
   /** v3-P3.1: unique per fingerprint, so a resend after a timeout is ignored instead of counted twice */
   batchId: z.string().max(64).optional(),
+  /** one-way id of the SDK salt (never the salt): salted hashes are only compared between fingerprints with the same id */
+  saltId: z.string().regex(/^[0-9a-f]{8,16}$/).optional(),
   service: z.string(),
   method: z.string(),
   endpoint: z.string(),                       // normalised template, e.g. "/users/{id}"

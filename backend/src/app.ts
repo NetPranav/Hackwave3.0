@@ -341,6 +341,14 @@ export function buildApp(opts: AppOptions = {}) {
       .filter((e) => !['resolved', 'expected', 'snoozed', 'normal'].includes(e.state))
       .map((e) => ({ id: e.id, service: e.service, endpoint: e.endpoint, detector: e.detector, title: e.title, state: e.state, severity: e.severity, detectedAt: e.detectedAt, prUrl: e.fix?.validation?.prUrl }));
   });
+  // Is Seismo still learning this app's traffic? A change made before an endpoint is ready becomes its normal shape
+  // (found live: a rename made 1 minute after a reset was never reported). Shown in the demo panel and the dashboard.
+  app.get('/v1/sdk/readiness', async (req, reply) => {
+    const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
+    if (!projectId) return reply.code(401).send({ error: 'bad_key' });
+    return projectId === PROJECT_ID() ? engine.readiness() : [];
+  });
+  app.get('/v1/readiness', async () => engine.readiness());
   app.get('/v1/activity', async () => activityLog.slice(0, 100));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {
