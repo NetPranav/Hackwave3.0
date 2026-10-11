@@ -30,6 +30,22 @@ one when it answers, otherwise the local one (`GET /v1/demo/shop` shows what was
 the tunnels: the hosted shop can no longer reach the providers, and links fall back to the local shop by themselves.
 Keep `demo:online` running until after you merge: the rebuild after the merge uses the tunnel URLs stored in Vercel.
 
+## 0b. Hosted engine on Render (free): nothing has to run on your laptop for the live shop
+
+```bash
+# once: RENDER_API_KEY=... in .env (Render Dashboard -> Account Settings -> API Keys)
+npm run deploy:render                    # Postgres + the engine (backend, GitHub App, demo APIs) on Render's free plan
+npm run demo:online -- --hosted          # the Vercel shop points at the engine (no tunnels), rebuilt once
+npm run github:webhook -- --to hosted    # GitHub App events (merges, CI) go to the engine
+SEISMO_ENGINE_URL=<engine url> npm run dev   # optional: your local dashboard on the hosted engine
+```
+
+Free Render services sleep after 15 minutes without requests and take about a minute to wake. The workflow
+`.github/workflows/keepalive.yml` pings `/health` every 10 minutes (repository variable `SEISMO_ENGINE_URL`; scheduled
+runs start once it is on `main`). Traffic to the live shop keeps it awake too. Back to the laptop engine:
+`npm run github:webhook -- --to local`, then `npm run dev` and `npm run demo:online`.
+Only one engine at a time: two would both react to the same merge.
+
 ## 1. Local only: start (two terminals)
 
 ```bash

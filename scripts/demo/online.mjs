@@ -27,8 +27,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const args = process.argv.slice(2);
 const opt = (name, dflt) => (args.includes(`--${name}`) ? args[args.indexOf(`--${name}`) + 1] : dflt);
 const SHOP_DIR = resolve(ROOT, opt('shop-dir', process.env.SHOP_DIR ?? '../seismo-demo-shop'));
-const BACKEND = `http://localhost:${process.env.PORT ?? 4000}`;
-const PROVIDERS = `http://localhost:${process.env.SERVICES_PORT ?? 4100}`;
+// --engine <url>: the engine is hosted (npm run deploy:render): no tunnels, the hosted shop talks to that fixed URL
+const STATE_FILE = join(ROOT, '.seismo-online.json');
+const savedEngine = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')).engineUrl : undefined;
+const ENGINE = (opt('engine', args.includes('--hosted') ? savedEngine : undefined) ?? '').replace(/\/$/, '') || undefined;
+const BACKEND = ENGINE ?? `http://localhost:${process.env.PORT ?? 4000}`;
+const PROVIDERS = ENGINE ?? `http://localhost:${process.env.SERVICES_PORT ?? 4100}`;
 const DASHBOARD = process.env.DASHBOARD_URL ?? `http://localhost:${process.env.DASHBOARD_PORT ?? 3000}`;
 const STATE = join(ROOT, '.seismo-online.json');   // git-ignored: the hosted shop's SDK key + salt
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -93,11 +97,17 @@ async function untilAnswers(url, what) {
 /** Tunnels -> Vercel env -> rebuild -> public alias -> registered. Run at start and again whenever a tunnel drops. */
 async function goLive(state) {
   for (const c of children.splice(0)) try { c.kill(); } catch { /* gone */ }
-  // 2. public URLs for this machine
-  log('opening tunnels (Cloudflare quick tunnels, no account needed)…');
-  const [pubBackend, pubProviders] = await Promise.all([tunnel(new URL(BACKEND).port, 'backend'), tunnel(new URL(PROVIDERS).port, 'providers')]);
-  await untilAnswers(`${pubBackend}/health`, 'the backend tunnel');
-  await untilAnswers(`${pubProviders}/health`, 'the providers tunnel');
+  // 2. public URLs: the hosted engine (it serves the providers' paths too), or tunnels to this machine
+  let pubBackend, pubProviders;
+  if (ENGINE) {
+    pubBackend = pubProviders = ENGINE;
+    await untilAnswers(`${ENGINE}/health`, 'the hosted engine (a free Render service can take ~1 min to wake up)');
+  } else {
+    log('opening tunnels (Cloudflare quick tunnels, no account needed)…');
+    [pubBackend, pubProviders] = await Promise.all([tunnel(new URL(BACKEND).port, 'backend'), tunnel(new URL(PROVIDERS).port, 'providers')]);
+    await untilAnswers(`${pubBackend}/health`, 'the backend tunnel');
+    await untilAnswers(`${pubProviders}/health`, 'the providers tunnel');
+  }
   log(`backend   ${pubBackend}`);
   log(`providers ${pubProviders}`);
 
@@ -155,8 +165,8 @@ async function main() {
     if (!v || /^dev-/.test(v) || v.length < 24) die(`${k} in .env is empty or a default value. Set a long random value (e.g. \`openssl rand -hex 24\`), restart npm run dev, then run this again.`);
   }
   if (!existsSync(join(SHOP_DIR, '.vercel', 'project.json'))) die(`${SHOP_DIR} is not linked to a Vercel project: run \`vercel link\` there once.`);
-  if (!(await ok(`${BACKEND}/health`))) die(`the Seismo backend is not running at ${BACKEND}: start npm run dev first.`);
-  if (!(await ok(`${PROVIDERS}/health`))) die(`the fake providers are not running at ${PROVIDERS}: start npm run dev first.`);
+  if (!ENGINE && !(await ok(`${BACKEND}/health`))) die(`the Seismo backend is not running at ${BACKEND}: start npm run dev first.`);
+  if (!ENGINE && !(await ok(`${PROVIDERS}/health`))) die(`the fake providers are not running at ${PROVIDERS}: start npm run dev first.`);
 
   // 3. SDK key for the hosted shop (a real project key, not dev-key) + a salt that is the same on every instance
   const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : {};
@@ -180,13 +190,14 @@ async function main() {
   console.log(`
   ┌─────────────────────────────────────────────────────────────────────
   │ Live shop:  ${live.shop}
-  │ Seismo:     ${DASHBOARD}/app   (this machine)
+  │ Seismo:     ${DASHBOARD}/app   (engine: ${ENGINE ?? 'this machine'})
   │ Traffic:    npm run demo:traffic -- --shop --target ${live.shop} --rps 1
   │
   │ Change a provider in the live shop's panel (bottom-right), watch the dashboard,
   │ merge the fix PR: Vercel rebuilds the shop from main and the live shop works again.
-  │ Keep this running (the tunnels close with it). Ctrl-C to stop.
+  │ ${ENGINE ? 'Engine hosted: nothing has to stay running on this machine for the shop.' : 'Keep this running (the tunnels close with it). Ctrl-C to stop.'}
   └─────────────────────────────────────────────────────────────────────`);
+  if (ENGINE) { log('hosted engine: nothing to keep running here (no tunnels)'); process.exit(0); }
   // stay alive. Free quick tunnels drop now and then (seen live after ~1-2 h): after 3 failed checks in a row
   // (about 90 s) open new ones and publish them, so the hosted shop comes back without anyone noticing.
   let misses = 0;

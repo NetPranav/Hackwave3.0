@@ -1,4 +1,4 @@
-# v3-P0.6 Render blueprint: the Seismo engine as ONE free web service (backend + GitHub App + demo providers) and a
+# v3-P0.6 Render blueprint (`npm run deploy:render` does the same through Render's API, with the values from .env): the Seismo engine as ONE free web service (backend + GitHub App + demo providers) and a
 # free Postgres. Dashboard and demo shop go on Vercel. Secrets marked sync:false are entered in the Render dashboard.
 services:
   - type: web
@@ -14,8 +14,8 @@ services:
         fromDatabase: { name: seismo-db, property: connectionString }
       - key: AUTH_SECRET            # same value as the dashboard's AUTH_SECRET
         sync: false
-      - key: INTERNAL_TOKEN
-        generateValue: true
+      - key: INTERNAL_TOKEN         # same value as .env: the dashboard's Demo Control and demo:online call /internal
+        sync: false
       - key: DEMO_ADMIN_TOKEN       # same value in the shop (demo panel) and the dashboard (Demo Control)
         sync: false
       - key: SEISMO_SDK_KEYS        # key(s) the demo shop uses
