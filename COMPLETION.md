@@ -70,7 +70,7 @@ Found and fixed while doing this (live): D2 required a field to be completely ab
 - [x] P0.3 Fingerprint retention: raw rows older than 26 h deleted every 10 min (`ingest-store.prune`, test)
 - [x] P0.4 Production guard: backend, GitHub App and fake providers refuse default `INTERNAL_TOKEN` / `DEMO_ADMIN_TOKEN` / `AUTH_SECRET` when `NODE_ENV=production` (test)
 - [x] P0.5 One public service: the backend forwards `/api/github/*` (raw body, signature intact) and `/providers/*`; `scripts/start-all.mjs` + `render.yaml` (forwarding tests)
-- [ ] P0.6 Deploy (needs your Render/Vercel/Neon login)
+- [~] P0.6 Demo online: `npm run demo:online` puts the shop on Vercel (`seismo-demo-shop.vercel.app`) against this machine through Cloudflare tunnels; verified: live checkout works through the tunnels, fingerprints from the Vercel functions arrive (SDK 0.1.8 sends via waitUntil), `/v1/demo/shop` finds the live shop and falls back to local. Seismo itself still runs on this machine (a free always-on host is still open)
 - [x] P1.1 (local) `@seismo/sdk/auto`: one import starts the SDK from `SEISMO_KEY` + `seismo.config.json` (tests). Publishing to npm is still open (scope, Q10)
 - [x] P1.2 Setup PR installs the SDK: dependency (+ lockfile, `--ignore-scripts`), Next.js `instrumentation.ts` or the entry import, `seismo.config.json` from the provider URL env vars, `.env.example`; opened as a **draft** and marked ready only when CI passes (tests)
 - [x] P2.1 Live rules: the SDK polls `GET /v1/sdk/rules` every 30 s (ETag/304, fail-open); `withAliases` applies repo rules + `liveAliasRules()`; only `fix_pending` **alias** rules whose checks C1–C9 all passed are served (tests: `backend/test/self-heal.test.ts`, SDK live-rules test)

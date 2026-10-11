@@ -3,7 +3,34 @@
 Everything below is real: the shop calls the fake providers, the Seismo SDK in the shop reports shapes to the backend,
 detectors run every 5 s, Nemotron explains, alerts and PRs go to GitHub. Nothing on screen is mocked.
 
-## 1. Start (two terminals)
+
+## 0. Online: the live shop on Vercel against this machine (recommended for the jury)
+
+```bash
+npm run dev                 # terminal 1: Seismo (backend, providers, GitHub App, dashboard)
+npm run demo:online         # terminal 2: keep it running
+npm run demo:traffic -- --shop --target <live shop URL> --rps 2   # terminal 3 (the URL is printed by demo:online)
+```
+
+`demo:online` opens two Cloudflare tunnels to this machine (the Seismo backend and the fake providers), gives the hosted
+shop its own SDK key and salt, writes them into the shop's Vercel project, rebuilds Production from git, finds the
+public address by pinging the deployment's aliases, tells Seismo where the shop is and sets it as the repo's homepage.
+Nothing is hard-coded: it refuses to run with default secrets and stops with a clear message at any failed step.
+
+The loop on the live site:
+1. In the live shop's panel (bottom-right) change something, e.g. **orders · Change type · total_rupees → string**,
+   or **users · Rename field · name → customer_name**.
+2. The live shop breaks (the provider changed silently). Seismo on this machine sees it in about a minute.
+3. A rename gets an automatic fix PR. A type or unit change waits in **Review**: press
+   **Open fix PR (stress-tested)**. Either way the PR link is on the change, in the timeline and in the panel.
+4. Merge the PR on GitHub. Vercel rebuilds the shop from `main` (about a minute) and the live shop works again.
+
+The dashboard's **Demo Shop** link (Setup menu) and the Live activity hint open the shop wherever it runs: the hosted
+one when it answers, otherwise the local one (`GET /v1/demo/shop` shows what was tried). Stopping `demo:online` closes
+the tunnels: the hosted shop can no longer reach the providers, and links fall back to the local shop by themselves.
+Keep `demo:online` running until after you merge: the rebuild after the merge uses the tunnel URLs stored in Vercel.
+
+## 1. Local only: start (two terminals)
 
 ```bash
 # terminal 1, this repo: backend :4000, fake providers :4100, GitHub App :3060, dashboard :3000

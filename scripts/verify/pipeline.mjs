@@ -28,7 +28,7 @@ const LOGIN = process.env.VERIFY_LOGIN ?? (process.env.SEISMO_PROJECT_OWNERS ?? 
 const args = process.argv.slice(2);
 const ONLY = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : null;
 const SKIP_RESET = args.includes('--skip-reset');
-const DATE = new Date().toISOString().slice(0, 10);
+const DATE = new Date().toISOString().slice(0, 10) + (/localhost|127\.0\.0\.1/.test(process.env.VERIFY_SHOP ?? 'localhost') ? '' : '-live');
 const OUT = join(ROOT, 'docs', 'verification');
 const SHOTS = join(OUT, 'screens');
 if (!SECRET) { console.error('AUTH_SECRET missing: run with node --env-file=.env'); process.exit(1); }
@@ -50,6 +50,7 @@ const SCENARIOS = [
   { id: 'cap', panel: { service: 'orders', kind: 'cap', field: 'data', input: '2' }, sample: 'orders',
     expect: { detector: 'D9', field: 'data', fix: 'none (code change, review)' }, check: null },
 ].filter((s) => !ONLY || ONLY.includes(s.id));
+const OPEN_PR_FOR = new Set((process.env.VERIFY_OPEN_PR ?? '').split(',').filter(Boolean));
 const ORDER = ['rename', 'scale', 'type', 'value', 'remove', 'cap'];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -204,13 +205,23 @@ async function runScenario(s, dash, shop) {
       if (['breaking', 'fix_pending'].includes(cur.state) || t() - t0 - r.t.firstSeen >= 10_000) r.t.confirmed ??= t() - t0;
       if (cur.fix?.validation?.prUrl) { r.t.pr ??= t() - t0; r.prUrl = cur.fix.validation.prUrl; }
       if (cur.heal?.hits > 0) r.t.healed ??= t() - t0;
+      // review-only fixes (type, unit): press "Open fix PR (stress-tested)" like a person would, once it is confirmed
+      if (OPEN_PR_FOR.has(s.id) && r.t.confirmed !== undefined && !r.t.prPressed) {
+        r.t.prPressed = t() - t0;
+        const item = (await api('/v1/review')).find((i) => i.drift.id === cur.id && i.proposedRule);
+        if (item) {
+          const res = await api('/v1/review', { method: 'POST', body: JSON.stringify({ id: item.id, action: 'open_pr' }) }).catch((e) => ({ error: e.message }));
+          if (res.prUrl) { r.t.pr = t() - t0; r.prUrl = res.prUrl; } else r.prError = res.error ?? 'no PR';
+        } else r.prError = 'no proposed rule in the review queue';
+      }
       if (!uiSeen) {
         const text = await dash.locator('body').innerText().catch(() => '');
         if (text.includes(cur.title) || (cur.field && text.includes(cur.title.split(':')[0]) && text.includes(s.panel.field))) { uiSeen = true; r.t.dashboard = t() - t0; await dash.screenshot({ path: join(SHOTS, `${s.id}-dashboard.png`) }); }
         else if ((t() - t0) % 20_000 < 2000) await dash.reload({ waitUntil: 'domcontentloaded' }).catch(() => undefined);
       }
     }
-    const fixReady = s.id === 'rename' ? r.t.healed !== undefined : r.t.confirmed !== undefined;
+    // a rename is done when the shop healed (self-heal on) or 45 s after its PR opened (self-heal off: the PR is the fix)
+    const fixReady = s.id === 'rename' ? r.t.healed !== undefined || (r.t.pr !== undefined && t() - t0 > r.t.pr + 45_000) : r.t.confirmed !== undefined;
     if (ev && uiSeen && fixReady && t() - t0 > (r.t.confirmed ?? 0) + 15_000) break;
     await sleep(2000);
   }

@@ -15,9 +15,11 @@
 //
 // Needs: npm run dev running, cloudflared, the Vercel CLI logged in and linked in the shop folder (vercel link),
 // gh logged in. Options: --shop-dir ../seismo-demo-shop · --no-homepage · --no-redeploy
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHmac, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { Resolver } from 'node:dns/promises';
+import https from 'node:https';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,26 +46,47 @@ function bearer(login) {
   const h = b({ alg: 'HS256', typ: 'JWT' }), p = b({ sub: login, iat: now, exp: now + 300 });
   return `${h}.${p}.${createHmac('sha256', process.env.AUTH_SECRET).update(`${h}.${p}`).digest('base64url')}`;
 }
-const vercel = (argv, input) => execFileSync('vercel', argv, { cwd: SHOP_DIR, encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'], timeout: 600_000 });
+const vercelJson = (argv) => { const r = spawnSync('vercel', argv, { cwd: SHOP_DIR, encoding: 'utf8', timeout: 120_000 }); if (r.status !== 0) die(`vercel ${argv.join(' ')}: ${r.stderr.trim().split('\n').pop()}`); return JSON.parse(r.stdout); };
+// stdout + stderr: some commands (inspect) print their details on stderr
+function vercel(argv) {
+  const r = spawnSync('vercel', argv, { cwd: SHOP_DIR, encoding: 'utf8', timeout: 600_000 });
+  if (r.status !== 0) throw Object.assign(new Error(`vercel ${argv[0]} failed`), { stderr: r.stderr });
+  return `${r.stdout}\n${r.stderr}`;
+}
 
 /** A Cloudflare quick tunnel to a local port; resolves with its public https URL once it answers. */
 function tunnel(port, label) {
   return new Promise((resolveUrl, reject) => {
     const c = spawn('cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`], { stdio: ['ignore', 'pipe', 'pipe'] });
     children.push(c);
-    let found = false;
+    let found = false, url;
+    // the URL is printed first; it only routes once a connection is registered
     const scan = (buf) => {
       const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(buf));
-      if (m && !found) { found = true; resolveUrl(m[0]); }
+      if (m) url ??= m[0];
+      if (url && !found && /Registered tunnel connection/.test(String(buf))) { found = true; resolveUrl(url); }
     };
     c.stdout.on('data', scan); c.stderr.on('data', scan);
     c.on('exit', (code) => { if (!found) reject(new Error(`cloudflared (${label}) exited with ${code}`)); else log(`⚠ tunnel for ${label} closed`); });
     setTimeout(() => { if (!found) reject(new Error(`no tunnel URL for ${label} after 45 s`)); }, 45_000);
   });
 }
+/**
+ * A brand-new tunnel hostname: asking the system resolver too early makes macOS cache "no such host" for a while, so
+ * the check resolves through Cloudflare's DNS (1.1.1.1) and connects to that address directly.
+ */
+const cfDns = new Resolver(); cfDns.setServers(['1.1.1.1', '1.0.0.1']);
+function probe(url) {
+  return new Promise((done) => {
+    // Node asks for every address ({ all: true }) when it may try several (happy eyeballs)
+    const lookup = (host, o, cb) => cfDns.resolve4(host).then((a) => (o?.all ? cb(null, a.map((address) => ({ address, family: 4 }))) : cb(null, a[0], 4)), (e) => cb(e));
+    const req = https.get(url, { timeout: 8000, lookup }, (r) => { r.resume(); done(r.statusCode === 200); });
+    req.on('timeout', () => req.destroy()); req.on('error', () => done(false));
+  });
+}
 async function untilAnswers(url, what) {
-  for (let i = 0; i < 40; i++) { if (await ok(url)) return; await sleep(1500); }
-  die(`${what} does not answer at ${url}`);
+  for (let i = 0; i < 60; i++) { if (await probe(url)) return; await sleep(2000); }
+  die(`${what} does not answer at ${url} (2 minutes)`);
 }
 
 async function main() {
@@ -115,7 +138,7 @@ async function main() {
   }
   let deployment;
   if (!args.includes('--no-redeploy')) {
-    const list = JSON.parse(vercel(['ls', '--prod', '--format', 'json']));
+    const list = vercelJson(['ls', '--prod', '--format', 'json']);
     const latest = list.deployments?.find((d) => d.target === 'production');
     if (!latest) die('no production deployment yet: push the shop to main once (Vercel builds it), then run this again');
     log(`rebuilding production from git (${latest.url})… about a minute`);
@@ -124,7 +147,7 @@ async function main() {
     if (!deployment) die(`could not read the new deployment URL from: ${out.slice(-300)}`);
     vercel(['inspect', deployment, '--wait', '--timeout', '5m']);
   } else {
-    const list = JSON.parse(vercel(['ls', '--prod', '--format', 'json']));
+    const list = vercelJson(['ls', '--prod', '--format', 'json']);
     deployment = `https://${list.deployments?.find((d) => d.target === 'production')?.url}`;
   }
 
