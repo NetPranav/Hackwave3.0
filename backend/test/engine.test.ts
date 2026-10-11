@@ -89,3 +89,27 @@ describe('fix dispatch (P5.5/P5.9)', () => {
     expect(e.reviewQueue().some((r) => r.event.detector === 'D4')).toBe(true);
   });
 });
+
+describe('engine: endpoint-level findings', () => {
+  it('Sunset and Deprecation are two events, not one overwriting the other', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/shipments/sh_1', 20, { service: 'shipping', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'shipping-deprecation');
+    for (const fp of await capture(s, '/shipments/sh_1', 30, { service: 'shipping', at: NOW - 20_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const titles = e.list().filter((x) => x.detector === 'D13').map((x) => x.title);
+    expect(titles.some((t) => t.startsWith('Sunset'))).toBe(true);
+    expect(titles).toContain('Endpoint marked deprecated');
+  });
+  it('D17 fires through the engine when an endpoint starts returning 404', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    for (const fp of await capture(s, '/users/u_404', 30, { service: 'users', at: NOW - 20_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW); await e.run(NOW + 5000);
+    expect(e.list().some((x) => x.detector === 'D17')).toBe(true);
+  });
+});

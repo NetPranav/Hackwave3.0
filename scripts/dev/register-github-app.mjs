@@ -26,13 +26,27 @@ const server = createServer(async (req, res) => {
   const u = new URL(req.url, `http://localhost:${port}`);
   if (u.pathname === '/') { res.setHeader('content-type', 'text/html'); return res.end(page); }
   if (u.pathname === '/callback') {
-    const r = await fetch(`https://api.github.com/app-manifests/${u.searchParams.get('code')}/conversions`, { method: 'POST', headers: { accept: 'application/vnd.github+json' } });
-    const a = await r.json();
-    if (!a.id) { res.end('Failed: ' + JSON.stringify(a)); return; }
+    const code = u.searchParams.get('code');
+    // The manifest code is valid for one hour and single-use, so a flaky network is retried here, never fatal.
+    let a;
+    for (let attempt = 1; attempt <= 6 && !a?.id; attempt++) {
+      try {
+        const r = await fetch(`https://api.github.com/app-manifests/${code}/conversions`, { method: 'POST', headers: { accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30000) });
+        a = await r.json();
+        if (!a.id) break;                       // GitHub answered with an error: do not retry
+      } catch (e) {
+        console.log(`attempt ${attempt}/6 failed (${e.cause?.code ?? e.message}); retrying…`);
+      }
+    }
+    if (!a?.id) { res.end('Could not finish: ' + JSON.stringify(a ?? 'network error') + '. Reload this page to retry (the code stays valid for 1 hour).'); return; }
     appendFileSync('.env', `\nAPP_ID=${a.id}\nPRIVATE_KEY=${Buffer.from(a.pem).toString('base64')}\nWEBHOOK_SECRET=${a.webhook_secret}\nGITHUB_CLIENT_ID=${a.client_id}\nGITHUB_CLIENT_SECRET=${a.client_secret}\n`);
     res.end(`App "${a.name}" created. Credentials were appended to .env. Install it on a repo: ${a.html_url}/installations/new. You can close this tab.`);
     console.log('Done. Credentials written to .env (APP_ID, PRIVATE_KEY base64, WEBHOOK_SECRET, client id/secret).');
     server.close();
   }
 });
-server.listen(port, () => { console.log(`Open http://localhost:${port}`); exec(`open http://localhost:${port}`); });
+server.listen(port, () => {
+  if (process.argv.includes('--callback-only')) { console.log(`Waiting for the callback on http://localhost:${port}/callback (reload your old tab).`); return; }
+  console.log(`Open http://localhost:${port}`);
+  exec(`open http://localhost:${port}`);
+});

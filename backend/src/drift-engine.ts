@@ -1,6 +1,6 @@
 import type { AliasRule, CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
-import { runDetectors, type Finding } from './detectors/index.js';
+import { runDetectors, runStatusMixDetectors, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
 import { pathFor, planAlias, type CheckResult } from './planner.js';
 import { score, usagesFor } from './severity.js';
@@ -65,11 +65,16 @@ export class DriftEngine {
       const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === w.statusClass);
       if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w)) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
+    const basesAll = buildBaselines(baseFps, now, true);
+    for (const w of buildBaselines(winFps, now, true)) {
+      const b = basesAll.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint);
+      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runStatusMixDetectors(b, w)) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
+    }
 
     const changed: DriftEvent[] = [];
     const seen = new Set<string>();
     for (const f of findings) {
-      const key = `${f.service}|${f.method}|${f.endpoint}|${f.detector}|${f.field ?? ''}`;
+      const key = `${f.service}|${f.method}|${f.endpoint}|${f.detector}|${f.field ?? f.title}`;
       seen.add(key);
       const usages = usagesFor(f, maps);
       const s = score(f, usages);

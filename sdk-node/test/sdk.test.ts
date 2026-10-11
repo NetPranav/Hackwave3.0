@@ -146,3 +146,33 @@ describe('hostile field names', () => {
     expect(({} as Record<string, unknown>)['x']).toBeUndefined();
   });
 });
+
+describe('capture coverage (regression: keep-alive sockets opened before init)', () => {
+  it('sees every fetch even when a keep-alive socket existed before init()', async () => {
+    received.length = 0;
+    await (await fetch(`${apiUrl}/payments/warm`)).text();             // socket opened before the SDK starts
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, services: { [apiUrl]: 'payments' } });
+    for (let i = 0; i < 30; i++) await (await fetch(`${apiUrl}/payments/pay_${i}`)).text();
+    await new Promise((r) => setTimeout(r, 150));
+    await s.flush();
+    s.stop();
+    expect(received.reduce((n, fp) => n + Number((fp as { count: number }).count), 0)).toBe(30);
+  });
+  it('sees node:http calls (axios/got path) exactly once', async () => {
+    received.length = 0;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, services: { [apiUrl]: 'payments' } });
+    for (let i = 0; i < 5; i++) await new Promise<void>((res) => http.get(`${apiUrl}/payments/p_${i}`, (r) => { r.resume(); r.on('end', () => res()); }));
+    await new Promise((r) => setTimeout(r, 150));
+    await s.flush();
+    s.stop();
+    expect(received.reduce((n, fp) => n + Number((fp as { count: number }).count), 0)).toBe(5);
+  });
+  it('stop() restores the original fetch; fetch errors propagate unchanged', async () => {
+    const original = globalThis.fetch;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1 });
+    expect(globalThis.fetch).not.toBe(original);
+    await expect(fetch('http://127.0.0.1:1/x')).rejects.toThrow(TypeError);
+    s.stop();
+    expect(globalThis.fetch).toBe(original);
+  });
+});

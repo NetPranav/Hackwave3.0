@@ -2,7 +2,6 @@ import { randomBytes } from 'node:crypto';
 import { gzipSync } from 'fflate';
 import { BatchInterceptor } from '@mswjs/interceptors';
 import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
-import { FetchInterceptor } from '@mswjs/interceptors/fetch';
 import { createHash } from 'node:crypto';
 import { normalise, percentile } from './classify.js';
 import { finish, observe, type FieldAcc, type FpConfig } from './fingerprint.js';
@@ -36,7 +35,9 @@ const PRIVATE = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[:
 
 /** Read-only, fail-open API sensor. Everything below is wrapped so it can never throw into the host app. */
 export class Seismo {
-  private interceptor?: BatchInterceptor<[ClientRequestInterceptor, FetchInterceptor]>;
+  private interceptor?: BatchInterceptor<[ClientRequestInterceptor]>;
+  private realFetch?: typeof fetch;
+  private wrappedFetch?: typeof fetch;
   private windows = new Map<string, Window>();
   private ready: unknown[] = [];
   private timer?: NodeJS.Timeout;
@@ -52,18 +53,17 @@ export class Seismo {
       this.stop();
       this.o = { sampleRate: 0.1, flushMs: 5000, maxBodyBytes: 256 * 1024, maxQueue: 1000, endpoint: 'http://localhost:4000', ...opts };
       this.cfg = { salt: opts.salt ?? randomBytes(16).toString('hex'), enumAllowList: opts.enumAllowList ?? [], neverInspect: opts.neverInspect ?? [], maxFields: 500, maxDepth: 8, maxArrayItems: 50 };
-      this.interceptor = new BatchInterceptor({ name: 'seismo', interceptors: [new ClientRequestInterceptor(), new FetchInterceptor()] });
-      this.interceptor.on('request', ({ request, requestId }) => { try { this.starts.set(requestId, performance.now()); void request; } catch (e) { this.fail(e); } });
+      // fetch: wrapped directly. The library's socket-level fetch interception misses requests on keep-alive
+      // sockets opened before init() (verified: half of all calls were invisible), a direct wrapper sees every call.
+      this.wrapFetch();
+      // node:http / https (axios, got, older clients): the interceptor library.
+      this.interceptor = new BatchInterceptor({ name: 'seismo', interceptors: [new ClientRequestInterceptor()] });
+      this.interceptor.on('request', ({ requestId }) => { try { this.starts.set(requestId, performance.now()); } catch (e) { this.fail(e); } });
       this.interceptor.on('response', ({ request, response, requestId }) => {
-        // Work happens after the app already has its response (we only touch a clone).
         try {
           const started = this.starts.get(requestId) ?? performance.now();
           this.starts.delete(requestId);
-          if (!this.shouldSample(request.url)) return;
-          const clone = response.clone();
-          const latency = performance.now() - started;
-          const meta = { url: request.url, method: request.method, status: response.status, headers: response.headers };
-          setImmediate(() => { void this.capture(meta, clone, latency); });
+          this.observeResponse(request.url, request.method, response, performance.now() - started);
         } catch (e) { this.fail(e); }
       });
       this.interceptor.apply();
@@ -75,8 +75,37 @@ export class Seismo {
 
   stop() {
     try { this.interceptor?.dispose(); } catch { /* ignore */ }
+    // Restore fetch only if nobody wrapped it after us (never break a later wrapper).
+    if (this.realFetch && globalThis.fetch === this.wrappedFetch) globalThis.fetch = this.realFetch;
+    this.realFetch = this.wrappedFetch = undefined;
     if (this.timer) clearInterval(this.timer);
     this.interceptor = undefined;
+  }
+
+  private wrapFetch() {
+    if (typeof globalThis.fetch !== 'function') return;
+    const real = globalThis.fetch;
+    const wrapped = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
+      const started = performance.now();
+      const res = await real(input, init);            // errors from the real fetch propagate exactly as before
+      try {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+        const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+        this.observeResponse(url, method, res, performance.now() - started);
+      } catch (e) { this.fail(e); }
+      return res;                                       // the app gets the original, untouched Response
+    }) as typeof fetch;
+    this.realFetch = real;
+    this.wrappedFetch = wrapped;
+    globalThis.fetch = wrapped;
+  }
+
+  /** Shared by both capture paths. Only touches a clone; all real work happens after the app has its response. */
+  private observeResponse(url: string, method: string, response: Response, latency: number) {
+    if (!this.shouldSample(url)) return;
+    const clone = response.clone();
+    const meta = { url, method, status: response.status, headers: response.headers };
+    setImmediate(() => { void this.capture(meta, clone, latency); });
   }
 
   private fail(e: unknown) { this.errors++; try { this.o?.onError?.(e); } catch { /* ignore */ } }

@@ -5,16 +5,17 @@
 
  RUN  v2.1.9 /Users/pranav/Project Folder/CDGI Hackwave/sdk-node
 
- ✓ test/sdk.test.ts (8 tests) 923ms
-   ✓ SDK (P3.2/P3.3) privacy > captures shapes, keeps the app response intact, and sends no record value 527ms
- ✓ test/runtime.property.test.ts (9 tests) 4646ms
-   ✓ applyAliases guarantees > G1 identity: rules whose source never occurs return the SAME reference 1498ms
-   ✓ applyAliases guarantees > G1 identity: old-shape responses (target already present) are untouched 1794ms
-   ✓ applyAliases guarantees > G2 additive only: nothing is removed or changed, extra keys are only rule targets 836ms
-   ✓ applyAliases guarantees > G4 never throws on hostile inputs 508ms
+ ✓ test/sdk.test.ts (11 tests) 1944ms
+   ✓ SDK (P3.2/P3.3) privacy > captures shapes, keeps the app response intact, and sends no record value 632ms
+   ✓ capture coverage (regression: keep-alive sockets opened before init) > sees every fetch even when a keep-alive socket existed before init() 549ms
+ ✓ test/runtime.property.test.ts (9 tests) 11211ms
+   ✓ applyAliases guarantees > G1 identity: rules whose source never occurs return the SAME reference 2710ms
+   ✓ applyAliases guarantees > G1 identity: old-shape responses (target already present) are untouched 4496ms
+   ✓ applyAliases guarantees > G2 additive only: nothing is removed or changed, extra keys are only rule targets 3284ms
+   ✓ applyAliases guarantees > G4 never throws on hostile inputs 714ms
 
  Test Files  2 passed (2)
-      Tests  17 passed (17)
-   Start at  09:43:39
-   Duration  5.84s (transform 472ms, setup 0ms, collect 994ms, tests 5.57s, environment 0ms, prepare 482ms)
+      Tests  20 passed (20)
+   Start at  10:39:22
+   Duration  14.40s (transform 717ms, setup 0ms, collect 1.20s, tests 13.15s, environment 0ms, prepare 956ms)
 

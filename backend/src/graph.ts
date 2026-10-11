@@ -18,10 +18,13 @@ export interface GraphInput {
  * Code map(s) -> dependency graph: service -> endpoint -> field <- code location -> workflow.
  * Node ids are stable across status, graph, drift and radar so the views link to each other.
  */
+/** `/users/{param}` and `/users/{id}` are the same endpoint: one template syntax everywhere. */
+export const normEndpoint = (e: string) => e.replace(/\{[^}]+\}/g, '{id}');
+
 export const ids = {
   service: (s: string) => `svc:${s}`,
-  endpoint: (s: string, e: string, m?: string) => `ep:${s}:${m ? m + ' ' : ''}${e}`,
-  field: (s: string, e: string, f: string) => `f:${s}:${e}:${f}`,
+  endpoint: (s: string, e: string, m?: string) => `ep:${s}:${m ? m + ' ' : ''}${normEndpoint(e)}`,
+  field: (s: string, e: string, f: string) => `f:${s}:${normEndpoint(e)}:${f}`,
   code: (file: string, line: number) => `code:${file}:${line}`,
   workflow: (w: string) => `wf:${w}`,
 };
@@ -39,7 +42,7 @@ export function buildGraph({ maps, states = {}, callsPerMin = {} }: GraphInput):
       if (cs.unresolved) continue;
       const svc = ids.service(cs.service), ep = ids.endpoint(cs.service, cs.endpoint, cs.method);
       addNode({ id: svc, type: 'service', label: cs.service, state: states[svc] ?? 'normal', size: 20 });
-      addNode({ id: ep, type: 'endpoint', label: `${cs.method} ${cs.endpoint}`, state: states[ep] ?? 'normal', service: cs.service, size: Math.max(6, Math.min(16, 6 + (callsPerMin[ep] ?? 0) / 10)) });
+      addNode({ id: ep, type: 'endpoint', label: `${cs.method} ${normEndpoint(cs.endpoint)}`, state: states[ep] ?? 'normal', service: cs.service, size: Math.max(6, Math.min(16, 6 + (callsPerMin[ep] ?? 0) / 10)) });
       addLink({ source: svc, target: ep, kind: 'has' });
       const code = ids.code(cs.file, cs.line);
       addNode({ id: code, type: 'code', label: `${cs.file}:${cs.line}`, state: 'normal', service: cs.service });
@@ -69,6 +72,11 @@ export function buildGraph({ maps, states = {}, callsPerMin = {} }: GraphInput):
         g.forEachInNeighbor(id, (nb) => { const cur = g.getNodeAttribute(nb, 'state') as DriftState; g.setNodeAttribute(nb, 'state', worse(cur, st)); });
       }
     }
+  });
+  // ...and from a coloured code location to the workflows it belongs to (the "red path").
+  g.forEachNode((id, a) => {
+    if (a.type !== 'code' || a.state === 'normal') return;
+    g.forEachOutNeighbor(id, (w) => { if (g.getNodeAttribute(w, 'type') === 'workflow') g.setNodeAttribute(w, 'state', worse(g.getNodeAttribute(w, 'state') as DriftState, a.state as DriftState)); });
   });
   g.forEachNode((id, a) => {
     if (a.type === 'endpoint') g.forEachInNeighbor(id, (svc) => { const st = a.state as DriftState; g.setNodeAttribute(svc, 'state', worse(g.getNodeAttribute(svc, 'state') as DriftState, st)); });
@@ -117,4 +125,19 @@ function matches(globs: string[], file: string) {
 function globToRegex(g: string) {
   const re = g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '@@').replace(/\*/g, '[^/]*').replace(/@@/g, '.*');
   return new RegExp('^' + re + '$');
+}
+
+/** Drift events -> node states for the graph and status views. Resolved / expected / snoozed / info do not colour anything. */
+export function statesFromEvents(events: { service: string; endpoint: string; field?: string; state: DriftState }[]): Record<string, DriftState> {
+  const out: Record<string, DriftState> = {};
+  const put = (id: string, st: DriftState) => { out[id] = out[id] ? worse(out[id]!, st) : st; };
+  for (const e of events) {
+    if (!['breaking', 'suspected', 'fix_pending'].includes(e.state)) continue;
+    const [method, ...rest] = e.endpoint.split(' ');
+    const path = rest.join(' ');
+    put(ids.endpoint(e.service, path, method), e.state);
+    if (e.field) put(ids.field(e.service, path, e.field), e.state);
+    put(ids.service(e.service), e.state);
+  }
+  return out;
 }

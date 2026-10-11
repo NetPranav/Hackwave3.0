@@ -15,11 +15,11 @@ describe('scanner on the fixture shop', () => {
   it('output matches the contract', () => expect(CodeMap.parse(map)).toBeTruthy());
   it('finds every provider call with templated endpoints', () => {
     const eps = map.callSites.map((c) => `${c.method} ${c.service} ${c.endpoint}`);
-    expect(eps).toContain('GET users /users/{param}');
-    expect(eps).toContain('GET shipping /shipments/{param}');
+    expect(eps).toContain('GET users /users/{id}');
+    expect(eps).toContain('GET shipping /shipments/{id}');
     expect(eps).toContain('GET orders /orders');
     expect(eps).toContain('POST payments /payments');
-    expect(eps).toContain('GET payments /payments/{param}');
+    expect(eps).toContain('GET payments /payments/{id}');
   });
   it('reports unresolvable calls instead of hiding them', () => {
     const u = map.callSites.filter((c) => c.unresolved);
@@ -27,9 +27,9 @@ describe('scanner on the fixture shop', () => {
     expect(u[0]!.file).toBe('lib/api.ts');
   });
   it('follows returned data to callers: user.name is displayed in checkout', () => {
-    expect(find('users', '/users/{param}', 'name')?.usage).toBe('display');
-    expect(find('users', '/users/{param}', 'email')?.usage).toBe('display');
-    expect(find('users', '/users/{param}', 'phone')).toBeTruthy();
+    expect(find('users', '/users/{id}', 'name')?.usage).toBe('display');
+    expect(find('users', '/users/{id}', 'email')?.usage).toBe('display');
+    expect(find('users', '/users/{id}', 'phone')).toBeTruthy();
   });
   it('payments amount is arithmetic + money and persisted', () => {
     const a = reads('payments', '/payments').filter((r) => r.field === 'amount');
@@ -37,8 +37,8 @@ describe('scanner on the fixture shop', () => {
     expect(a.some((r) => r.usage === 'persistence' && r.money)).toBe(true);
     expect(find('payments', '/payments', 'status')).toBeTruthy();
   });
-  it('Number(r.data.amount) is arithmetic', () => expect(find('payments', '/payments/{param}', 'amount')?.usage).toBe('arithmetic'));
-  it('shipment status is a branching read', () => expect(reads('shipping', '/shipments/{param}').some((r) => r.field === 'status' && r.usage === 'branching')).toBe(true));
+  it('Number(r.data.amount) is arithmetic', () => expect(find('payments', '/payments/{id}', 'amount')?.usage).toBe('arithmetic'));
+  it('shipment status is a branching read', () => expect(reads('shipping', '/shipments/{id}').some((r) => r.field === 'status' && r.usage === 'branching')).toBe(true));
   it('follows array callbacks: orders data[].total_rupees', () => {
     const f = reads('orders', '/orders').map((r) => r.field);
     expect(f.some((x) => x.endsWith('total_rupees'))).toBe(true);

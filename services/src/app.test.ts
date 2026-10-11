@@ -55,5 +55,12 @@ describe('fake services', () => {
     await post(app, '/admin/scenarios/payments-paise');
     expect((await app.inject('/payments/openapi.json')).body).toContain('paise');
   });
+  it('reset works with content-type JSON and an empty body (Demo Control button)', async () => {
+    const app = buildServices();
+    await post(app, '/admin/scenarios/users-rename');
+    const r = await app.inject({ method: 'POST', url: '/admin/reset', headers: { ...h, 'content-type': 'application/json' } });
+    expect(r.statusCode).toBe(200);
+    expect((await app.inject('/users/u_1')).json()).toHaveProperty('name');
+  });
   it('admin needs token', async () => expect((await buildServices().inject('/admin/scenarios')).statusCode).toBe(401));
 });

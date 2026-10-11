@@ -175,12 +175,20 @@ export const d17Gone: Detector = (base, win, ctx) => {
   return gone(win) > 0.2 && gone(base) < 0.05 ? [{ ...where(base), detector: 'D17', confidence: 0.9, title: 'Endpoint appears to be gone (404/410)', rung: 'review', evidence: { before: { gone: round(gone(base)) }, after: { gone: round(gone(win)) } }, exposure: gone(win) }] : [];
 };
 
-/** All detectors. D3 replaces the D1+D2 pair it explains. */
+/**
+ * Detectors on one endpoint + status class. D3 replaces the D1+D2 pair it explains.
+ * D12's 429 share and D17 need all status classes together: see runStatusMixDetectors.
+ */
 export function runDetectors(base: EndpointBaseline, win: EndpointBaseline, ctx: Ctx = DEFAULT_CTX): Finding[] {
   const renames = d3Rename(base, win, ctx);
   const renamed = new Set(renames.flatMap((r) => [r.rename!.from, r.rename!.to]));
-  const rest = [d1Missing, d2New, d4Type, d11ErrorShape, d12RateLimit, d13Deprecation, d14EmptySuccess, d16DualField, d17Gone]
+  const rest = [d1Missing, d2New, d4Type, d11ErrorShape, d13Deprecation, d14EmptySuccess, d16DualField]
     .flatMap((d) => d(base, win, ctx))
     .filter((f) => !(f.field && renamed.has(f.field) && (f.detector === 'D1' || f.detector === 'D2')));
   return [...renames, ...rest];
+}
+
+/** D12 (rate-limit header / 429 share) and D17 (404/410 share) on all-class profiles of one endpoint. */
+export function runStatusMixDetectors(base: EndpointBaseline, win: EndpointBaseline, ctx: Ctx = DEFAULT_CTX): Finding[] {
+  return [...d12RateLimit(base, win, ctx), ...d17Gone(base, win, ctx)];
 }

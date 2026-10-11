@@ -5,10 +5,11 @@
 
  RUN  v2.1.9 /Users/pranav/Project Folder/CDGI Hackwave/services
 
- ✓ src/app.test.ts (8 tests) 277ms
+ ✓ src/app.test.ts (9 tests) 888ms
+   ✓ fake services > users rename toggles and resets 739ms
 
  Test Files  1 passed (1)
-      Tests  8 passed (8)
-   Start at  09:43:39
-   Duration  2.37s (transform 288ms, setup 0ms, collect 812ms, tests 277ms, environment 0ms, prepare 195ms)
+      Tests  9 passed (9)
+   Start at  10:39:22
+   Duration  4.75s (transform 290ms, setup 0ms, collect 964ms, tests 888ms, environment 0ms, prepare 547ms)
 

@@ -28,10 +28,14 @@ export interface EndpointBaseline {
 const add = (into: Record<string, number>, from?: Record<string, number>) => { for (const [k, v] of Object.entries(from ?? {})) into[k] = (into[k] ?? 0) + v; };
 
 /** Aggregate windows of one endpoint+status class into a profile. Pure; detectors compare a recent window to a baseline. */
-export function buildBaselines(fps: Fingerprint[], now = Date.now()): EndpointBaseline[] {
+/**
+ * `allClasses` merges 2xx/4xx/5xx windows of an endpoint into one profile (statusClass 'all'). Detectors that compare
+ * status mixes across classes (D12 429 share, D17 404/410 share) need that view; shape detectors use per-class profiles.
+ */
+export function buildBaselines(fps: Fingerprint[], now = Date.now(), allClasses = false): EndpointBaseline[] {
   const groups = new Map<string, Fingerprint[]>();
   for (const fp of fps) {
-    const k = `${fp.service}|${fp.method}|${fp.endpoint}|${fp.statusClass}`;
+    const k = `${fp.service}|${fp.method}|${fp.endpoint}|${allClasses ? 'all' : fp.statusClass}`;
     groups.set(k, [...(groups.get(k) ?? []), fp]);
   }
   return [...groups.values()].map((g) => {
@@ -53,7 +57,7 @@ export function buildBaselines(fps: Fingerprint[], now = Date.now()): EndpointBa
     const last = g.reduce((a, f) => (Date.parse(f.windowStart) > Date.parse(a.windowStart) ? f : a));
     const hdr = (k: 'sunset' | 'deprecation' | 'rateLimitLimit') => g.map((f) => f.headers[k]).find(Boolean);
     return {
-      service: g[0]!.service, endpoint: g[0]!.endpoint, method: g[0]!.method, statusClass: g[0]!.statusClass, samples, firstSeen: first,
+      service: g[0]!.service, endpoint: g[0]!.endpoint, method: g[0]!.method, statusClass: allClasses ? 'all' : g[0]!.statusClass, samples, firstSeen: first,
       ready: samples >= 200 || now - first >= 24 * 3600_000, fields,
       latencyP95: Math.max(...g.map((f) => f.latencyMs.p95)), statusCounts,
       shapes: [...new Set(g.map((f) => f.shapeHash))],

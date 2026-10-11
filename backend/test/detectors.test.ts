@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Fingerprint } from '@seismo/contracts';
 import { buildServices } from '../../services/src/app.js';
 import { buildBaselines } from '../src/baseline.js';
-import { runDetectors } from '../src/detectors/index.js';
+import { runDetectors, runStatusMixDetectors } from '../src/detectors/index.js';
 import { capture, toggle } from './helpers.js';
 
 const T0 = Date.parse('2026-10-14T10:00:00Z');
@@ -51,16 +51,21 @@ describe('detectors on real v1 -> v2 fake-service traffic', () => {
     expect(b.statusClass).toBe('4xx');
     expect(runDetectors(b, w).find((x) => x.detector === 'D11')).toBeTruthy();
   });
-  it('D17 gone: healthy endpoint starts returning 404', async () => {
+  it('D17 gone: healthy endpoint starts returning 404 (all-class profiles)', async () => {
     const s = buildServices();
     const base = await capture(s, '/users/u_1', 60, { service: 'users', at: T0 });
-    const win = await capture(s, '/users/ghost', 30, { service: 'users', at: T0 + 600_000 });
-    const b = buildBaselines(base)[0]!;
-    const w = buildBaselines(win)[0]!;
-    // same endpoint template (/users/{id}) but 4xx class: compare through status counts of the 2xx baseline vs the window's class
-    expect(w.statusClass).toBe('4xx');
-    const fake = { ...b, statusCounts: { '404': w.samples }, samples: w.samples };
-    expect(runDetectors({ ...b, statusCounts: { '200': 60 } }, fake).find((x) => x.detector === 'D17')).toBeTruthy();
+    const win = await capture(s, '/users/u_404', 30, { service: 'users', at: T0 + 600_000 });
+    expect(runDetectors(buildBaselines(base)[0]!, buildBaselines(win)[0]!).find((x) => x.detector === 'D17')).toBeUndefined(); // per class it cannot see it
+    const f = runStatusMixDetectors(buildBaselines(base, T0, true)[0]!, buildBaselines(win, T0, true)[0]!);
+    expect(f.find((x) => x.detector === 'D17')).toBeTruthy();
+  });
+  it('D12: 429s suddenly common (all-class profiles)', async () => {
+    const b = buildBaselines([{ v: 1, service: 's', method: 'GET', endpoint: '/x', statusClass: '2xx', windowStart: new Date(T0).toISOString(), windowSeconds: 5, count: 100, statusCounts: { '200': 100 }, latencyMs: { p50: 1, p95: 2 }, headers: {}, reqQueryKeys: [], shapeHash: 'a', fields: {} }], T0, true)[0]!;
+    const w = buildBaselines([
+      { v: 1, service: 's', method: 'GET', endpoint: '/x', statusClass: '2xx', windowStart: new Date(T0).toISOString(), windowSeconds: 5, count: 70, statusCounts: { '200': 70 }, latencyMs: { p50: 1, p95: 2 }, headers: {}, reqQueryKeys: [], shapeHash: 'a', fields: {} },
+      { v: 1, service: 's', method: 'GET', endpoint: '/x', statusClass: '4xx', windowStart: new Date(T0).toISOString(), windowSeconds: 5, count: 30, statusCounts: { '429': 30 }, latencyMs: { p50: 1, p95: 2 }, headers: {}, reqQueryKeys: [], shapeHash: 'b', fields: {} },
+    ], T0, true)[0]!;
+    expect(runStatusMixDetectors(b, w).find((x) => x.detector === 'D12')).toBeTruthy();
   });
   it('orders limit cap shows up as array length drop (reqLimit 500, max length 100)', async () => {
     const s = buildServices();

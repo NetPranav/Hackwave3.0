@@ -9,6 +9,10 @@ interface Announcement { service: string; title: string; body: string; at: strin
 
 export function buildServices() {
   const app = Fastify({ logger: false });
+  // Admin buttons POST with content-type JSON and often no body: treat an empty body as {} instead of a 400.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body: string, done) => {
+    try { done(null, body.trim() ? JSON.parse(body) : {}); } catch (e) { done(e as Error, undefined); }
+  });
   const state = fresh();
   let announcements: Announcement[] = [];
   const token = process.env.DEMO_ADMIN_TOKEN ?? 'dev-admin';

@@ -306,7 +306,7 @@ function resolveUrl(arg: Node, envNames: Map<string, string>, config: Config): {
   let path = '';
   for (const p of parts) {
     if (p.env) service = config.services?.[p.env] ?? p.env.replace(/_(API_)?(BASE_)?(URL|HOST|ENDPOINT)$/, '').toLowerCase();
-    else if (p.param) path += '{param}';
+    else if (p.param) path += '{id}'; // same template syntax as the SDK so graph, status and drift share node ids
     else path += p.lit;
   }
   const url = path.match(/^https?:\/\/([^/]+)(\/.*)?$/);

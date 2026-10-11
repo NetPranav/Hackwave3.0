@@ -5,7 +5,7 @@ import {
   mockDrift, mockGraph, mockMe, mockNotificationSettings, mockOverview, mockRadar, mockReview, mockStatus,
   CodeMap, Fingerprint, NotificationSettings,
 } from '@seismo/contracts';
-import { buildGraph, coverage, impact } from './graph.js';
+import { buildGraph, coverage, impact, statesFromEvents } from './graph.js';
 import { memoryStore, type CodeMapStore } from './codemap-store.js';
 import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
 import { buildBaselines } from './baseline.js';
@@ -14,8 +14,12 @@ import { gunzipSync } from 'node:zlib';
 import { DriftEngine, type FixDispatcher } from './drift-engine.js';
 import { httpFixDispatcher } from './fix-dispatcher.js';
 
-/** P0.4 skeleton: routes return contract-shaped mock data until the real engine (P2-P6) replaces each one. */
-export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher } = {}) {
+/**
+ * Real data everywhere. Contract-shaped mock data is returned ONLY when SEISMO_MOCKS=1 (dashboard development without an engine);
+ * otherwise an empty system answers with empty results, never with invented drift.
+ */
+export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher; mocks?: boolean } = {}) {
+  const mocks = opts.mocks ?? process.env.SEISMO_MOCKS === '1';
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
@@ -50,21 +54,28 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
   app.get('/v1/overview', async () => {
     const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
     const maps = await store.all();
-    if (!fps.length && !maps.length) return mockOverview();
+    if (!fps.length && !maps.length && mocks) return mockOverview();
     const st = buildStatus(fps);
     const cov = coverage(maps);
-    return { ...mockOverview(), servicesMonitored: st.length || mockOverview().servicesMonitored, endpoints: cov.endpointsMapped || mockOverview().endpoints, coveragePct: cov.fieldsSeen ? Math.round((100 * cov.fieldsMapped) / cov.fieldsSeen) : 0 };
+    const open = engine.list().filter((e) => !['resolved', 'expected', 'snoozed'].includes(e.state));
+    const count = (sev: string) => open.filter((e) => e.severity === sev).length;
+    return {
+      servicesMonitored: st.length, endpoints: cov.endpointsMapped, coveragePct: cov.fieldsSeen ? Math.round((100 * cov.fieldsMapped) / cov.fieldsSeen) : 0,
+      openDrifts: { info: count('info'), warning: count('warning'), breaking: count('breaking') },
+      fixPrsOpen: open.filter((e) => e.state === 'fix_pending').length, radarUpcoming: 0,
+    };
   });
   // Graph from real code maps; mock data until the first scan has been stored (so the dashboard always has something to draw).
   app.get('/v1/graph', async () => {
     const maps = await store.all();
-    return maps.length ? buildGraph({ maps }).dto : mockGraph();
+    if (!maps.length && mocks) return mockGraph();
+    return buildGraph({ maps, states: statesFromEvents(engine.list()) }).dto;
   });
   app.get('/v1/graph/impact', async (req) => {
     const maps = await store.all();
     const { node } = req.query as { node?: string };
-    if (!maps.length) return mockGraph();
-    return impact(buildGraph({ maps }).g, node ?? '');
+    if (!maps.length) return mocks ? mockGraph() : { nodes: [], links: [] };
+    return impact(buildGraph({ maps, states: statesFromEvents(engine.list()) }).g, node ?? '');
   });
   // The GitHub App reports merged/closed fix PRs here (P5.9).
   app.post('/internal/fix-event', async (req, reply) => {
@@ -85,25 +96,25 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
   });
   app.get('/v1/installations', async () => {
     const maps = await store.all();
-    if (!maps.length) return [{ id: 'inst-1', account: 'demo', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }] }];
+    if (!maps.length) return mocks ? [{ id: 'inst-1', account: 'demo', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }] }] : [];
     const byOwner = new Map<string, string[]>();
     for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
     return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
   });
   app.get('/v1/coverage', async () => {
     const maps = await store.all();
-    return maps.length ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
+    return maps.length || !mocks ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
   });
   app.get('/v1/status', async () => {
     const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
-    if (!fps.length) return { services: mockStatus() };
+    if (!fps.length) return { services: mocks ? mockStatus() : [] };
     const services = [...new Set(fps.map((f) => f.service))];
     const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
-    return { services: buildStatus(fps, { provider }) };
+    return { services: buildStatus(fps, { provider, states: statesFromEvents(engine.list()) }) };
   });
   app.get('/v1/drift-events', async () => {
     const real = engine.list();
-    return real.length ? real : mockDrift();
+    return real.length || !mocks ? real : mockDrift();
   });
   /** One detection pass now (the server also runs it every 5 s). Emits drift.created / drift.updated over SSE. */
   app.post('/internal/detect', async (req, reply) => {
@@ -112,10 +123,10 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     for (const e of changed) for (const send of sseClients) send(e.state === 'suspected' || e.state === 'normal' ? 'drift.created' : 'drift.updated', e);
     return { changed: changed.length };
   });
-  app.get('/v1/radar', async () => mockRadar());
+  app.get('/v1/radar', async () => (mocks ? mockRadar() : []));   // radar arrives in P7
   app.get('/v1/review', async () => {
     const q = engine.reviewQueue();
-    return q.length ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: reason, status: 'open' as const })) : mockReview();
+    return q.length ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: reason, status: 'open' as const })) : mocks ? mockReview() : [];
   });
   app.post('/v1/review', async () => ({ ok: true }));
   app.get('/v1/settings/notifications', async () => notif);

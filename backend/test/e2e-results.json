@@ -1,0 +1,207 @@
+{
+  "none (soak)": {
+    "events": [],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "redGraphNodes": []
+  },
+  "users-rename": {
+    "events": [
+      {
+        "detector": "D3",
+        "endpoint": "GET /users/{id}",
+        "field": "name",
+        "title": "Field renamed: name → display_name",
+        "severity": "breaking",
+        "state": "fix_pending",
+        "usages": 2
+      }
+    ],
+    "prsOpened": 1,
+    "prRule": {
+      "id": "a-68mjms",
+      "kind": "alias",
+      "endpoint": "GET /users/{id}",
+      "path": "$",
+      "target": "name",
+      "source": "display_name",
+      "driftEvent": "drift-68mjms",
+      "addedAt": "2026-10-11"
+    },
+    "reviewQueue": [],
+    "redGraphNodes": [
+      "wf:checkout (fix_pending)",
+      "svc:users (fix_pending)",
+      "ep:users:GET /users/{id} (fix_pending)",
+      "f:users:/users/{id}:name (fix_pending)",
+      "code:app/checkout/page.tsx:14 (fix_pending)",
+      "code:app/checkout/page.tsx:11 (fix_pending)"
+    ]
+  },
+  "users-error-shape": {
+    "events": [
+      {
+        "detector": "D11",
+        "endpoint": "GET /users/{id}",
+        "title": "Error response shape changed (4xx)",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 5
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D11",
+        "reason": "Only renames get automatic PRs; this change needs a human decision."
+      }
+    ],
+    "redGraphNodes": [
+      "svc:users (suspected)",
+      "ep:users:GET /users/{id} (suspected)"
+    ]
+  },
+  "payments-amount-type": {
+    "events": [
+      {
+        "detector": "D4",
+        "endpoint": "POST /payments",
+        "field": "amount",
+        "title": "Type changed: amount integer → string",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 2
+      },
+      {
+        "detector": "D4",
+        "endpoint": "GET /payments/{id}",
+        "field": "amount",
+        "title": "Type changed: amount integer → string",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 1
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D4",
+        "field": "amount",
+        "reason": "Only renames get automatic PRs; this change needs a human decision."
+      },
+      {
+        "detector": "D4",
+        "field": "amount",
+        "reason": "Only renames get automatic PRs; this change needs a human decision."
+      }
+    ],
+    "redGraphNodes": [
+      "wf:checkout (breaking)",
+      "svc:payments (breaking)",
+      "ep:payments:POST /payments (breaking)",
+      "ep:payments:GET /payments/{id} (breaking)",
+      "f:payments:/payments:amount (breaking)",
+      "code:lib/payments.ts:6 (breaking)",
+      "code:lib/payments.ts:7 (breaking)",
+      "f:payments:/payments/{id}:amount (breaking)",
+      "code:lib/payments.ts:16 (breaking)"
+    ]
+  },
+  "shipping-deprecation": {
+    "events": [
+      {
+        "detector": "D13",
+        "endpoint": "GET /shipments/{id}",
+        "title": "Sunset announced: Wed, 30 Dec 2026 00:00:00 GMT",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 2
+      },
+      {
+        "detector": "D13",
+        "endpoint": "GET /shipments/{id}",
+        "title": "Endpoint marked deprecated",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 2
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D13",
+        "reason": "Only renames get automatic PRs; this change needs a human decision."
+      },
+      {
+        "detector": "D13",
+        "reason": "Only renames get automatic PRs; this change needs a human decision."
+      }
+    ],
+    "redGraphNodes": [
+      "svc:shipping (suspected)",
+      "ep:shipping:GET /shipments/{id} (suspected)"
+    ]
+  },
+  "orders-cursor": {
+    "events": [
+      {
+        "detector": "D1",
+        "endpoint": "GET /orders",
+        "field": "page",
+        "title": "Field removed: page",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      },
+      {
+        "detector": "D1",
+        "endpoint": "GET /orders",
+        "field": "total",
+        "title": "Field removed: total",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      },
+      {
+        "detector": "D2",
+        "endpoint": "GET /orders",
+        "field": "next_cursor",
+        "title": "New field: next_cursor",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "redGraphNodes": []
+  },
+  "payments-paise": {
+    "events": [],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "redGraphNodes": []
+  },
+  "shipping-enum": {
+    "events": [],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "redGraphNodes": []
+  },
+  "orders-limit-cap": {
+    "events": [],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "redGraphNodes": []
+  },
+  "resolve after merge": {
+    "state": "resolved",
+    "graphAllGreen": true
+  },
+  "sdk overhead (ms)": {
+    "p50Off": 0.141,
+    "p50On": 0.201,
+    "p99Off": 0.598,
+    "p99On": 1.155
+  }
+}
