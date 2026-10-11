@@ -1,56 +1,68 @@
-import { GUARANTEES, LADDER, PROMISES } from "@/lib/landing";
+"use client";
+
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { GUARANTEES, LADDER } from "@/lib/landing";
+import AliasPlayground, { CASES, type CaseId } from "./AliasPlayground";
 import Reveal from "./Reveal";
 import SectionLabel from "./SectionLabel";
 
-/** Why a fix is safe: four proven guarantees, the three-step ladder, and what the SDK promises. */
+/** Slide 8: try the alias rule yourself; the guarantee it shows lights up on the right. The ladder sits below. */
 export default function Safety() {
+  const [caseId, setCaseId] = useState<CaseId>("new");
+  const lit = CASES.find((c) => c.id === caseId)?.guarantee;
+
   return (
-    <section id="safe" className="mx-auto max-w-[1440px] px-6 pb-24 md:px-10 lg:px-16">
-      <Reveal>
-        <SectionLabel n="5" label="Fix safely" />
-        <h2 className="mt-6 max-w-4xl font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl">Small fixes. Add only. A person merges.</h2>
-        <p className="mt-4 max-w-2xl font-aeonik-light text-base leading-relaxed text-text-primary/70">
-          A rename fix is one rule in <code className="font-aeonik-mono text-[0.9em]">seismo/aliases.json</code>. It adds the new name only when it is missing. The AI never writes code.
-        </p>
-      </Reveal>
-
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {GUARANTEES.map((g, i) => (
-          <Reveal key={g.id} delay={i * 0.06}>
-            <div className="group h-full rounded-xl border border-box-outline bg-section p-6 transition-all duration-300 hover:-translate-y-1 hover:border-text-primary">
-              <span className="font-aeonik-mono text-xs text-accent">{g.id}</span>
-              <h3 className="mt-5 font-aeonik text-xl leading-tight tracking-tight">{g.title}</h3>
-              <p className="mt-2 font-aeonik-light text-sm leading-relaxed text-text-primary/65">{g.text}</p>
-            </div>
+    <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col justify-center px-6 py-24 md:px-10 lg:px-16">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <Reveal depth={0.6}>
+            <SectionLabel n="6" label="Fix safely" />
           </Reveal>
-        ))}
+          <Reveal depth={1}>
+            <h2 className="mt-6 font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl short:md:text-5xl">Add only. Never overwrite.</h2>
+          </Reveal>
+        </div>
+        <Reveal depth={1.2}>
+          <p className="max-w-sm font-aeonik-light text-base text-text-primary/70">
+            A rename fix is one rule in <code className="font-aeonik-mono text-[0.9em]">seismo/aliases.json</code>. The AI never writes code. Try a case.
+          </p>
+        </Reveal>
       </div>
-      <p className="mt-3 font-aeonik-mono text-[11px] uppercase tracking-wider text-text-primary/45">
-        Each one is checked with property tests, 10,000 runs each, over random inputs.
-      </p>
 
-      <Reveal className="mt-14 grid gap-px overflow-hidden rounded-xl border border-box-outline bg-box-outline md:grid-cols-3">
+      <div className="mt-10 grid gap-5 lg:grid-cols-[1.25fr_1fr] short:mt-7">
+        <Reveal depth={1.6}>
+          <AliasPlayground value={caseId} onChange={setCaseId} />
+        </Reveal>
+        <div className="grid grid-cols-2 gap-3">
+          {GUARANTEES.map((g, i) => (
+            <Reveal key={g.id} depth={1.8 + i * 0.2}>
+              <div
+                className={cn(
+                  "h-full rounded-xl border p-4 transition-all duration-300",
+                  lit === g.id ? "-translate-y-1 border-accent bg-accent text-white" : "border-box-outline bg-section"
+                )}
+              >
+                <span className={cn("font-aeonik-mono text-xs", lit === g.id ? "text-white" : "text-accent")}>{g.id}</span>
+                <h3 className="mt-3 font-aeonik text-lg leading-tight tracking-tight">{g.title}</h3>
+                <p className={cn("mt-1.5 font-aeonik-light text-sm leading-snug", lit === g.id ? "text-white/85" : "text-text-primary/65")}>{g.text}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+
+      <Reveal depth={2.6} className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-2 font-aeonik-mono text-[11px] uppercase tracking-wider">
         {LADDER.map((l, i) => (
-          <div key={l.step} className="bg-section p-6">
-            <p className="font-aeonik-mono text-[11px] uppercase tracking-[0.2em] text-text-primary/45">Rung {i + 1}</p>
-            <h3 className="mt-3 font-aeonik text-2xl tracking-tight">{l.step}</h3>
-            <p className="mt-2 font-aeonik-light text-sm text-text-primary/65">{l.text}</p>
-            <p className="mt-4 font-aeonik-mono text-xs text-accent">{l.who}</p>
-          </div>
+          <span key={l.step} className="flex items-center gap-2">
+            <span className={cn("rounded border px-2.5 py-1.5", i === 0 ? "border-ok/50 text-ok" : "border-box-outline text-text-primary/70")}>
+              {l.step} · {l.who}
+            </span>
+            {i < LADDER.length - 1 && <span className="text-text-primary/30">→</span>}
+          </span>
         ))}
+        <span className="ml-2 normal-case tracking-normal text-text-primary/50">Money, branching and saved-data fields always go to review. Each guarantee: property tests, 10,000 runs each.</span>
       </Reveal>
-      <p className="mt-3 font-aeonik-light text-sm text-text-primary/60">Money, branching and saved-data fields always go to review.</p>
-
-      <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PROMISES.map((p, i) => (
-          <Reveal key={p.title} delay={i * 0.06}>
-            <div className="h-full border-l-2 border-accent pl-4">
-              <h3 className="font-aeonik text-lg tracking-tight">{p.title}</h3>
-              <p className="mt-1 font-aeonik-light text-sm leading-relaxed text-text-primary/65">{p.text}</p>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }

@@ -31,7 +31,14 @@ export const STEPS = [
   { n: "03", title: "Get alerts and safe PRs", text: "When a baseline changes, you see the exact code at risk and get a small fix pull request." },
 ];
 
-export const PIPELINE = ["Your app + SDK", "Ingest (fingerprints only)", "Detectors (plain code)", "Code map", "Severity", "Alerts + fix PR"];
+export const PIPELINE = [
+  { name: "Your app + SDK", detail: "Reads a copy of each response. Never changes it, never blocks." },
+  { name: "Fingerprint", detail: "Types, lengths, magnitudes, percentiles. No record values." },
+  { name: "Detectors", detail: "Plain code compares today with the learned baseline. No AI decides." },
+  { name: "Code map", detail: "Finds every file and line that reads the field." },
+  { name: "Severity", detail: "A changed field in checkout outranks one nobody reads." },
+  { name: "Alert + fix PR", detail: "Tells you where you look, and opens a one-file pull request." },
+];
 
 export const GUARANTEES = [
   { id: "G1", title: "Identity on the old shape", text: "Responses that look like before come out exactly as before." },
