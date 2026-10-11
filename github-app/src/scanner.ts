@@ -18,7 +18,7 @@ const VALUE_METHODS = new Set(['toLocaleString', 'toFixed', 'toString', 'toLower
 const SAME_ARRAY = new Set(['slice', 'sort', 'reverse', 'toSorted', 'toReversed', 'concat', 'flat']);
 const ITER = new Set(['map', 'forEach', 'filter', 'find', 'some', 'every', 'flatMap', 'reduce']);
 /** Functions that return their first argument unchanged in meaning (Seismo's alias wrappers + project config). */
-const PASS_THROUGH = new Set(['applyAliases', 'withAliases']);
+const PASS_THROUGH = new Set(['applyAliases', 'withAliases', 'withAliasesResponse']);
 const DB_CALL = /(^|\.)(db|prisma|sql|knex|redis|repo|repository|collection|model)\b|\.(insert|save|create|update|upsert|query|execute|set)$/i;
 
 /** Scan a checked-out repo directory into a CodeMap (docs/roadmap/P2). Pure: no network, no LLM. */
@@ -199,7 +199,13 @@ export function scanDirectory(dir: string, opts: ScanOptions): CodeMap {
     const isAxiosLike = !call.getExpression().getText().startsWith('fetch');
     let expr: Node = call;
     const up = () => expr.getParent();
-    while (up() && (Node.isAwaitExpression(up()!) || Node.isParenthesizedExpression(up()!))) expr = up()!;
+    // climb through await, parentheses and pass-through wrappers: withAliasesResponse(await axios.get(...), 'GET /x')
+    for (;;) {
+      const p = up();
+      if (p && (Node.isAwaitExpression(p) || Node.isParenthesizedExpression(p))) { expr = p; continue; }
+      if (p && Node.isCallExpression(p) && p.getArguments()[0] === expr && passThrough.has(p.getExpression().getText().split('.').pop()!)) { expr = p; continue; }
+      break;
+    }
     const parent = up();
     if (!parent) return;
 

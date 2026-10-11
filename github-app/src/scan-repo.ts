@@ -11,17 +11,22 @@ interface OctokitLike {
   request: (route: string, params: Record<string, unknown>) => Promise<{ data: unknown }>;
 }
 
-/** Download the repo tarball at `ref`, scan it, delete it. Returns the code map. */
-export async function scanRepo(octokit: OctokitLike, owner: string, repo: string, ref: string, commit: string): Promise<CodeMap> {
+/** Download the repo tarball at `ref` into a temp dir, run `fn` on it, always delete it. */
+export async function withCheckout<T>(octokit: OctokitLike, owner: string, repo: string, ref: string, fn: (dir: string) => Promise<T> | T): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), 'seismo-scan-'));
   try {
     const res = await octokit.request('GET /repos/{owner}/{repo}/tarball/{ref}', { owner, repo, ref });
     const stream = Readable.from(Buffer.from(res.data as ArrayBuffer));
     await pipeline(stream, extract({ cwd: dir, strip: 1 }));
-    return scanDirectory(dir, { repo: `${owner}/${repo}`, commit });
+    return await fn(dir);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/** Download the repo tarball at `ref`, scan it, delete it. Returns the code map. */
+export function scanRepo(octokit: OctokitLike, owner: string, repo: string, ref: string, commit: string): Promise<CodeMap> {
+  return withCheckout(octokit, owner, repo, ref, (dir) => scanDirectory(dir, { repo: `${owner}/${repo}`, commit }));
 }
 
 /** Post a finished scan to the backend. */

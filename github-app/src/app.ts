@@ -3,7 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AliasRule } from '@seismo/contracts';
 import { ALIASES_PATH, openAliasPr, type Check, type OctokitFix } from './fix-pr.js';
 import { upsertIssue, type OctokitIssues } from './issues.js';
-import { publishCodeMap, scanRepo } from './scan-repo.js';
+import { publishCodeMap, scanRepo, withCheckout } from './scan-repo.js';
+import { openSetupPr, planSetup, type OctokitGit } from './setup-pr.js';
 
 /**
  * Probot app (P2.2). Webhooks are acknowledged immediately; scans run after the handler returns
@@ -116,6 +117,18 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
       const b = (await readJson(req)) as { repo: string; eventId: string; title: string; body: string; severity: string; state: string };
       const { owner, name, kit } = await octokitFor(b.repo);
       return send(res, 200, await upsertIssue(kit as unknown as OctokitIssues, { ...b, owner, repo: name }));
+    } catch (e) { return send(res, 500, { error: String(e) }); }
+  });
+  // P5.3: one-time setup PR (dashboard onboarding button, via the backend)
+  router.post('/internal/setup', async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
+    try {
+      const b = (await readJson(req)) as { repo: string };
+      const { owner, name, kit } = await octokitFor(b.repo);
+      const base = (await kit.rest.repos.get({ owner, repo: name })).data.default_branch;
+      const plan = await withCheckout(kit as never, owner, name, base, (dir) => planSetup(dir, b.repo));
+      const pr = await openSetupPr(kit as unknown as OctokitGit, owner, name, plan);
+      return send(res, 200, { ...pr, wrapped: plan.wrapped.length, skipped: plan.skipped });
     } catch (e) { return send(res, 500, { error: String(e) }); }
   });
   router.post('/internal/fix', async (req: IncomingMessage, res: ServerResponse) => {
