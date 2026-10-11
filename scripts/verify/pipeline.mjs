@@ -133,17 +133,12 @@ async function applyInPanel(shop, c) {
   await shop.getByRole('button', { name: 'Apply' }).click();
 }
 
-async function undoAll(shop) {
-  await openPanel(shop);
-  for (let i = 0; i < 10; i++) {
-    const undo = shop.getByRole('button', { name: 'undo' });
-    if (!(await undo.count())) break;
-    await undo.first().click();
-    await sleep(800);
-  }
-  // belt and braces: nothing custom left on the providers
+/** Undo only the changes this run made (someone else may be testing on the same providers). */
+const mine = new Set();
+async function undoMine() {
   const left = await admin('/admin/custom').then((r) => r.json());
-  for (const c of left) await admin(`/admin/custom/${c.id}`, { method: 'DELETE' });
+  for (const c of left) if (mine.has(c.id)) await admin(`/admin/custom/${c.id}`, { method: 'DELETE' });
+  mine.clear();
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -151,8 +146,10 @@ async function undoAll(shop) {
 
 async function localReset() {
   // providers back to v1 + Seismo's data cleared. The GitHub repo is NOT touched (merged fix rules stay).
-  const left = await admin('/admin/custom').then((r) => r.json()).catch(() => []);
-  for (const c of left) await admin(`/admin/custom/${c.id}`, { method: 'DELETE' });
+  // Never on top of someone else's test: a change made in a shop panel (local or hosted) means stop.
+  const active = await admin('/admin/custom').then((r) => r.json()).catch(() => []);
+  const flipped = Object.entries(await admin('/admin/scenarios').then((r) => r.json()).catch(() => ({}))).filter(([, v]) => v?.enabled);
+  if (active.length || flipped.length) throw new Error(`someone is testing: ${active.length} panel change(s) and ${flipped.length} scenario(s) are on. Turn them off (shop panel → undo / Turn all changes off) and run again.`);
   await admin('/admin/reset', { method: 'POST', body: '{}' });
   const r = await fetch(`${BACKEND}/internal/demo/reset`, { method: 'POST', headers: { 'x-internal-token': INTERNAL, 'content-type': 'application/json' }, body: '{}' });
   if (!r.ok) throw new Error(`engine reset -> ${r.status}`);
@@ -182,7 +179,10 @@ async function runScenario(s, dash, shop) {
   log(`▶ ${s.id}: ${s.panel.service} ${s.panel.kind} ${s.panel.field} ${s.panel.input}`);
   await dash.goto(`${DASH}/app/timeline`, { waitUntil: 'domcontentloaded' });
   const t0 = t();
+  const had = new Set((await admin('/admin/custom').then((r) => r.json())).map((c) => c.id));
   await applyInPanel(shop, s.panel);
+  await sleep(500);
+  for (const c of await admin('/admin/custom').then((r) => r.json())) if (!had.has(c.id)) mine.add(c.id);
   await sleep(1500);
   const after = await providerSample(s.sample);
   const applied = !same(valueAt(before.body, s.check ?? { field: s.panel.field }), valueAt(after.body, s.check ?? { field: s.panel.field })) || s.id === 'remove' || s.id === 'cap';
@@ -245,7 +245,7 @@ async function runScenario(s, dash, shop) {
   }
   // provider goes back to normal -> the change must resolve by itself
   const tUndo = t();
-  await undoAll(shop);
+  await undoMine();
   while (ev && t() - tUndo < 3 * 60_000) {
     const e = (await api('/v1/drift-events')).find((x) => x.id === ev.id);
     if (!e || e.state === 'resolved') { r.t.resolvedAfterUndo = t() - tUndo; break; }
