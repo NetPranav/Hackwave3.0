@@ -346,3 +346,22 @@ describe('unit change explains the earlier "value distribution changed" (found b
     expect(changed.map((c) => c.id)).toContain('drift-d6');
   });
 });
+
+describe('a confirmed change whose severity dropped while the provider reverted (found by the pipeline run)', () => {
+  it('still resolves once the provider has gone back to normal', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    await feed(NOW - 15 * 60_000, 6);
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000);
+    const e = new DriftEngine(ingest, async () => []);   // nobody reads the field: the rename is only "normal" (info)
+    await e.run(NOW); await e.run(NOW + 5000);
+    const ev = e.list().find((x) => x.detector === 'D3')!;
+    expect(ev.state).toBe('normal');
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 20 * 60_000;
+    await feed(back - 30_000);
+    for (let i = 0; i < 3; i++) await e.run(back + i * 1000);
+    expect(e.list().find((x) => x.id === ev.id)!.state).toBe('resolved');
+  });
+});

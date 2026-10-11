@@ -171,7 +171,9 @@ async function learning(maxMs = 10 * 60_000) {
   return readyAt;
 }
 
-const matches = (e, s) => e.detector === s.expect.detector && (e.field === s.expect.field || e.field?.endsWith(`.${s.expect.field}`) || e.field?.endsWith(`]${s.expect.field}`) || (s.expect.field && e.title.includes(s.expect.field)));
+const SAMPLE_ENDPOINT = { users: 'GET /users/{id}', payments: 'POST /payments', shipping: 'GET /shipments/{id}', orders: 'GET /orders' };
+// the change is judged on the endpoint the oracle samples; the same change seen on another endpoint of that provider is reported as 'also flagged'
+const matches = (e, s) => e.endpoint === SAMPLE_ENDPOINT[s.sample] && e.detector === s.expect.detector && (e.field === s.expect.field || e.field?.endsWith(`.${s.expect.field}`) || e.field?.endsWith(`]${s.expect.field}`) || (s.expect.field && e.title.includes(s.expect.field)));
 
 async function runScenario(s, dash, shop) {
   const known = new Set((await api('/v1/drift-events')).map((e) => e.id));
@@ -184,17 +186,22 @@ async function runScenario(s, dash, shop) {
   const after = await providerSample(s.sample);
   const applied = !same(valueAt(before.body, s.check ?? { field: s.panel.field }), valueAt(after.body, s.check ?? { field: s.panel.field })) || s.id === 'remove' || s.id === 'cap';
   const r = { id: s.id, change: `${s.panel.service}: ${s.panel.kind} ${s.panel.field}${s.panel.input ? ` → ${s.panel.input}` : ''}`, expected: s.expect, applied, states: [], t: {} };
-  let ev, extra = new Map(), uiSeen = false;
+  let ev, extra = new Map(), also = new Map(), uiSeen = false;
   const deadline = t0 + 5 * 60_000;
   while (t() < deadline) {
     const events = (await api('/v1/drift-events')).filter((e) => !known.has(e.id));
-    for (const e of events) if (!matches(e, s)) extra.set(e.id, `${e.detector} ${e.state}: ${e.title}`);
+    for (const e of events) {
+      if (matches(e, s)) continue;
+      if (e.service === s.panel.service && e.detector === s.expect.detector) also.set(e.id, `${e.endpoint}: ${e.title}`);
+      else extra.set(e.id, `${e.detector} ${e.state}: ${e.title}`);
+    }
     const cur = events.find((e) => matches(e, s));
     if (cur) {
       ev = cur;
       r.t.firstSeen ??= t() - t0;
       if (r.states.at(-1)?.state !== cur.state) r.states.push({ state: cur.state, at: t() - t0 });
-      if (['breaking', 'fix_pending'].includes(cur.state) || (cur.state === 'suspected' && r.states.length > 1)) r.t.confirmed ??= t() - t0;
+      // confirmed = still found 2 passes (≥ 10 s) after first seen; a warning-level change stays 'suspected' when confirmed
+      if (['breaking', 'fix_pending'].includes(cur.state) || t() - t0 - r.t.firstSeen >= 10_000) r.t.confirmed ??= t() - t0;
       if (cur.fix?.validation?.prUrl) { r.t.pr ??= t() - t0; r.prUrl = cur.fix.validation.prUrl; }
       if (cur.heal?.hits > 0) r.t.healed ??= t() - t0;
       if (!uiSeen) {
@@ -207,6 +214,7 @@ async function runScenario(s, dash, shop) {
     if (ev && uiSeen && fixReady && t() - t0 > (r.t.confirmed ?? 0) + 15_000) break;
     await sleep(2000);
   }
+  r.alsoFlagged = [...also.values()];
   r.event = ev ? { id: ev.id, detector: ev.detector, field: ev.field, title: ev.title, state: ev.state, severity: ev.severity, usages: ev.usages.length } : null;
   // events closed as explained by the main finding (D1/D2 by a rename, D6 by a unit change) are one story, not false alarms
   r.falseAlarms = [...extra.values()].filter((x) => !x.includes('(explained:') && !(s.id === 'rename' && /D1|D2/.test(x) && x.includes(s.panel.field)));
@@ -281,7 +289,7 @@ function report(run) {
   L.push('', '## Changes made vs what Seismo flagged', '');
   L.push('| Change (panel) | Expected | Flagged | First seen | Confirmed | On dashboard | PR | Shop healed | Resolved after undo | Fix check (oracle) | False alarms |', '|---|---|---|---|---|---|---|---|---|---|---|');
   for (const r of run.results) {
-    const flagged = r.event ? `${r.event.detector} · ${r.event.title} · ${r.event.state}` : '**not flagged**';
+    const flagged = (r.event ? `${r.event.detector} · ${r.event.title} · ${r.event.state}` : '**not flagged**') + (r.alsoFlagged?.length ? ` (same change also on: ${r.alsoFlagged.join('; ')})` : '');
     L.push(`| ${r.change}${r.rerun ? ' (re-run)' : ''} | ${r.expected.detector} · ${r.expected.fix} | ${flagged} | ${secs(r.t.firstSeen)} | ${secs(r.t.confirmed)} | ${secs(r.t.dashboard)} | ${r.prUrl ? `[${secs(r.t.pr)}](${r.prUrl})` : '—'} | ${secs(r.t.healed)}${r.shopShowsName === undefined ? '' : r.shopShowsName ? ' (checkout shows the name)' : ' (checkout still broken)'} | ${secs(r.t.resolvedAfterUndo)} | **${r.oracle.verdict}**: ${r.oracle.detail} | ${r.falseAlarms.length ? r.falseAlarms.join('; ') : '0'} |`);
   }
   const flagged = run.results.filter((r) => r.event && r.event.detector === r.expected.detector).length;

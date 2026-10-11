@@ -299,7 +299,9 @@ export class DriftEngine {
     const observed = new Set(wins.filter((w) => w.samples >= minSamples).map((w) => `${w.service}|${w.method} ${w.endpoint}`));
     for (const [k, t] of this.events) {
       if (seen.has(k)) { t.misses = 0; continue; }
-      if (!OPEN_CONFIRMED(t, this.opts.confirmRuns) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
+      // any confirmed change, also one whose severity dropped to 'normal' while the provider was reverting (found by the
+      // pipeline run: "New status value: lost" stayed on the timeline for good after the provider stopped sending it)
+      if (t.runs < this.opts.confirmRuns || CLOSED.includes(t.event.state) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
       t.misses = (t.misses ?? 0) + 1;
       if (t.misses < RECOVER_RUNS) { seen.add(k); continue; }
       const ep = `${t.event.service}|${t.event.endpoint}`;
