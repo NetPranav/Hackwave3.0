@@ -1,5 +1,5 @@
 import { PROJECT_ID } from './projects.js';
-import type { AliasRule, CodeMap, DriftEvent, DriftState, SeismoRule } from '@seismo/contracts';
+import type { AliasRule, CodeMap, DriftEvent, DriftState, Fingerprint, SeismoRule } from '@seismo/contracts';
 import { alignSalts, buildBaselines } from './baseline.js';
 import { stressCheck, stressTest, templateFor } from './fix-templates.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
@@ -21,6 +21,7 @@ export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: Nu
 
 type Tracked = Omit<StoredEvent, 'key'>;
 
+const LATE_MS = 10 * 60_000;   // fingerprints delivered up to 10 min late still reach the in-memory history
 const CLOSED: string[] = ['resolved', 'expected', 'snoozed'];
 
 /** Passes (5 s apart) without a confirmed change before it counts as gone: the provider went back to normal. */
@@ -114,9 +115,33 @@ export class DriftEngine {
     return { event: t.event };
   }
 
+  /**
+   * The fingerprints of the baseline period, kept in memory: each pass fetches only rows newer than the last pass (with a
+   * 10-minute overlap for late deliveries, e.g. the SDK retry queue after an outage, deduplicated) instead of re-reading and re-parsing the whole history (found on
+   * Render free: re-reading starved the CPU).
+   */
+  private cache: Fingerprint[] = [];
+  private cacheKeys = new Set<string>();
+  private cachedUntil = 0;
+  private async history(now: number): Promise<Fingerprint[]> {
+    const floor = now - this.opts.baselineMs;
+    const from = this.cachedUntil ? Math.max(floor, this.cachedUntil - LATE_MS) : floor;
+    for (const f of await this.ingest.since(PROJECT_ID(), from)) {
+      const k = f.batchId ?? `${f.service}|${f.method}|${f.endpoint}|${f.statusClass}|${f.windowStart}|${f.count}|${f.shapeHash}|${f.saltId ?? ''}`;
+      if (!this.cacheKeys.has(k)) { this.cacheKeys.add(k); this.cache.push(f); }
+    }
+    this.cachedUntil = now;
+    if (this.cache.some((f) => Date.parse(f.windowStart) <= floor)) {
+      this.cache = this.cache.filter((f) => Date.parse(f.windowStart) > floor);
+      this.cacheKeys = new Set(this.cache.map((f) => f.batchId ?? `${f.service}|${f.method}|${f.endpoint}|${f.statusClass}|${f.windowStart}|${f.count}|${f.shapeHash}|${f.saltId ?? ''}`));
+    }
+    return this.cache;
+  }
+
   /** Demo reset (P8.5): forget every event, in memory and in the store. */
   async clear(): Promise<void> {
     await this.init();
+    this.cache = []; this.cacheKeys.clear(); this.cachedUntil = 0;
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
     this.investigating.clear();
@@ -156,7 +181,7 @@ export class DriftEngine {
   /** One detection pass. Returns the events that were created or changed in this pass. */
   async run(now = Date.now()): Promise<DriftEvent[]> {
     await this.init();
-    const all = await this.ingest.since(PROJECT_ID(), now - this.opts.baselineMs);
+    const all = await this.history(now);
     const cut = now - this.opts.windowMs;
     // Baseline freeze: while a confirmed change is open on an endpoint, traffic from after it started (detection time minus
     // one window) never becomes "history" for that endpoint. Otherwise a restart, or simply time passing, would teach the

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Fingerprint } from '@seismo/contracts';
-import { eq, gt, lt } from 'drizzle-orm';
+import { and, eq, gt, lt } from 'drizzle-orm';
 import { connect } from './db/index.js';
 import { fingerprints, projects, sdkKeys } from './db/schema.js';
 
@@ -30,8 +30,8 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
       await db.insert(fingerprints).values({ id: randomBytes(8).toString('hex'), projectId, service: fp.service, endpoint: fp.endpoint, windowStart: new Date(fp.windowStart), payload: fp });
     },
     async since(projectId, sinceMs) {
-      const rows = await db.select().from(fingerprints).where(gt(fingerprints.windowStart, new Date(sinceMs)));
-      return rows.filter((r) => r.projectId === projectId).map((r) => r.payload as Fingerprint);
+      const rows = await db.select({ payload: fingerprints.payload }).from(fingerprints).where(and(eq(fingerprints.projectId, projectId), gt(fingerprints.windowStart, new Date(sinceMs))));
+      return rows.map((r) => r.payload as Fingerprint);
     },
     async clear(projectId) { await db.delete(fingerprints).where(eq(fingerprints.projectId, projectId)); },
     async prune(beforeMs) { return (await db.delete(fingerprints).where(lt(fingerprints.windowStart, new Date(beforeMs))).returning({ id: fingerprints.id })).length; },

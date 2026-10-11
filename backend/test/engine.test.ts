@@ -365,3 +365,20 @@ describe('a confirmed change whose severity dropped while the provider reverted 
     expect(e.list().find((x) => x.id === ev.id)!.state).toBe('resolved');
   });
 });
+
+describe('detection reads only new fingerprints each pass (found on Render free: re-reading 24 h starved the CPU)', () => {
+  it('the first pass reads the baseline period, later passes only the last 10 minutes; results are the same', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const asked: number[] = [];
+    const spy = { ...ingest, since: (p: string, ms: number) => { asked.push(ms); return ingest.since(p, ms); } };
+    const e = new DriftEngine(spy, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    expect(asked[0]).toBe(NOW - 24 * 3600_000);
+    expect(asked[1]).toBe(NOW - 10 * 60_000);
+    expect(e.list().find((x) => x.detector === 'D3')?.state).toBe('breaking');
+  });
+});
