@@ -10,7 +10,7 @@ export interface OctokitFix {
     repos: {
       get: (p: { owner: string; repo: string }) => Promise<{ data: { default_branch: string } }>;
       getContent: (p: { owner: string; repo: string; path: string; ref: string }) => Promise<{ data: unknown }>;
-      createOrUpdateFileContents: (p: Record<string, unknown>) => Promise<unknown>;
+      createOrUpdateFileContents: (p: Record<string, unknown>) => Promise<{ data?: { commit?: { sha?: string } } } | unknown>;
     };
     git: {
       getRef: (p: { owner: string; repo: string; ref: string }) => Promise<{ data: { object: { sha: string } } }>;
@@ -21,6 +21,7 @@ export interface OctokitFix {
       list: (p: Record<string, unknown>) => Promise<{ data: { html_url: string; number: number }[] }>;
     };
     issues: { addLabels: (p: Record<string, unknown>) => Promise<unknown> };
+    checks?: { create: (p: Record<string, unknown>) => Promise<unknown> };
   };
 }
 
@@ -81,14 +82,32 @@ export async function openAliasPr(octokit: OctokitFix, i: OpenFixInput): Promise
 
   const baseSha = (await octokit.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
   await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: baseSha });
-  await octokit.rest.repos.createOrUpdateFileContents({
+  const put = (await octokit.rest.repos.createOrUpdateFileContents({
     owner, repo, path: ALIASES_PATH, branch, message: `fix(seismo): alias ${rule.endpoint} ${rule.target} ← ${rule.source}`,
     content: Buffer.from(next).toString('base64'), ...(sha ? { sha } : {}),
-  });
+  })) as { data?: { commit?: { sha?: string } } };
   const pr = await octokit.rest.pulls.create({
     owner, repo, base, head: branch, title: `fix(seismo): alias ${rule.endpoint} ${rule.target} ← ${rule.source}`,
     body: prBody(rule, i.checks, i.usages, i.eventUrl),
   });
   await octokit.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: ['seismo', 'auto-safe'] }).catch(() => undefined);
+  const headSha = put.data?.commit?.sha;
+  if (headSha && octokit.rest.checks) await octokit.rest.checks.create(safetyCheckRun(owner, repo, headSha, rule, i.checks)).catch(() => undefined);
   return { url: pr.data.html_url, number: pr.data.number, created: true };
+}
+
+export const CHECK_NAME = 'Seismo safety checks';
+
+/** P5.6: C1-C6 as a GitHub check run on the PR head commit. C7/C8 come from the repo's own CI. */
+export function safetyCheckRun(owner: string, repo: string, headSha: string, rule: AliasRule, checks: Check[]) {
+  const ok = checks.length > 0 && checks.every((c) => c.passed);
+  return {
+    owner, repo, name: CHECK_NAME, head_sha: headSha, status: 'completed', conclusion: ok ? 'success' : 'failure',
+    output: {
+      title: ok ? `All ${checks.length} safety checks passed` : `${checks.filter((c) => !c.passed).length} safety check(s) failed`,
+      summary: [`Alias rule \`${rule.target} <- ${rule.source}\` on \`${rule.endpoint}\` (path \`${rule.path ?? '$'}\`).`, '', '| Check | Result | Detail |', '|---|---|---|',
+        ...checks.map((c) => `| ${c.id} | ${c.passed ? '✅' : '❌'} | ${c.detail.replace(/\|/g, '/')} |`),
+        '| C7 | ⏳ | property tests in your CI (seismo/aliases.test.ts) |', '| C8 | ⏳ | your CI on this PR |'].join('\n'),
+    },
+  };
 }

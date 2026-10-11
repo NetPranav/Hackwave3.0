@@ -163,3 +163,19 @@ describe('restart safety (persisted events + baseline freeze)', () => {
     expect(e.list()[0]!.state).toBe('resolved');
   });
 });
+
+describe('fix CI tracking (P5.6)', () => {
+  it('green CI on the fix PR adds C7 + C8 passed; red adds them failed', async () => {
+    const calls: unknown[] = [];
+    const base = await scenario([codeMap([{ field: 'name', usage: 'display' }])], async (s) => void (await toggle(s, 'users-rename')));
+    const e = new DriftEngine((base as unknown as { ingest: never }).ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])], undefined, { existingRules: async () => [], openPr: async (i: unknown) => { calls.push(i); return { url: 'u', number: 1 }; } });
+    await e.run(NOW); await e.run(NOW + 5000);
+    const id = e.list().find((x) => x.detector === 'D3')!.fix!.rule!.id!;
+    const green = e.recordCi(id, 'success', 'GitHub Actions')!;
+    expect(green.fix!.validation!.ci).toBe('green');
+    expect(green.fix!.validation!.checks.map((c) => `${c.id}:${c.passed}`)).toEqual(['C1:true', 'C2:true', 'C3:true', 'C4:true', 'C5:true', 'C6:true', 'C7:true', 'C8:true']);
+    const red = e.recordCi(id, 'failure')!;
+    expect(red.fix!.validation!.ci).toBe('red');
+    expect(red.fix!.validation!.checks.filter((c) => c.id === 'C8')).toEqual([{ id: 'C8', passed: false, detail: 'CI on the fix PR: failure' }]);
+  });
+});

@@ -65,6 +65,22 @@ export class DriftEngine {
     return undefined;
   }
 
+  /** P5.6: the customer's CI finished on the fix PR -> C7 + C8 and the CI state on the event. */
+  recordCi(ruleId: string, conclusion: string, by = 'CI'): DriftEvent | undefined {
+    for (const [k, t] of this.events) {
+      const v = t.event.fix?.validation;
+      if (t.event.fix?.rule?.id !== ruleId || !v) continue;
+      const green = conclusion === 'success';
+      const others = v.checks.filter((c) => c.id !== 'C7' && c.id !== 'C8');
+      t.event = { ...t.event, fix: { ...t.event.fix!, validation: { ...v, ci: green ? 'green' : 'red', checks: [...others,
+        { id: 'C7', passed: green, detail: `alias property tests ran in ${by}: ${conclusion}` },
+        { id: 'C8', passed: green, detail: `${by} on the fix PR: ${conclusion}` }] } } };
+      void this.persist([k]);
+      return t.event;
+    }
+    return undefined;
+  }
+
   /** Attach data produced outside detection (AI explanation). */
   attach(id: string, patch: Partial<DriftEvent>) {
     for (const [k, t] of this.events) if (t.event.id === id) { t.event = { ...t.event, ...patch }; void this.persist([k]); }

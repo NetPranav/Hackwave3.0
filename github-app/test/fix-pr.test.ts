@@ -68,3 +68,19 @@ describe('openAliasPr (P5.5)', () => {
     expect(calls.some((c) => c.op === 'putFile')).toBe(false);
   });
 });
+
+import { safetyCheckRun } from '../src/fix-pr.js';
+describe('Seismo safety checks check run (P5.6)', () => {
+  it('is created on the PR head commit with C1-C6 and pending C7/C8', async () => {
+    const { octokit, calls } = fake(null);
+    (octokit.rest.repos as unknown as { createOrUpdateFileContents: unknown }).createOrUpdateFileContents = async (a: Record<string, unknown>) => { calls.push({ op: 'putFile', args: a }); return { data: { commit: { sha: 'head123' } } }; };
+    (octokit.rest as unknown as { checks: unknown }).checks = { create: async (a: Record<string, unknown>) => { calls.push({ op: 'check', args: a }); return {}; } };
+    await openAliasPr(octokit, { owner: 'o', repo: 'r', rule, eventId: 'e', usages: [], checks: [{ id: 'C1', passed: true, detail: 'names safe' }, { id: 'C2', passed: true, detail: 'absent' }] });
+    const run = calls.find((c) => c.op === 'check')!.args;
+    expect(run).toMatchObject({ name: 'Seismo safety checks', head_sha: 'head123', conclusion: 'success' });
+    expect(String((run['output'] as { summary: string }).summary)).toContain('| C7 | ⏳');
+  });
+  it('fails when any check failed', () => {
+    expect(safetyCheckRun('o', 'r', 's', rule, [{ id: 'C1', passed: true, detail: '' }, { id: 'C3', passed: false, detail: 'type differs' }]).conclusion).toBe('failure');
+  });
+});

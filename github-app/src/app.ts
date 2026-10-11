@@ -1,7 +1,7 @@
 import type { ApplicationFunctionOptions, Probot } from 'probot';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AliasRule } from '@seismo/contracts';
-import { ALIASES_PATH, openAliasPr, type Check, type OctokitFix } from './fix-pr.js';
+import { ALIASES_PATH, CHECK_NAME, openAliasPr, type Check, type OctokitFix } from './fix-pr.js';
 import { upsertIssue, type OctokitIssues } from './issues.js';
 import { publishCodeMap, scanRepo, withCheckout } from './scan-repo.js';
 import { openSetupPr, planSetup, type OctokitGit } from './setup-pr.js';
@@ -30,6 +30,7 @@ export default (app: Probot, opts: ApplicationFunctionOptions) => {
 
   internalRoutes(app, opts);
   watchFixPrs(app);
+  watchFixCi(app);
 
   const kick = (fn: () => Promise<void>) => void setImmediate(() => void fn());
 
@@ -141,6 +142,24 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
     } catch (e) { return send(res, 500, { error: String(e) }); }
   });
 }
+
+/**
+ * P5.6: the repo's own CI finished on a Seismo fix branch -> C7 (alias property tests run in their CI) and C8 (CI green).
+ * Needs the "Check suite" event on the app (new registrations subscribe; existing apps: tick it in the app settings).
+ */
+export function watchFixCi(app: Probot) {
+  app.on('check_suite.completed', async (ctx) => {
+    const suite = ctx.payload.check_suite;
+    const ref = suite.head_branch ?? '';
+    if (!ref.startsWith('seismo/alias-') || suite.app?.slug === process.env.APP_SLUG) return;     // ignore our own check suite
+    const ruleId = ref.slice('seismo/alias-'.length);
+    await fetch(`${process.env.BACKEND_URL ?? 'http://localhost:4000'}/internal/fix-ci`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': TOKEN() },
+      body: JSON.stringify({ ruleId, conclusion: suite.conclusion, app: suite.app?.name ?? 'CI' }),
+    }).catch((err) => app.log.error({ err }, 'fix-ci failed'));
+  });
+}
+export { CHECK_NAME };
 
 /** PR merged/closed -> tell the backend so the drift event resolves and the graph turns green (P5.9). */
 export function watchFixPrs(app: Probot) {

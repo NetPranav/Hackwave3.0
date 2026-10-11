@@ -141,6 +141,14 @@ export function buildApp(opts: AppOptions = {}) {
     if (ev) await afterDetect([ev]);            // closes the GitHub issue, updates the dashboard
     return { ok: !!ev };
   });
+  // The GitHub App reports the customer's CI result on fix PRs here (P5.6: C7/C8).
+  app.post('/internal/fix-ci', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const { ruleId, conclusion, app: by } = req.body as { ruleId: string; conclusion: string; app?: string };
+    const ev = engine.recordCi(ruleId, String(conclusion), by);
+    if (ev) broadcast('drift.updated', ev);
+    return { ok: !!ev };
+  });
   // The GitHub App posts finished scans here (service-to-service, shared secret).
   app.post('/internal/codemap', async (req, reply) => {
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
