@@ -127,3 +127,40 @@ describe('applyTransforms (P5.10 scale rules)', () => {
     for (const h of [null, 3, 'x', new Map(), Object.freeze([1])]) expect(() => applyTransforms(h as never, [{ kind: 'scale', field: 'a', divideBy: 10 }])).not.toThrow();
   });
 });
+
+describe('applyTransforms v2 fix templates: coerce and map', () => {
+  it('coerce to number: only strict decimal strings change; everything else is untouched (T2)', () => {
+    fc.assert(fc.property(fc.oneof(fc.integer().map(String), fc.double({ noNaN: true, noDefaultInfinity: true }).map((d) => d.toFixed(2)), fc.string(), fc.integer(), fc.boolean(), fc.constant(null)), (v) => {
+      const out = applyTransforms({ amount: v, other: 'x' }, [{ kind: 'coerce', field: 'amount', to: 'number' }]) as Record<string, unknown>;
+      expect(out['other']).toBe('x');
+      if (typeof v === 'string' && /^-?(0|[1-9][0-9]{0,14})(\.[0-9]{1,10})?$/.test(v)) expect(out['amount']).toBe(Number(v));
+      else expect(out['amount']).toBe(v);
+    }), RUNS);
+  });
+  it('coerce is lossless on the demo payload and idempotent (T4); a real number passes through as the same object (T1)', () => {
+    const rule = [{ kind: 'coerce', endpoint: 'POST /payments', field: 'amount', to: 'number' }];
+    const v2 = { id: 'pay_1', amount: '499', currency: 'INR' };
+    const once = applyTransforms(v2, rule, 'POST /payments');
+    expect(once).toEqual({ id: 'pay_1', amount: 499, currency: 'INR' });
+    expect(applyTransforms(once, rule, 'POST /payments')).toBe(once);
+    const v1 = { id: 'pay_1', amount: 499 };
+    expect(applyTransforms(v1, rule, 'POST /payments')).toBe(v1);
+    for (const s of ['', ' 499', '1e3', '0x10', '12abc', 'NaN', 'Infinity', '00012']) expect((applyTransforms({ amount: s }, rule) as { amount: unknown }).amount).toBe(s);
+  });
+  it('map: only the listed values change, nested arrays included, and it is idempotent', () => {
+    const rule = [{ kind: 'map', path: '$.data[*]', field: 'status', map: { partially_shipped: 'in_transit' } }];
+    const v = { data: [{ status: 'partially_shipped' }, { status: 'delivered' }, { other: 1 }] };
+    const once = applyTransforms(v, rule);
+    expect(once).toEqual({ data: [{ status: 'in_transit' }, { status: 'delivered' }, { other: 1 }] });
+    expect(applyTransforms(once, rule)).toBe(once);
+    fc.assert(fc.property(fc.string(), (s) => {
+      const out = applyTransforms({ status: s }, [{ kind: 'map', field: 'status', map: { partially_shipped: 'in_transit' } }]) as { status: string };
+      expect(out.status).toBe(s === 'partially_shipped' ? 'in_transit' : s);
+    }), RUNS);
+  });
+  it('malformed coerce/map rules are ignored, never throw (T3)', () => {
+    const input = { a: '1', s: 'x' };
+    const bad = [{ kind: 'coerce', field: 'a', to: 'date' }, { kind: 'coerce', field: '__proto__', to: 'number' }, { kind: 'map', field: 's', map: [] }, { kind: 'map', field: 's', map: { __proto__: 'y' } }, { kind: 'map', field: 's', map: { x: { nested: 1 } } }];
+    expect(applyTransforms(input, bad)).toBe(input);
+  });
+});

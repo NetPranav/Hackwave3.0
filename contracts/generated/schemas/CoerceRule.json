@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "coerce"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "path": {
+      "default": "$",
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string",
+      "enum": [
+        "number",
+        "string"
+      ]
+    },
+    "driftEvent": {
+      "type": "string"
+    },
+    "addedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "endpoint",
+    "path",
+    "field",
+    "to"
+  ],
+  "additionalProperties": false
+}

@@ -101,6 +101,7 @@ export const CHECK_NAME: Record<CheckResult["id"], { name: string; source: strin
   C6: { name: "One clear rename candidate", source: "Detector (+ AI judge)" },
   C7: { name: "Property tests for this rule pass", source: "seismo/aliases.test.ts in your CI" },
   C8: { name: "Your repo's CI is green", source: "GitHub checks" },
+  C9: { name: "Stress test on generated responses", source: "Seismo fix templates" },
 };
 
 const prNumber = (url?: string) => {
@@ -505,7 +506,7 @@ export function toReview(items: ReviewItemApi[]): ReviewItem[] {
       const e = i.drift;
       const [method, path] = splitEndpoint(e.endpoint);
       const d = shortDiff(e);
-      const rule = e.fix?.rule;
+      const rule = e.fix?.rule ?? i.proposedRule;
       return {
         id: i.id,
         driftId: e.id,
@@ -525,7 +526,7 @@ export function toReview(items: ReviewItemApi[]): ReviewItem[] {
         aiLatencyMs: e.explanation?.latencyMs ?? 0,
         templateExplanation: i.suggestion,
         suggestion: {
-          kind: rule?.kind === "scale" ? "transform" : e.fix?.rung === "alias" ? "alias" : "behaviour",
+          kind: rule && rule.kind !== "alias" ? "transform" : e.fix?.rung === "alias" ? "alias" : "behaviour",
           summary: i.suggestion,
           rule: rule ? JSON.stringify(rule, null, 2) : "",
           note: i.reason ?? "Needs a human decision.",

@@ -3,7 +3,7 @@ import { safeName } from '@seismo/sdk/runtime';
 import type { EndpointBaseline } from './baseline.js';
 import type { Finding } from './detectors/index.js';
 
-export interface CheckResult { id: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8'; passed: boolean; detail: string }
+export interface CheckResult { id: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9'; passed: boolean; detail: string }
 export interface Plan {
   ok: boolean;
   rule?: AliasRule;

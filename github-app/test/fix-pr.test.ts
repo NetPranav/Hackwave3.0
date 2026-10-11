@@ -87,11 +87,11 @@ describe('Seismo safety checks check run (P5.6)', () => {
 
 describe('scale suggestion PR (P5.10)', () => {
   const scale = { id: 's-abc123', kind: 'scale' as const, endpoint: 'GET /payments/{id}', path: '$', field: 'amount', divideBy: 100, driftEvent: 'drift-abc123', addedAt: '2026-10-18' };
-  it('seismo/scale-* branch, needs-review label, no safety check run, body warns that values change', async () => {
+  it('seismo/fix-* branch, needs-review label, no safety check run, body warns that values change', async () => {
     const { octokit, calls } = fake(null);
     (octokit.rest as unknown as { checks: unknown }).checks = { create: async (a: Record<string, unknown>) => { calls.push({ op: 'check', args: a }); return {}; } };
     await openAliasPr(octokit, { owner: 'o', repo: 'r', rule: scale, eventId: 'e', usages: [{ file: 'lib/api/payments.ts', line: 17 }], checks: [] });
-    expect(calls.find((c) => c.op === 'createRef')!.args['ref']).toBe('refs/heads/seismo/scale-s-abc123');
+    expect(calls.find((c) => c.op === 'createRef')!.args['ref']).toBe('refs/heads/seismo/fix-s-abc123');
     expect(calls.find((c) => c.op === 'labels')!.args['labels']).toEqual(['seismo', 'needs-review']);
     expect(String(calls.find((c) => c.op === 'pulls.create')!.args['title'])).toContain('needs review');
     expect(String(calls.find((c) => c.op === 'pulls.create')!.args['body'])).toContain('This changes values');

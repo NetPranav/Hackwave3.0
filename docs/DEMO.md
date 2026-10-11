@@ -29,6 +29,15 @@ orders (or keep `demo:traffic --shop` running). The same panel shows **Seismo de
 the link to the automatic fix PR. **Merge that PR on GitHub**: `npm run dev:live` pulls it within 10 s and the shop is
 fixed without anyone touching the code. **Reset all to normal** puts every provider back to v1.
 
+**Your own change:** under the buttons, *Or describe your own change*: pick the provider, the kind (rename, change type,
+multiply, new value, remove, cap a list), the field and the new name/value, **Apply**. It is live at once; **undo** removes it.
+Use a new name each run (e.g. `name → full_name`, then `name → customer_name`): a rename whose fix is already merged
+no longer breaks the shop.
+
+**Fixes beyond renames:** a type change, a unit change or a new status value appears in the **Review queue** with the
+proposed rule. **Open fix PR (stress-tested)** runs the C9 stress test (2000 generated responses with the repo's other
+rules) and opens a `needs-review` PR only if it passes; the shop's CI runs the same stress test again.
+
 The dashboard's Overview chart defaults to **LIVE · 32 MIN** (one bar per minute, refreshed every 5 s).
 
 ## 3b. Make a provider change by hand (pick one, save the file: the fake provider restarts by itself)

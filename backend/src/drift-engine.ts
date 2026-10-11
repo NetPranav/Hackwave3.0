@@ -1,6 +1,7 @@
 import { PROJECT_ID } from './projects.js';
-import type { AliasRule, CodeMap, DriftEvent, DriftState, ScaleRule, SeismoRule } from '@seismo/contracts';
+import type { AliasRule, CodeMap, DriftEvent, DriftState, SeismoRule } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
+import { stressCheck, stressTest, templateFor } from './fix-templates.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
 import { memoryEvents, type EventStore, type StoredEvent } from './event-store.js';
@@ -36,6 +37,8 @@ export class DriftEngine {
   private events = new Map<string, Tracked>();
   /** endpoint -> when the first finding of the current investigation was seen (baseline frozen from there) */
   private investigating = new Map<string, number>();
+  /** endpoint -> time ranges when a change was live and later reverted: kept out of the baseline (they were not normal) */
+  private quarantine = new Map<string, [number, number][]>();
   private loaded?: Promise<void>;
   constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS, private fixer?: FixDispatcher, private store: EventStore = memoryEvents()) {}
 
@@ -66,6 +69,7 @@ export class DriftEngine {
     for (const t of this.events.values()) {
       if (t.event.fix?.rule?.id !== ruleId) continue;
       t.event = { ...t.event, state: merged ? 'resolved' : 'breaking' };
+      if (merged) t.resolvedBy = 'fix';
       if (!merged) t.dispatched = false;
       void this.persist([this.keyOf(t.event.id)!]);
       return t.event;
@@ -77,19 +81,24 @@ export class DriftEngine {
    * P5.10: a HUMAN asked for a suggestion PR on a unit change (D5). Proposes one `scale` rule (divide by the factor),
    * labelled needs-review, never merged by Seismo. Returns an error string when not applicable.
    */
-  async openScalePr(id: string, repo: string | undefined): Promise<{ event?: DriftEvent; error?: string }> {
+  /**
+   * v2: a human asked for the fix of a review item. The fix template gives the data rule; it is stress-tested together
+   * with every rule already in the repo (C9) and the PR opens ONLY when the stress test passes.
+   */
+  async openTemplatePr(id: string, repo: string | undefined): Promise<{ event?: DriftEvent; error?: string }> {
     const k = this.keyOf(id);
     const t = k ? this.events.get(k) : undefined;
     if (!t) return { error: 'unknown_event' };
-    if (t.event.detector !== 'D5' || !t.event.field) return { error: 'Suggestion PRs exist only for unit changes (D5); change the code by hand.' };
+    const tpl = templateFor(t.event);
+    if (!tpl.rule) return { error: tpl.why };
     if (!this.fixer || !repo) return { error: 'No GitHub App connection for this repo.' };
-    const m = /×(1\/)?([\d.]+)/.exec(t.event.title);
-    const factor = m ? (m[1] ? 1 / Number(m[2]) : Number(m[2])) : NaN;
-    if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return { error: 'Unit factor not known for this event.' };
-    const [method, ...p] = t.event.endpoint.split(' ');
-    const rule: ScaleRule = { id: `s-${t.event.id.slice(-6)}`, kind: 'scale', endpoint: `${method} ${p.join(' ')}`, path: pathFor(t.event.field), field: t.event.field.slice(t.event.field.lastIndexOf('.') + 1), divideBy: factor, driftEvent: t.event.id, addedAt: new Date().toISOString().slice(0, 10) };
-    const pr = await this.fixer.openPr({ repo, rule, checks: [], usages: t.event.usages.map((u) => ({ file: u.file, line: u.line })), eventId: t.event.id });
-    t.event = { ...t.event, state: 'fix_pending', fix: { rung: 'transform', rule, validation: { driftId: t.event.id, checks: [], ci: 'pending', prUrl: pr.url } } };
+    const existing = await this.fixer.existingRules(repo).catch(() => []);
+    const stress = stressTest(tpl.rule, existing);
+    const checks = [stressCheck(stress)];
+    if (!stress.passed) return { error: `Not opened: ${checks[0]!.detail}` };
+    const rule = tpl.rule;
+    const pr = await this.fixer.openPr({ repo, rule, checks, usages: t.event.usages.map((u) => ({ file: u.file, line: u.line })), eventId: t.event.id });
+    t.event = { ...t.event, state: 'fix_pending', fix: { rung: 'transform', rule, validation: { driftId: t.event.id, checks, ci: 'pending', prUrl: pr.url } } };
     t.dispatched = true;
     await this.persist([k!]);
     return { event: t.event };
@@ -101,6 +110,7 @@ export class DriftEngine {
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
     this.investigating.clear();
+    this.quarantine.clear();
     await this.store.remove(ids).catch(() => undefined);
   }
 
@@ -156,9 +166,21 @@ export class DriftEngine {
       const from = Date.parse(t.event.detectedAt) - this.opts.windowMs;
       frozen.set(ep, Math.min(frozen.get(ep) ?? Infinity, from));
     }
-    const baseFps = all.filter((f) => {
+    const historyOf = (f: (typeof all)[number]) => {
       const end = Date.parse(f.windowStart) + f.windowSeconds * 1000;
       if (end >= cut) return false;
+      const q = this.quarantine.get(`${f.service}|${f.method} ${f.endpoint}`);
+      return !q?.some(([from, until]) => end >= from && Date.parse(f.windowStart) <= until);
+    };
+    // A freeze needs something to freeze: if the endpoint had too little history when the change appeared (Seismo was
+    // still learning), there is no "before" to compare with. Then the new shape simply becomes normal; otherwise the
+    // endpoint would stay frozen on a baseline too small to ever judge anything.
+    for (const [ep, since] of frozen) {
+      const before = all.filter((f) => `${f.service}|${f.method} ${f.endpoint}` === ep && historyOf(f) && Date.parse(f.windowStart) < since && f.statusClass === '2xx');
+      if (before.reduce((n, f) => n + f.count, 0) < this.opts.minBaselineSamples) { frozen.delete(ep); this.investigating.delete(ep); }
+    }
+    const baseFps = all.filter((f) => {
+      if (!historyOf(f)) return false;
       const since = frozen.get(`${f.service}|${f.method} ${f.endpoint}`);
       return since === undefined || Date.parse(f.windowStart) < since;
     });
@@ -186,7 +208,9 @@ export class DriftEngine {
       seen.add(key);
       const usages = usagesFor(f, maps);
       const s = score(f, usages);
-      const prev = this.events.get(key);
+      let prev = this.events.get(key);
+      // the provider went back to normal earlier and now made the same change again: that is a new change, not the old one
+      if (prev?.event.state === 'resolved' && prev.resolvedBy === 'recovered') { await this.store.remove([prev.event.id]).catch(() => undefined); this.events.delete(key); prev = undefined; }
       const runs = (prev?.runs ?? 0) + 1;
       const confirmed = runs >= this.opts.confirmRuns;
       let state: DriftState = !confirmed ? (s.label === 'info' ? 'normal' : 'suspected') : s.label === 'breaking' ? 'breaking' : s.label === 'warning' ? 'suspected' : 'normal';
@@ -205,8 +229,12 @@ export class DriftEngine {
         if (f.rung !== 'alias') tracked.reviewReason = 'Only renames get automatic PRs; this change needs a human decision.';
         else {
           const repo = maps.flatMap((m) => m.callSites).find((cs) => cs.service === f.service)?.repo;
-          const plan = planAlias({ finding: f, base: c.base, win: c.win, maps, existingRules: repo && this.fixer ? ((await this.fixer.existingRules(repo).catch(() => [])).filter((r) => r.kind !== 'scale') as AliasRule[]) : [], eventId: event.id });
+          const plan = planAlias({ finding: f, base: c.base, win: c.win, maps, existingRules: repo && this.fixer ? ((await this.fixer.existingRules(repo).catch(() => [])).filter((r) => !r.kind || r.kind === 'alias') as AliasRule[]) : [], eventId: event.id });
+          // C9: the alias rule, together with every rule already in the repo, on generated responses; no PR if it fails
+          const stress = plan.ok ? stressCheck(stressTest(plan.rule!, repo && this.fixer ? await this.fixer.existingRules(repo).catch(() => []) : [])) : undefined;
+          if (stress) plan.checks.push(stress);
           if (!plan.ok) tracked.reviewReason = plan.reason;
+          else if (!stress!.passed) tracked.reviewReason = `Fix not opened: ${stress!.detail}`;
           else if (this.fixer && repo) {
             try {
               const pr = await this.fixer.openPr({ repo, rule: plan.rule!, checks: plan.checks, usages: usages.map((u) => ({ file: u.file, line: u.line })), eventId: event.id });
@@ -241,7 +269,11 @@ export class DriftEngine {
       if (!OPEN_CONFIRMED(t, this.opts.confirmRuns) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
       t.misses = (t.misses ?? 0) + 1;
       if (t.misses < RECOVER_RUNS) { seen.add(k); continue; }
+      const ep = `${t.event.service}|${t.event.endpoint}`;
+      const from = Math.min(this.investigating.get(ep) ?? Infinity, Date.parse(t.event.detectedAt)) - this.opts.windowMs;
+      this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []).filter(([, u]) => now - u < this.opts.baselineMs), [from, now - this.opts.windowMs]]);
       t.event = { ...t.event, state: 'resolved' };
+      t.resolvedBy = 'recovered';
       seen.add(k);
       changed.push(t.event);
     }

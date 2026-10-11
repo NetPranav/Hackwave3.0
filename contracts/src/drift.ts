@@ -30,10 +30,22 @@ export const ScaleRule = z.object({
   addedAt: z.string().optional(),
 });
 export type ScaleRule = z.infer<typeof ScaleRule>;
-export const SeismoRule = z.union([AliasRule, ScaleRule]);
+/** v2 fix template for a type change: lossless conversion back to the type the code expects. Review only. */
+export const CoerceRule = z.object({
+  id: z.string().optional(), kind: z.literal('coerce'), endpoint: z.string(), path: z.string().default('$'),
+  field: z.string(), to: z.enum(['number', 'string']), driftEvent: z.string().optional(), addedAt: z.string().optional(),
+});
+export type CoerceRule = z.infer<typeof CoerceRule>;
+/** v2 fix template for a new enum value: map it to a known one (chosen by the AI judge, approved by a human). Review only. */
+export const MapRule = z.object({
+  id: z.string().optional(), kind: z.literal('map'), endpoint: z.string(), path: z.string().default('$'),
+  field: z.string(), map: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])), driftEvent: z.string().optional(), addedAt: z.string().optional(),
+});
+export type MapRule = z.infer<typeof MapRule>;
+export const SeismoRule = z.union([AliasRule, ScaleRule, CoerceRule, MapRule]);
 export type SeismoRule = z.infer<typeof SeismoRule>;
 
-export const CheckResult = z.object({ id: z.enum(['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8']), passed: z.boolean(), detail: z.string().optional() });
+export const CheckResult = z.object({ id: z.enum(['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']), passed: z.boolean(), detail: z.string().optional() });
 export const FixRequest = z.object({ driftId: z.string(), repo: z.string(), rung: FixRung, rule: SeismoRule.optional() });
 export const ValidationResult = z.object({ driftId: z.string(), checks: z.array(CheckResult), ci: z.enum(['pending', 'green', 'red']), prUrl: z.string().url().optional() });
 export const AliasSpec = z.object({ version: z.literal(1).default(1), rules: z.array(SeismoRule) });
@@ -81,7 +93,9 @@ export const DriftEvent = z.object({
 export type DriftEvent = z.infer<typeof DriftEvent>;
 
 /** suggestion: deterministic text from the template catalog (never AI). reason: why this is not an automatic PR. */
-export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), reason: z.string().optional(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
+export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), reason: z.string().optional(),
+  /** v2: the data rule a fix template would add (preview; a human opens the PR), absent when only a code change helps */
+  proposedRule: SeismoRule.optional(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
 export type ReviewItem = z.infer<typeof ReviewItem>;
 export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr', 'reopen']) });
 

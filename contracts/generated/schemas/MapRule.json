@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "map"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "path": {
+      "default": "$",
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
+    "map": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "driftEvent": {
+      "type": "string"
+    },
+    "addedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "endpoint",
+    "path",
+    "field",
+    "map"
+  ],
+  "additionalProperties": false
+}

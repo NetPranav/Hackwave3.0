@@ -7,6 +7,53 @@ const fresh = (): State => Object.fromEntries(SCENARIOS.map((s) => [s.id, { enab
 
 interface Announcement { service: string; title: string; body: string; at: string }
 
+/**
+ * v2 demo: a change described by hand (the shop's demo panel form), applied to every response of one provider.
+ *   rename: field -> to          type: field becomes a string / number     scale: field x factor
+ *   remove: drop field           value: field becomes `value`               cap: lists cut to `max` items
+ */
+export interface CustomChange { id: string; service: 'users' | 'payments' | 'shipping' | 'orders'; kind: 'rename' | 'type' | 'scale' | 'remove' | 'value' | 'cap'; field: string; to?: string; factor?: number; value?: string; max?: number }
+const FIELD = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const SERVICE_OF: Record<string, CustomChange['service']> = { users: 'users', payments: 'payments', shipments: 'shipping', orders: 'orders' };
+
+export function validateChange(c: Partial<CustomChange>): string | undefined {
+  if (!c.service || !Object.values(SERVICE_OF).includes(c.service)) return 'service must be users, payments, shipping or orders';
+  if (!c.kind || !['rename', 'type', 'scale', 'remove', 'value', 'cap'].includes(c.kind)) return 'kind must be rename, type, scale, remove, value or cap';
+  if (!c.field || !FIELD.test(c.field) || c.field === '__proto__') return 'field must be a plain field name';
+  if (c.kind === 'rename' && (!c.to || !FIELD.test(c.to) || c.to === c.field)) return 'rename needs a new field name';
+  if (c.kind === 'type' && c.to !== 'string' && c.to !== 'number') return 'type needs to: string or number';
+  if (c.kind === 'scale' && !(typeof c.factor === 'number' && Number.isFinite(c.factor) && c.factor > 0 && c.factor !== 1)) return 'scale needs a factor (e.g. 100)';
+  if (c.kind === 'value' && (typeof c.value !== 'string' || c.value.length > 64)) return 'value needs the new value';
+  if (c.kind === 'cap' && !(Number.isInteger(c.max) && c.max! > 0)) return 'cap needs max (e.g. 100)';
+  return undefined;
+}
+
+function applyToRecord(rec: Record<string, unknown>, c: CustomChange): Record<string, unknown> {
+  if (!Object.prototype.hasOwnProperty.call(rec, c.field)) return rec;
+  const out = { ...rec };
+  const v = out[c.field];
+  if (c.kind === 'rename') { delete out[c.field]; out[c.to!] = v; }
+  else if (c.kind === 'remove') delete out[c.field];
+  else if (c.kind === 'type') out[c.field] = c.to === 'string' ? (v === null ? v : String(v)) : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : v);
+  else if (c.kind === 'scale') out[c.field] = typeof v === 'number' ? Math.round(v * c.factor! * 100) / 100 : v;
+  else if (c.kind === 'value') out[c.field] = c.value;
+  return out;
+}
+
+export function applyCustom(body: unknown, changes: CustomChange[]): unknown {
+  let out = body;
+  for (const c of changes) {
+    if (!out || typeof out !== 'object' || Array.isArray(out)) continue;
+    const o = out as Record<string, unknown>;
+    if (c.kind === 'cap') {
+      if (Array.isArray(o[c.field])) out = { ...o, [c.field]: (o[c.field] as unknown[]).slice(0, c.max) };
+      continue;
+    }
+    out = Array.isArray(o['data']) ? { ...o, data: (o['data'] as unknown[]).map((r) => (r && typeof r === 'object' ? applyToRecord(r as Record<string, unknown>, c) : r)) } : applyToRecord(o, c);
+  }
+  return out;
+}
+
 export function buildServices() {
   const app = Fastify({ logger: false });
   // Admin buttons POST with content-type JSON and often no body: treat an empty body as {} instead of a 400.
@@ -14,6 +61,15 @@ export function buildServices() {
     try { done(null, body.trim() ? JSON.parse(body) : {}); } catch (e) { done(e as Error, undefined); }
   });
   const state = fresh();
+  let custom: CustomChange[] = [];
+  // custom changes (v2 demo panel) are applied to the provider's JSON on the way out, like a provider's own deploy would
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (!custom.length || typeof payload !== 'string' || req.url.startsWith('/admin') || reply.statusCode >= 400) return payload;
+    const service = SERVICE_OF[(req.url.split('?')[0] ?? '').split('/')[1] ?? ''];
+    const mine = custom.filter((c) => c.service === service);
+    if (!mine.length || !String(reply.getHeader('content-type') ?? '').includes('json')) return payload;
+    try { return JSON.stringify(applyCustom(JSON.parse(payload), mine)); } catch { return payload; }
+  });
   let announcements: Announcement[] = [];
   const token = process.env.DEMO_ADMIN_TOKEN ?? 'dev-admin';
   /** Is scenario `id` active for this request? Evaluated per request so rollout % gives mixed traffic. */
@@ -117,8 +173,20 @@ export function buildServices() {
     state[id] = { enabled: true, percent: Math.min(100, Math.max(0, Number((req.body as { percent?: number })?.percent ?? 100))) };
     return { ...state };
   });
+  app.get('/admin/custom', async () => custom);
+  app.post('/admin/custom', async (req, reply) => {
+    const c = (req.body ?? {}) as Partial<CustomChange>;
+    const err = validateChange(c);
+    if (err) return reply.code(400).send({ error: 'bad_change', message: err });
+    if (custom.length >= 20) return reply.code(400).send({ error: 'too_many', message: 'at most 20 custom changes' });
+    const change: CustomChange = { id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, service: c.service!, kind: c.kind!, field: c.field!, ...(c.to ? { to: c.to } : {}), ...(c.factor !== undefined ? { factor: c.factor } : {}), ...(c.value !== undefined ? { value: c.value } : {}), ...(c.max !== undefined ? { max: c.max } : {}) };
+    custom = [...custom, change];
+    return custom;
+  });
+  app.delete('/admin/custom/:id', async (req) => { custom = custom.filter((c) => c.id !== (req.params as { id: string }).id); return custom; });
   app.post('/admin/reset', async () => {
     Object.assign(state, fresh());
+    custom = [];
     announcements = [];
     return { ...state };
   });

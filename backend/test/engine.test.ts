@@ -70,6 +70,24 @@ describe('drift engine (P4.2/P4.5)', () => {
     expect(d3.state).toBe('resolved');
     expect(changed.map((c) => c.id)).toContain(d3.id);                                // dashboard, issue and alerts hear about it
   });
+  it('the same change made AGAIN after the provider had gone back to normal is a new change (found live: it stayed "resolved")', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    await feed(NOW - 15 * 60_000, 6);
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const first = e.list().find((x) => x.detector === 'D3')!;
+    await toggle(s, 'users-rename', false); const back = NOW + 20 * 60_000; await feed(back - 30_000);
+    for (let i = 0; i < 3; i++) await e.run(back + i * 1000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('resolved');
+    await toggle(s, 'users-rename'); const again = NOW + 40 * 60_000; await feed(again - 30_000);
+    await e.run(again); await e.run(again + 5000);
+    const second = e.list().find((x) => x.detector === 'D3')!;
+    expect(second.state).toBe('breaking');
+    expect(second.id).not.toBe(first.id);
+  });
   it('a rename still becomes D3 when the new field shows up a pass before the old one is gone (baseline must not learn it)', async () => {
     const s = buildServices();
     const ingest = memoryIngest();
@@ -126,7 +144,7 @@ describe('fix dispatch (P5.5/P5.9)', () => {
     const ev = e.list().find((x) => x.detector === 'D3')!;
     expect(ev.state).toBe('fix_pending');
     expect(ev.fix!.validation!.prUrl).toContain('/pull/9');
-    expect(ev.fix!.validation!.checks.map((c) => c.id)).toEqual(['C1', 'C2', 'C3', 'C4', 'C5', 'C6']);
+    expect(ev.fix!.validation!.checks.map((c) => c.id)).toEqual(['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C9']);   // C9: stress test before the PR
     expect(e.resolveByRule(ev.fix!.rule!.id!, true)!.state).toBe('resolved');
   });
   it('paise-style review items never open a PR', async () => {
@@ -227,15 +245,15 @@ describe('fix CI tracking (P5.6)', () => {
     const id = e.list().find((x) => x.detector === 'D3')!.fix!.rule!.id!;
     const green = e.recordCi(id, 'success', 'GitHub Actions')!;
     expect(green.fix!.validation!.ci).toBe('green');
-    expect(green.fix!.validation!.checks.map((c) => `${c.id}:${c.passed}`)).toEqual(['C1:true', 'C2:true', 'C3:true', 'C4:true', 'C5:true', 'C6:true', 'C7:true', 'C8:true']);
+    expect(green.fix!.validation!.checks.map((c) => `${c.id}:${c.passed}`)).toEqual(['C1:true', 'C2:true', 'C3:true', 'C4:true', 'C5:true', 'C6:true', 'C9:true', 'C7:true', 'C8:true']);
     const red = e.recordCi(id, 'failure')!;
     expect(red.fix!.validation!.ci).toBe('red');
     expect(red.fix!.validation!.checks.filter((c) => c.id === 'C8')).toEqual([{ id: 'C8', passed: false, detail: 'CI on the fix PR: failure' }]);
   });
 });
 
-describe('suggestion PR for a unit change (P5.10)', () => {
-  it('only when a human asks, only for D5, rule = divide by the detected factor', async () => {
+describe('suggestion PR for a unit change (P5.10, v2 templates)', () => {
+  it('only when a human asks; rule = divide by the detected factor; opened only after the stress test', async () => {
     const s = buildServices();
     const ingest = memoryIngest();
     for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/payments/pay_1', 20, { service: 'payments', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
@@ -247,11 +265,12 @@ describe('suggestion PR for a unit change (P5.10)', () => {
     await e.run(NOW); await e.run(NOW + 5000);
     expect(prs).toHaveLength(0);                                                  // never automatic
     const d5 = e.list().find((x) => x.detector === 'D5')!;
-    const r = await e.openScalePr(d5.id, 'demo/shop');
+    const r = await e.openTemplatePr(d5.id, 'demo/shop');
     expect(r.event!.state).toBe('fix_pending');
+    expect(r.event!.fix!.validation!.checks).toEqual([expect.objectContaining({ id: 'C9', passed: true })]);   // stress-tested before opening
     expect(prs[0]!.rule).toMatchObject({ kind: 'scale', endpoint: 'GET /payments/{id}', path: '$', field: 'amount', divideBy: 100 });
     expect(r.event!.fix!.rung).toBe('transform');
-    const rename = await e.openScalePr('nope', 'demo/shop');
+    const rename = await e.openTemplatePr('nope', 'demo/shop');
     expect(rename.error).toBe('unknown_event');
   });
 });
