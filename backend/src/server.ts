@@ -23,7 +23,7 @@ if (pg) await keys.attach(pgKeys());
 const app = buildApp({ store, ingest, engine, keys, settings: pg ? pgSettings() : undefined, installations: httpInstallations(), github: httpGithubApp(), ...(pg ? { projects: new Projects(pgOwners()) } : {}) });
 await app.listen({ port, host: '0.0.0.0' });
 // Detection pass every 5 s (P4.2). Errors must never kill the API.
-setInterval(() => { (app as unknown as { detectNow: () => Promise<unknown> }).detectNow().catch((e: unknown) => app.log.error(e)); }, 5000).unref();
+setInterval(() => { (app as unknown as { detectNow: () => Promise<unknown> }).detectNow().catch((e: unknown) => app.log.error(e)); }, Number(process.env.SEISMO_DETECT_INTERVAL_MS ?? 5000)).unref();
 // Radar poll (P7.2): every 15 min by default, every minute in demo mode.
 const radarEvery = Number(process.env.RADAR_INTERVAL_MS ?? (process.env.DEMO_MODE === 'true' ? 60_000 : 15 * 60_000));
 setInterval(() => { (app as unknown as { pollRadar: () => Promise<unknown> }).pollRadar().catch((e: unknown) => app.log.error(e)); }, radarEvery).unref();

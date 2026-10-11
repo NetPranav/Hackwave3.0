@@ -15,7 +15,9 @@ export interface EngineOptions {
   confirmRuns: number;       // consecutive runs a finding must persist before it is confirmed
   ctx?: Partial<Ctx>;        // detector thresholds (tests and demos use smaller sample sizes)
 }
-export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24 * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
+// SEISMO_BASELINE_HOURS: how much history a pass reads. Every pass re-reads it (until v3-P3.3 rollups), so a small host
+// needs a short one (found on Render free: 24 h of per-request fingerprints starved the CPU and the health check failed)
+export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: Number(process.env.SEISMO_BASELINE_HOURS ?? 24) * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
 
 type Tracked = Omit<StoredEvent, 'key'>;
 

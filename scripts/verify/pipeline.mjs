@@ -68,19 +68,32 @@ function bearer() {
   return `${h}.${p}.${createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url')}`;
 }
 async function api(path, init = {}) {
-  const r = await fetch(`${BACKEND}${path}`, { ...init, headers: { authorization: `Bearer ${bearer()}`, 'content-type': 'application/json', ...init.headers } });
-  if (!r.ok) throw new Error(`${path} -> ${r.status}`);
-  return r.json();
+  // hosted engines answer an occasional 502/503 from their proxy (seen on Render): retry those briefly
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(`${BACKEND}${path}`, { ...init, headers: { authorization: `Bearer ${bearer()}`, 'content-type': 'application/json', ...init.headers } }).catch(() => undefined);
+    if (r?.ok) return r.json();
+    if (attempt < 4 && (!r || r.status >= 502)) { await sleep(3000); continue; }
+    throw new Error(`${path} -> ${r?.status ?? 'unreachable'}`);
+  }
 }
-const admin = (path, init = {}) => fetch(`${PROVIDERS}${path}`, { ...init, headers: { 'x-admin-token': ADMIN, 'content-type': 'application/json', ...init.headers } });
+/** fetch with retries on proxy errors (a hosted engine's proxy sometimes answers 502/503 with an HTML page) */
+async function steady(url, init = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(url, init).catch(() => undefined);
+    if (r && r.status < 502) return r;
+    if (attempt >= 4) throw new Error(`${url} -> ${r?.status ?? 'unreachable'}`);
+    await sleep(3000);
+  }
+}
+const admin = (path, init = {}) => steady(`${PROVIDERS}${path}`, { ...init, headers: { 'x-admin-token': ADMIN, 'content-type': 'application/json', ...init.headers } });
 
 /** The same request the shop makes, straight to the provider: the "before" and "after" of the oracle. */
 async function providerSample(service) {
-  const get = (p) => fetch(`${PROVIDERS}${p}`).then((r) => r.json());
+  const get = (p) => steady(`${PROVIDERS}${p}`).then((r) => r.json());
   if (service === 'users') return { endpoint: 'GET /users/{id}', body: await get('/users/u_1') };
   if (service === 'shipping') return { endpoint: 'GET /shipments/{id}', body: await get('/shipments/sh_1') };
   if (service === 'orders') return { endpoint: 'GET /orders', body: await get('/orders?limit=5') };
-  const body = await fetch(`${PROVIDERS}/payments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'ord_verify', rupees: 499 }) }).then((r) => r.json());
+  const body = await steady(`${PROVIDERS}/payments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'ord_verify', rupees: 499 }) }).then((r) => r.json());
   return { endpoint: 'POST /payments', body };
 }
 
