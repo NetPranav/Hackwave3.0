@@ -14,7 +14,7 @@ export interface GithubIssueSink {
 export interface DispatcherOptions {
   settings: () => Promise<NotificationSettings>;
   fetchImpl?: typeof fetch;
-  twilio?: { accountSid?: string; authToken?: string; from?: string; contentSid?: string; baseUrl?: string };
+  twilio?: { accountSid?: string; authToken?: string; from?: string; contentSid?: string; contentVariables?: string; baseUrl?: string };
   resend?: { apiKey?: string; from?: string; baseUrl?: string };
   github?: GithubIssueSink;
   dashboardUrl?: string;
@@ -29,7 +29,7 @@ export class Dispatcher {
   private f: typeof fetch;
   constructor(private o: DispatcherOptions) {
     this.f = o.fetchImpl ?? ((...a) => fetch(...a));
-    this.o.twilio = { accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_WHATSAPP_FROM, contentSid: process.env.TWILIO_WHATSAPP_CONTENT_SID || undefined, baseUrl: 'https://api.twilio.com', ...o.twilio };
+    this.o.twilio = { accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_WHATSAPP_FROM, contentSid: process.env.TWILIO_WHATSAPP_CONTENT_SID || undefined, contentVariables: process.env.TWILIO_WHATSAPP_CONTENT_VARIABLES || undefined, baseUrl: 'https://api.twilio.com', ...o.twilio };
     this.o.resend = { apiKey: process.env.RESEND_API_KEY, from: process.env.RESEND_FROM ?? 'Seismo <onboarding@resend.dev>', baseUrl: 'https://api.resend.com', ...o.resend };
   }
 
@@ -61,7 +61,11 @@ export class Dispatcher {
     if (opening) await once('dashboard', `${e.id}|dashboard`, async () => undefined);
 
     if (opening && s.whatsapp.enabled && s.whatsapp.to && this.passes('whatsapp', e.severity, s)) {
-      await once('whatsapp', `${e.id}|whatsapp`, () => this.whatsapp(s.whatsapp.to!, `${x.channels.whatsapp}${link ? ` ${link}` : ''}`.slice(0, 1500)));
+      // twice at most: when the change is found (link: the repo), and when its fix PR opens (link: the PR to merge)
+      const prUrl = e.fix?.validation?.prUrl;
+      const msg = whatsappMessage(e, x, { repo, prUrl, dashboard: link });
+      const key = prUrl ? `${e.id}|whatsapp|pr` : `${e.id}|whatsapp`;
+      await once('whatsapp', key, () => this.whatsapp(s.whatsapp.to!, msg.text, msg.vars));
     }
     if (opening && s.slack.enabled && s.slack.webhookUrl && this.passes('slack', e.severity, s)) {
       await once('slack', `${e.id}|slack`, () => this.post(s.slack.webhookUrl!, { text: x.channels.slack + (link ? `\n<${link}|Open in Seismo>` : '') }));
@@ -91,7 +95,7 @@ export class Dispatcher {
     return this.dispatch(fake, x);
   }
 
-  private async whatsapp(to: string, body: string) {
+  private async whatsapp(to: string, body: string, vars: Record<string, string> = { change: body, link: '' }) {
     const t = this.o.twilio!;
     if (!t.accountSid || !t.authToken || !t.from) throw new Error('Twilio is not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_WHATSAPP_FROM)');
     const toAddr = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
@@ -100,7 +104,7 @@ export class Dispatcher {
       headers: { authorization: `Basic ${Buffer.from(`${t.accountSid}:${t.authToken}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
       // Trial Twilio accounts may only send Twilio's pre-approved templates (no free text): with
       // TWILIO_WHATSAPP_CONTENT_SID set, every alert sends that template instead of the text (a ping to open Seismo).
-      body: new URLSearchParams(t.contentSid ? { From: t.from, To: toAddr, ContentSid: t.contentSid } : { From: t.from, To: toAddr, Body: body }).toString(),
+      body: new URLSearchParams(t.contentSid ? { From: t.from, To: toAddr, ContentSid: t.contentSid, ...contentVariables(t.contentVariables, vars) } : { From: t.from, To: toAddr, Body: body }).toString(),
     });
     if (!r.ok) {
       const text = (await r.text()).slice(0, 300);
@@ -146,4 +150,32 @@ export function issueBody(e: DriftEvent, x: AiExplanation, link: string) {
     ...(link ? ['', `[Open in Seismo](${link})`] : []),
     '', `_Explanation: ${x.source === 'ai' ? `AI (${x.model}, ${x.latencyMs} ms)` : 'template'}. Seismo never changes code; humans decide._`,
   ].join('\n');
+}
+
+/**
+ * The WhatsApp alert: what changed, in which API, and the one link to act on (the fix PR once it exists, else the
+ * repository). Short on purpose: a phone notification, not a report.
+ */
+export function whatsappMessage(e: DriftEvent, x: AiExplanation, o: { repo?: string; prUrl?: string; dashboard?: string }) {
+  const repoUrl = o.repo && o.repo.includes('/') ? `https://github.com/${o.repo}` : undefined;
+  const sev = e.severity === 'breaking' ? 'breaking' : e.severity === 'warning' ? 'needs a look' : 'info';
+  const change = `API change in ${e.service} (${sev}): ${e.title}`;
+  const link = o.prUrl ?? repoUrl ?? o.dashboard ?? '';
+  const text = o.prUrl
+    ? `Seismo: fix ready for the ${e.service} API change "${e.title}". Review and merge: ${o.prUrl}`
+    : `Seismo: ${change}. ${x.channels.whatsapp}${link ? ` ${repoUrl ? 'Repo' : 'Details'}: ${link}` : ''}`;
+  return { text: text.slice(0, 1500), vars: { change: change.slice(0, 300), link, service: e.service, title: e.title, severity: sev, pr: o.prUrl ?? '', repo: repoUrl ?? '' } };
+}
+
+/**
+ * Template variables from TWILIO_WHATSAPP_CONTENT_VARIABLES, e.g. {"1":"{change}","2":"{link}"}: placeholders
+ * {change} {link} {service} {title} {severity} {pr} {repo}. Without it the template is sent as it is.
+ */
+export function contentVariables(spec: string | undefined, vars: Record<string, string>): { ContentVariables?: string } {
+  if (!spec) return {};
+  try {
+    const map = JSON.parse(spec) as Record<string, string>;
+    const filled = Object.fromEntries(Object.entries(map).map(([k, v]) => [k, String(v).replace(/\{(\w+)\}/g, (_, n: string) => vars[n] ?? '')]));
+    return { ContentVariables: JSON.stringify(filled) };
+  } catch { return {}; }
 }
