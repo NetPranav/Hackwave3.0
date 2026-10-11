@@ -8,7 +8,9 @@ import FixHeader from "@/components/dashboard/fixes/FixHeader";
 import SafetyGate from "@/components/dashboard/fixes/SafetyGate";
 import AliasDiff from "@/components/dashboard/fixes/AliasDiff";
 import AliasProof from "@/components/dashboard/fixes/AliasProof";
-import { FIX_RULES, type FixStatus } from "@/lib/mock/fixes";
+import type { FixStatus } from "@/lib/mock/fixes";
+import EmptyState from "@/components/dashboard/EmptyState";
+import { useSeismoData } from "@/lib/api/data";
 
 function matchesStage(status: FixStatus, stage: string): boolean {
   switch (stage) {
@@ -26,8 +28,10 @@ function matchesStage(status: FixStatus, stage: string): boolean {
 }
 
 export default function FixesPage() {
+  const data = useSeismoData();
+  const FIX_RULES = data.fixes;
   const [stage, setStage] = useState("all");
-  const [selectedId, setSelectedId] = useState(FIX_RULES[0].id);
+  const [selectedId, setSelectedId] = useState<string | undefined>(FIX_RULES[0]?.id);
 
   const visible = FIX_RULES.filter((f) => matchesStage(f.status, stage));
   const selected = visible.find((f) => f.id === selectedId) ?? visible[0];
@@ -40,6 +44,17 @@ export default function FixesPage() {
     { value: "merged", label: "MERGED", count: countIn("merged"), caption: "the fix is live", tone: "ok" },
     { value: "safety_blocked", label: "NEEDS A PERSON", count: countIn("safety_blocked"), caption: "cannot be fixed automatically", tone: "warn", branch: true },
   ];
+
+  if (!FIX_RULES.length)
+    return (
+      <EmptyState
+        loading={data.loading}
+        label="Fixes"
+        title="No fix PRs yet"
+        body="When a provider renames a field your code reads, Seismo opens a pull request that adds one alias rule to seismo/aliases.json, checked by C1–C8. Other changes go to the review queue."
+        action={{ href: "/app/review", text: "Open the review queue" }}
+      />
+    );
 
   return (
     <main className="mx-auto max-w-[1440px] px-6 py-6 md:px-10 lg:px-16">

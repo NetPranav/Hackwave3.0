@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Card } from "@/components/dashboard/Card";
 import { buildGraph, pathOf } from "@/lib/graph/build";
+import { useSeismoData } from "@/lib/api/data";
+import EmptyState from "@/components/dashboard/EmptyState";
 import { COLUMNS } from "@/lib/graph/sankey";
 import { layoutFlow } from "@/lib/graph/sankey";
 import FlowGraph from "./FlowGraph";
@@ -19,7 +21,9 @@ const ZOOM = 0.88;
 /** The dependency map: what we depend on, what changed, and how far each change reaches. */
 export default function GraphView({ highlight }: { highlight?: string }) {
   const reduceMotion = useReducedMotion() ?? false;
-  const [graph] = useState(buildGraph);
+  const data = useSeismoData();
+  const graph = useMemo(() => buildGraph(data), [data]);
+  const hasNodes = graph.nodes.length > 0;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
@@ -39,7 +43,8 @@ export default function GraphView({ highlight }: { highlight?: string }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+    // re-attach when the canvas appears (live data can arrive after the first render, when the empty state was shown)
+  }, [hasNodes]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -113,6 +118,16 @@ export default function GraphView({ highlight }: { highlight?: string }) {
     transition: { duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] as const },
   });
 
+  if (!graph.nodes.length)
+    return (
+      <EmptyState
+        loading={data.loading}
+        label="Dependency graph"
+        title="No code map yet"
+        body="The graph shows which APIs your code calls, which fields it reads and which features use them. Install the Seismo GitHub App on a repository; the scan takes under a minute."
+        action={data.me?.installUrl ? { href: data.me.installUrl, text: "Install Seismo on a repo", external: true } : { href: "/onboarding", text: "Set up" }}
+      />
+    );
   return (
     <main className="relative h-[calc(100dvh-45px)] min-h-[560px] w-full overflow-hidden bg-section [--flow-halo:var(--color-section)] dark:bg-dark-dash-section dark:[--flow-halo:var(--color-dark-dash-section)]">
 

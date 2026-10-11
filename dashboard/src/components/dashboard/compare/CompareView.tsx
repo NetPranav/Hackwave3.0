@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { samplesFor } from "@/lib/compare/samples";
-import { findEndpoint, type EndpointRef } from "@/lib/compare/catalog";
+import { endpointsOf, findEndpoint as findIn, type EndpointRef } from "@/lib/compare/catalog";
+import EmptyState from "@/components/dashboard/EmptyState";
+import { useSeismoData } from "@/lib/api/data";
 import { defaultValue, simulate, type ChangeKind } from "@/lib/compare/simulate";
 import type { FieldComparison } from "@/lib/mock/status";
 import ModeBar, { type Mode } from "./ModeBar";
@@ -41,6 +43,23 @@ function suggestValue(target: EndpointRef, kind: ChangeKind, field: string): str
 
 /** Compare an endpoint's baseline to now, or simulate a what-if change. Everything is computed locally and deterministically. */
 export default function CompareView({ initial }: { initial: CompareInitial }) {
+  const data = useSeismoData();
+  const list = endpointsOf(data.services);
+  if (!list.length)
+    return (
+      <EmptyState
+        loading={data.loading}
+        label="Compare & Simulate"
+        title="Nothing to compare yet"
+        body="Compare needs an API your code calls (from the code map) or traffic from the SDK. Install the Seismo GitHub App on a repo or send traffic, then come back."
+        action={{ href: "/app/status", text: "See API status" }}
+      />
+    );
+  return <CompareWorkbench initial={initial} list={list} deps={{ sitesFor: data.sitesFor, fixes: data.fixes }} />;
+}
+
+function CompareWorkbench({ initial, list, deps }: { initial: CompareInitial; list: EndpointRef[]; deps: Parameters<typeof simulate>[1] }) {
+  const findEndpoint = (id: string | undefined) => findIn(list, id) as EndpointRef;
   const [mode, setMode] = useState<Mode>(initial.mode ?? "compare");
   const [endpointId, setEndpointId] = useState(() => findEndpoint(initial.endpoint).endpoint.id);
   const [kind, setKind] = useState<ChangeKind>(initial.kind ?? "rename");
@@ -59,14 +78,17 @@ export default function CompareView({ initial }: { initial: CompareInitial }) {
   };
 
   const compared = samplesFor(target.endpoint);
-  const result = simulate({
-    serviceSlug: target.serviceSlug,
-    serviceName: target.serviceName,
-    endpoint: target.endpoint,
-    field,
-    kind,
-    value: value.trim() || defaultValue(kind, field),
-  });
+  const result = simulate(
+    {
+      serviceSlug: target.serviceSlug,
+      serviceName: target.serviceName,
+      endpoint: target.endpoint,
+      field,
+      kind,
+      value: value.trim() || defaultValue(kind, field),
+    },
+    deps
+  );
 
   const stat =
     mode === "compare"

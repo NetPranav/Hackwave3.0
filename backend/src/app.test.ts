@@ -32,7 +32,7 @@ describe('graph from code maps (P2.5)', () => {
   const map = {
     repo: 'demo/shop', commit: 'c', scannedAt: '2026-10-12T10:00:00.000Z',
     callSites: [{ id: 'cs1', repo: 'demo/shop', file: 'lib/pay.ts', line: 5, service: 'payments', method: 'POST', endpoint: '/payments' }, { id: 'cs2', repo: 'demo/shop', file: 'lib/x.ts', line: 9, service: 'x', method: 'GET', endpoint: '(unresolved)', unresolved: true }],
-    fieldReads: [{ callSiteId: 'cs1', field: 'amount', file: 'app/checkout/page.tsx', line: 12, usage: 'arithmetic', money: true }],
+    fieldReads: [{ callSiteId: 'cs1', field: 'amount', file: 'app/checkout/page.tsx', line: 12, usage: 'arithmetic', money: true, snippet: 'const total = p.amount * qty;' }],
     workflows: [{ id: 'checkout', name: 'checkout', file: 'app/checkout/**', functions: [], globs: ['app/checkout/**'] }],
   };
   it('stores a scan, builds the graph, traces impact to the workflow, reports coverage', async () => {
@@ -50,6 +50,17 @@ describe('graph from code maps (P2.5)', () => {
     const cov = (await a.inject('/v1/coverage')).json();
     expect(cov.unresolvedCalls).toBe(1);
     expect(cov.fieldsMapped).toBe(1);
+  });
+  it('serves the code map with workflows and enriches usages with repo, source line, workflows and a GitHub link (v2-P3)', async () => {
+    const { enrichUsages } = await import('./codemap-view.js');
+    const a = buildApp();
+    await a.inject({ method: 'POST', url: '/internal/codemap', headers: { 'x-internal-token': 'dev-internal' }, payload: map });
+    const cm = (await a.inject('/v1/codemap')).json();
+    expect(cm.repos).toEqual([{ repo: 'demo/shop', commit: 'c', scannedAt: map.scannedAt }]);
+    expect(cm.fieldReads[0]).toMatchObject({ field: 'amount', workflows: ['checkout'], snippet: 'const total = p.amount * qty;' });
+    const [u] = enrichUsages([{ file: 'app/checkout/page.tsx', line: 12, kind: 'arithmetic+money' }], [map as never]);
+    expect(u).toEqual({ file: 'app/checkout/page.tsx', line: 12, kind: 'arithmetic+money', repo: 'demo/shop', snippet: 'const total = p.amount * qty;', workflows: ['checkout'], url: 'https://github.com/demo/shop/blob/c/app/checkout/page.tsx#L12' });
+    expect(enrichUsages([{ file: 'elsewhere.ts', line: 1, kind: 'read' }], [map as never])).toEqual([{ file: 'elsewhere.ts', line: 1, kind: 'read' }]);
   });
 });
 
@@ -93,6 +104,57 @@ describe('ingest, baselines, status (P3.4-P3.6)', () => {
 
 });
 
+describe('onboarding: installations, rescan, setup PR (v2-P2)', () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; });
+  const github = () => {
+    const calls: string[] = [];
+    return {
+      calls,
+      client: {
+        repos: async () => [{ id: 7, account: 'NetPranav', repos: ['NetPranav/seismo-demo-shop', 'NetPranav/other'] }, { id: 8, account: 'someone', repos: ['someone/x'] }],
+        scan: async (repo: string) => void calls.push('scan ' + repo),
+        setup: async (repo: string) => { calls.push('setup ' + repo); return { url: 'https://github.com/' + repo + '/pull/9', number: 9, created: true, wrapped: 4 }; },
+      },
+    };
+  };
+  it('lists only the signed-in account, with scan state; rescan and setup only for its own repos', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    const g = github();
+    const a = buildApp({ github: g.client });
+    const h = { authorization: `Bearer ${await signUserToken('netpranav')}` };
+    await a.inject({ method: 'POST', url: '/internal/codemap', headers: { 'x-internal-token': 'dev-internal' }, payload: { repo: 'NetPranav/seismo-demo-shop', commit: 'c', scannedAt: '2026-10-12T10:00:00.000Z', callSites: [], fieldReads: [], workflows: [] } });
+    const inst = (await a.inject({ url: '/v1/installations', headers: h })).json();
+    expect(inst).toEqual([{ id: '7', account: 'NetPranav', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }, { name: 'other', scan: 'pending', progress: 0 }] }]);
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/NetPranav/other/scan', headers: h })).statusCode).toBe(202);
+    expect((await a.inject({ url: '/v1/installations', headers: h })).json()[0].repos[1]).toMatchObject({ name: 'other', scan: 'running' });
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/someone/x/scan', headers: h })).statusCode).toBe(404);          // not theirs
+    const pr = await a.inject({ method: 'POST', url: '/v1/repos/NetPranav/seismo-demo-shop/setup-pr', headers: h });
+    expect(pr.json()).toMatchObject({ number: 9, created: true });
+    expect(g.calls).toEqual(['scan NetPranav/other', 'setup NetPranav/seismo-demo-shop']);
+  });
+  it('without the GitHub App the repo actions answer 503', async () => {
+    const a = buildApp();
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/a/b/scan' })).statusCode).toBe(503);
+  });
+});
+
+describe('metrics for the overview chart (v2-P3.1)', () => {
+  it('buckets calls, p95 and drift events per 6 h; future buckets are null', async () => {
+    const { buildMetrics } = await import('./status.js');
+    const now = Date.parse('2026-10-11T13:00:00Z');
+    const f = (iso: string, count: number, p95: number) => ({ ...fp(count), windowStart: iso, count, latencyMs: { p50: 1, p95 } });
+    const m = buildMetrics([f('2026-10-11T07:00:00Z', 10, 120), f('2026-10-11T08:00:00Z', 5, 200), f('2026-10-10T01:00:00Z', 3, 50)] as never, [{ detectedAt: '2026-10-11T12:30:00Z', severity: 'breaking' }, { detectedAt: '2026-10-11T12:40:00Z', severity: 'info' }], now);
+    expect(m).toHaveLength(7);
+    const today = m[6]!;
+    expect(today.date).toBe('2026-10-11');
+    expect(today.buckets.map((b) => b.calls)).toEqual([0, 15, 0, null]);
+    expect(today.buckets[1]!.p95Ms).toBe(200);
+    expect(today.buckets[2]!.drifts).toBe(1);
+    expect(m[5]!.buckets[0]!.calls).toBe(3);
+  });
+});
+
 describe('project ownership and ingest rate limit (P3.4)', () => {
   const env = { ...process.env };
   afterEach(() => { process.env = { ...env }; });
@@ -105,6 +167,19 @@ describe('project ownership and ingest rate limit (P3.4)', () => {
     expect((await a.inject({ url: '/v1/projects/dev/keys', headers: await tok('mallory') })).statusCode).toBe(403);
     expect((await a.inject({ url: '/v1/projects', headers: await tok('mallory') })).json()).toEqual([]);
     expect((await a.inject({ url: '/v1/projects', headers: await tok('alice') })).json()).toEqual([{ id: 'dev', owner: 'alice' }]);
+  });
+  it('everything else under /v1 is owner-only too: settings, drift events, notifications (403 for others)', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    process.env.SEISMO_PROJECT_OWNERS = 'NetPranav';
+    const a = buildApp();
+    const owner = await tok('netpranav'), other = await tok('stranger');
+    for (const url of ['/v1/settings/notifications', '/v1/drift-events', '/v1/notifications', '/v1/overview', '/v1/codemap']) {
+      expect((await a.inject({ url, headers: owner })).statusCode).toBe(200);
+      expect((await a.inject({ url, headers: other })).statusCode).toBe(403);
+    }
+    expect((await a.inject({ method: 'POST', url: '/v1/notifications/test', headers: other })).statusCode).toBe(403);
+    expect((await a.inject({ url: '/v1/me', headers: other })).statusCode).toBe(200);          // can still learn who they are
+    expect((await a.inject({ url: '/v1/projects', headers: other })).json()).toEqual([]);
   });
   it('SEISMO_PROJECT_OWNERS fixes the owners', async () => {
     process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';

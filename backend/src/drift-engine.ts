@@ -202,6 +202,17 @@ export class DriftEngine {
       if (!prev || prev.event.state !== tracked.event.state || prev.event.severity !== tracked.event.severity) changed.push(tracked.event);
       this.events.set(key, tracked);
     }
+    // A rename explains an earlier "field removed" on the same field (D1 often fires a pass before D3 can score the new
+    // name): close the D1 event as explained, so the timeline and alerts tell one story.
+    for (const f of findings) {
+      if (f.detector !== 'D3' || !f.rename) continue;
+      const k = `${f.service}|${f.method}|${f.endpoint}|D1|${f.field}`;
+      const t = this.events.get(k);
+      if (!t || seen.has(k) || ['resolved', 'expected', 'snoozed'].includes(t.event.state)) continue;
+      t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: renamed to ${f.rename.to})` };
+      seen.add(k);
+      changed.push(t.event);
+    }
     // A finding that vanished before it was confirmed was noise: forget it.
     const noise: string[] = [];
     for (const [key, t] of this.events) if (!seen.has(key) && t.runs < this.opts.confirmRuns) { noise.push(t.event.id); this.events.delete(key); }

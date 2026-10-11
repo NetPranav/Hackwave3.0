@@ -65,3 +65,30 @@ export function buildStatus(fps: Fingerprint[], opts: { now?: number; windowMs?:
     };
   });
 }
+
+/**
+ * v2-P3.1: the overview chart. Calls, p95 latency (worst window) and detected drift events per 6-hour UTC bucket
+ * for the last `days` days. Buckets in the future are null so the chart can show "not yet".
+ */
+export function buildMetrics(fps: Fingerprint[], events: { detectedAt: string; severity: string }[], now = Date.now(), days = 7) {
+  const H6 = 6 * 3600_000;
+  const today = Math.floor(now / 86_400_000) * 86_400_000;
+  const start = today - (days - 1) * 86_400_000;
+  const out: { date: string; buckets: { start: string; calls: number | null; p95Ms: number | null; drifts: number | null }[] }[] = [];
+  for (let d = 0; d < days; d++) {
+    const dayStart = start + d * 86_400_000;
+    const buckets = [0, 1, 2, 3].map((b) => {
+      const from = dayStart + b * H6, to = from + H6;
+      if (from > now) return { start: new Date(from).toISOString(), calls: null, p95Ms: null, drifts: null };
+      const inB = fps.filter((f) => { const t = Date.parse(f.windowStart); return t >= from && t < to; });
+      return {
+        start: new Date(from).toISOString(),
+        calls: sum(inB.map((f) => f.count)),
+        p95Ms: inB.length ? Math.round(Math.max(...inB.map((f) => f.latencyMs.p95))) : 0,
+        drifts: events.filter((e) => e.severity !== 'info' && Date.parse(e.detectedAt) >= from && Date.parse(e.detectedAt) < to).length,
+      };
+    });
+    out.push({ date: new Date(dayStart).toISOString().slice(0, 10), buckets });
+  }
+  return out;
+}

@@ -3,7 +3,8 @@
 import { cn } from "@/lib/utils";
 import Counter from "@/components/ui/Counter";
 import { Card } from "@/components/dashboard/Card";
-import { OVERVIEW_STATS as S } from "@/lib/mock/overview";
+import { overviewStats } from "@/lib/mock/overview";
+import { useSeismoData } from "@/lib/api/data";
 import type { TableFilter } from "./ServicesTable";
 
 interface KpiCellProps {
@@ -62,6 +63,7 @@ const Muted = ({ children }: { children: React.ReactNode }) => (
 
 /** Four numbers that answer "is everything fine?": APIs, coverage, changes, fixes. */
 export default function KpiStrip({ onFilter }: { onFilter: (filter: TableFilter) => void }) {
+  const S = overviewStats(useSeismoData());
   const prLabel = S.openPrNumbers.map((n) => "PR #" + n).join(" · ");
 
   return (
@@ -72,7 +74,7 @@ export default function KpiStrip({ onFilter }: { onFilter: (filter: TableFilter)
           title="Show all monitored services"
           detail={S.endpoints + " API calls working"}
           value={S.apis}
-          places={[1]}
+          places={S.apis >= 10 ? [10, 1] : [1]}
           suffix={<Muted>/ {S.apis} LIVE</Muted>}
           onClick={() => onFilter("all")}
         />
@@ -81,7 +83,7 @@ export default function KpiStrip({ onFilter }: { onFilter: (filter: TableFilter)
           title="Show all monitored services"
           detail={S.callSites + " places in your code found"}
           value={S.fieldCoverage}
-          places={[10, 1, ".", 0.1]}
+          places={S.fieldCoverage >= 100 ? [100, 10, 1, ".", 0.1] : [10, 1, ".", 0.1]}
           suffix="%"
           onClick={() => onFilter("all")}
         />

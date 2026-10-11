@@ -38,6 +38,113 @@
         ],
         "additionalProperties": false
       }
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "before": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "presence": {
+                "type": "number"
+              },
+              "nullRate": {
+                "type": "number"
+              },
+              "magnitude": {
+                "type": "number"
+              },
+              "lengthP50": {
+                "type": "number"
+              },
+              "enumValues": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "arrayMax": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "presence",
+              "nullRate"
+            ],
+            "additionalProperties": false
+          },
+          "after": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "presence": {
+                "type": "number"
+              },
+              "nullRate": {
+                "type": "number"
+              },
+              "magnitude": {
+                "type": "number"
+              },
+              "lengthP50": {
+                "type": "number"
+              },
+              "enumValues": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "arrayMax": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "presence",
+              "nullRate"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "samples": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": "number"
+        },
+        "after": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "before",
+        "after"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

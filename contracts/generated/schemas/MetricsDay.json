@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string"
+    },
+    "buckets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string"
+          },
+          "calls": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "p95Ms": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "drifts": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "start",
+          "calls",
+          "p95Ms",
+          "drifts"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "date",
+    "buckets"
+  ],
+  "additionalProperties": false
+}

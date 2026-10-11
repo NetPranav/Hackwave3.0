@@ -29,7 +29,7 @@ export default (app: Probot, opts: ApplicationFunctionOptions) => {
     }
   }
 
-  internalRoutes(app, opts);
+  internalRoutes(app, opts, scan);
   watchFixPrs(app);
   watchFixCi(app);
 
@@ -80,7 +80,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
 const send = (res: ServerResponse, code: number, body: unknown) => { res.statusCode = code; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(body)); };
 
 /** Backend -> GitHub App calls (P5.5): read aliases.json, open a fix PR. */
-export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
+export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions, scan?: (octokit: unknown, owner: string, repo: string, ref: string, sha: string) => Promise<void>) {
   type Handler = (req: IncomingMessage, res: ServerResponse) => unknown;
   const routes = new Map<string, Handler>();
   const router = { post: (path: string, h: Handler) => void routes.set(path, h) };
@@ -128,6 +128,33 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
       const kit = await app.auth();
       const r = await kit.request('GET /app/installations', { per_page: 100 });
       return send(res, 200, { installations: (r.data as { id: number; account: { login?: string } | null }[]).map((i) => ({ id: i.id, account: i.account?.login ?? '' })) });
+    } catch (e) { return send(res, 500, { error: String(e) }); }
+  });
+  // v2-P2.2: every installation with its repositories (onboarding lists them)
+  router.post('/internal/repos', async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
+    try {
+      const appKit = await app.auth();
+      const insts = (await appKit.request('GET /app/installations', { per_page: 100 })).data as { id: number; account: { login?: string } | null }[];
+      const out = await Promise.all(insts.map(async (i) => {
+        const kit = await app.auth(i.id);
+        const r = await kit.request('GET /installation/repositories', { per_page: 100 });
+        return { id: i.id, account: i.account?.login ?? '', repos: (r.data as { repositories: { full_name: string }[] }).repositories.map((x) => x.full_name) };
+      }));
+      return send(res, 200, { installations: out });
+    } catch (e) { return send(res, 500, { error: String(e) }); }
+  });
+  // v2-P2.3: rescan a repository's default branch now (the scan runs in the background; the code map is posted to the backend)
+  router.post('/internal/scan', async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
+    try {
+      if (!scan) return send(res, 501, { error: 'scan not available' });
+      const b = (await readJson(req)) as { repo: string };
+      const { owner, name, kit } = await octokitFor(b.repo);
+      const branch = (await kit.rest.repos.get({ owner, repo: name })).data.default_branch;
+      const sha = (await kit.rest.repos.getBranch({ owner, repo: name, branch })).data.commit.sha;
+      setImmediate(() => void scan(kit, owner, name, branch, sha));
+      return send(res, 202, { started: true, branch, sha });
     } catch (e) { return send(res, 500, { error: String(e) }); }
   });
   // P8.5: demo reset, repo side (DEMO_REPO only)

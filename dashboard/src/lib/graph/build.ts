@@ -1,22 +1,20 @@
 // Builds the dependency graph from the shared mocks: service → endpoint → field → code → workflow.
 // A change on a field turns its whole downstream path the same colour.
 
-import { UNRESOLVED_READS, sitesFor } from "@/lib/mock/codemap";
-import { SERVICES_STATUS_DATA } from "@/lib/mock/status";
-import { TIMELINE_EVENTS, type TimelineDriftEvent } from "@/lib/mock/timeline";
+import type { TimelineDriftEvent, TimelineItem } from "@/lib/mock/timeline";
 import {
   STATE_RANK,
   type BuiltGraph,
+  type GraphData,
   type GraphLink,
   type GraphNode,
   type GraphNodeType,
   type GraphState,
 } from "./types";
 
-const drifts = TIMELINE_EVENTS.filter((i): i is TimelineDriftEvent => i.type !== "deploy");
-
-function serviceState(slug: string): GraphState {
-  const events = drifts
+function serviceState(timeline: TimelineItem[], slug: string): GraphState {
+  const events = timeline
+    .filter((i): i is TimelineDriftEvent => i.type === "drift" && i.state !== "resolved")
     .filter((e) => e.serviceSlug === slug && e.severity !== "info")
     .sort((a, b) => (a.severity === "breaking" ? 0 : 1) - (b.severity === "breaking" ? 0 : 1));
   const event = events[0];
@@ -24,7 +22,8 @@ function serviceState(slug: string): GraphState {
   return event.state === "fix_pending" ? "fix" : event.severity === "breaking" ? "breaking" : "suspected";
 }
 
-export function buildGraph(): BuiltGraph {
+export function buildGraph(d: GraphData): BuiltGraph {
+  const sitesFor = d.sitesFor;
   const nodes = new Map<string, GraphNode>();
   const links: GraphLink[] = [];
 
@@ -38,10 +37,22 @@ export function buildGraph(): BuiltGraph {
     nodes.set(full.id, full);
     return full;
   };
-  const link = (source: string, target: string, state: GraphState) => links.push({ source, target, state });
+  const linkIndex = new Map<string, GraphLink>();
+  // one link per pair: a code line can read several fields of the same response
+  const link = (source: string, target: string, state: GraphState) => {
+    const key = source + ">" + target;
+    const existing = linkIndex.get(key);
+    if (existing) {
+      if (STATE_RANK[state] < STATE_RANK[existing.state]) existing.state = state;
+      return;
+    }
+    const l = { source, target, state };
+    linkIndex.set(key, l);
+    links.push(l);
+  };
 
-  for (const svc of SERVICES_STATUS_DATA) {
-    const state = serviceState(svc.slug);
+  for (const svc of d.services) {
+    const state = serviceState(d.timeline, svc.slug);
     const serviceId = "svc:" + svc.slug;
     add({ id: serviceId, type: "service", label: svc.name, state, cluster: svc.slug, weight: svc.callsPerMin, ref: { serviceSlug: svc.slug } });
 
@@ -76,6 +87,7 @@ export function buildGraph(): BuiltGraph {
           const name = site.file.split("/").pop() ?? site.file;
           add({ id: codeId, type: "code", label: name + ":" + site.line, state: fieldState, cluster: svc.slug, weight: 1, ref: { serviceSlug: svc.slug, endpointId: ep.id, field: f.path, file: site.file, line: site.line } });
           link(fieldId, codeId, fieldState);
+          if (!site.workflow) continue; // code outside any declared workflow (seismo.workflows.yml)
           const wfId = "wf:" + site.workflow;
           add({ id: wfId, type: "workflow", label: site.workflow, state: fieldState, cluster: svc.slug, weight: 1, ref: { serviceSlug: svc.slug } });
           link(codeId, wfId, fieldState);
@@ -99,9 +111,10 @@ export function buildGraph(): BuiltGraph {
     links,
     out,
     inn,
+    data: d,
     meta: {
       mappedReads: count("code"),
-      unresolvedReads: UNRESOLVED_READS.length,
+      unresolvedReads: d.unresolvedReads.length,
       counts: { service: count("service"), endpoint: count("endpoint"), field: count("field"), code: count("code"), workflow: count("workflow") },
     },
   };

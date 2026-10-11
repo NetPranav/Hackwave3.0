@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { ApiError } from './common.js';
 import { Graph, Installation, Coverage } from './graph.js';
-import { StatusResponse, Overview, Me } from './status.js';
-import { DriftEvent, ReviewItem, ReviewAction, RadarItem, NotificationSettings, Compare, SimulateRequest, SimulateResult } from './drift.js';
+import { CodeMapView } from './codemap.js';
+import { StatusResponse, Overview, Me, Metrics } from './status.js';
+import { Notification, DriftEvent, ReviewItem, ReviewAction, RadarItem, NotificationSettings, Compare, SimulateRequest, SimulateResult } from './drift.js';
 import { Fingerprint } from './fingerprint.js';
 import { Scenario, ServiceVersions, RolloutRequest } from './fake-services.js';
 
@@ -15,6 +16,10 @@ export const ROUTES: Route[] = [
   { method: 'get', path: '/v1/graph', summary: 'Dependency graph', response: Graph, auth: 'user' },
   { method: 'get', path: '/v1/graph/impact', summary: 'Upstream/downstream path of a node (query: node)', response: Graph, auth: 'user' },
   { method: 'get', path: '/v1/installations', summary: 'Installations, repos and scan progress', response: z.array(Installation), auth: 'user' },
+  { method: 'get', path: '/v1/metrics', summary: 'Calls, p95 latency and drift events per 6 h bucket, last 7 days (overview chart)', response: Metrics, auth: 'user' },
+  { method: 'get', path: '/v1/codemap', summary: 'Merged code maps: call sites, field reads (with source line) and workflows', response: CodeMapView, auth: 'user' },
+  { method: 'post', path: '/v1/repos/{owner}/{repo}/scan', summary: 'Rescan a repository now (only repos of your installations; 202)', response: Ok, auth: 'user' },
+  { method: 'post', path: '/v1/repos/{owner}/{repo}/setup-pr', summary: 'Open the one-time setup PR (withAliases wrappers + seismo/aliases.json)', response: z.object({ url: z.string(), number: z.number(), created: z.boolean(), wrapped: z.number() }), auth: 'user' },
   { method: 'get', path: '/v1/coverage', summary: 'Mapping coverage numbers', response: Coverage, auth: 'user' },
   { method: 'get', path: '/v1/status', summary: 'API status layer', response: StatusResponse, auth: 'user' },
   { method: 'get', path: '/v1/drift-events', summary: 'Timeline of drift events', response: z.array(DriftEvent), auth: 'user' },
@@ -25,6 +30,8 @@ export const ROUTES: Route[] = [
   { method: 'post', path: '/v1/simulate', summary: 'Simulate a scenario against the code map', request: SimulateRequest, response: SimulateResult, auth: 'user' },
   { method: 'get', path: '/v1/settings/notifications', summary: 'Notification settings', response: NotificationSettings, auth: 'user' },
   { method: 'put', path: '/v1/settings/notifications', summary: 'Update notification settings', request: NotificationSettings, response: NotificationSettings, auth: 'user' },
+  { method: 'get', path: '/v1/notifications', summary: 'What Seismo sent (newest first, max 500)', response: z.array(Notification), auth: 'user' },
+  { method: 'post', path: '/v1/notifications/read', summary: 'Mark notifications read (body {ids?}; none = all)', response: Ok, auth: 'user' },
   { method: 'post', path: '/v1/notifications/test', summary: 'Send a test notification', response: Ok, auth: 'user' },
   { method: 'get', path: '/v1/projects', summary: 'Projects the signed-in user owns (one per deployment in the MVP)', response: z.array(z.object({ id: z.string(), owner: z.string() })), auth: 'user' },
   { method: 'get', path: '/v1/projects/{id}/keys', summary: 'SDK key ids of a project (owner only; keys themselves are never returned)', response: z.array(z.object({ id: z.string(), createdAt: z.string(), revoked: z.boolean() })), auth: 'user' },

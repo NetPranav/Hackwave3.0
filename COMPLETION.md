@@ -1,11 +1,82 @@
 # COMPLETION.md: what is built, what is verified, what is left
 
-Status on **2026-10-11** (Day 1 of 14), branch `netpranav` (updated after P6, P7, P5.3/5.6/5.10, restart safety and P8 groundwork).
-Everything below was checked by running the code, not by reading the plan. "Verified" means a test or a live run in this repo proves it; claims without proof are marked as such.
+Two parts:
+- **v2 (after the merge):** the current plan. It joins the dashboard, GitHub login and the engine into one working product. Plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md). Everything starts unchecked and is ticked only with proof.
+- **Before merge (v1):** everything built up to the merge of PR #4 (engine) and PR #5 (dashboard) into `main` on 2026-10-11. Git tag `before-merge`. IDs there are written v1-P… / v1-A….
 
 ---
 
-## 1. How it was verified
+## v2 checklist (after the merge)
+
+### NetPranav
+
+Legend: [x] done and verified (how is in brackets) · [~] built, not yet proven live · [ ] not started.
+
+**v2-P0 · Operational foundation**
+- [~] P0.1 `npm run dev` also starts the dashboard; fixed the fake providers and GitHub App ports, exports `GITHUB_APP_URL`/`BACKEND_URL`. Each process was verified separately on free ports (4050/4160/3060/3100) because 3000/4000 are used by another project on this Mac; **the script as a whole has not been run yet**. Lesson from the live run: a GitHub App started without `BACKEND_URL` posts code maps and CI results to whatever listens on :4000
+- [x] P0.2 `scripts/dev/dashboard-env.sh` (also run by `npm run setup`) writes the git-ignored `dashboard/.env.local` (ran it; `git check-ignore` confirms)
+- [x] P0.3 Data layer: `/api/seismo/[...path]` proxy, `lib/api/{types,live,adapt,data,settings}`, one EventSource, `useLive()` with polling fallback (curl + headless browser: `/v1/*` via the proxy, SSE `hello` through it)
+- [x] P0.4 `NEXT_PUBLIC_USE_MOCKS=1` returns the old mocks from the same hooks (typecheck; mock path keeps the original constants)
+- [x] P0.5 Dashboard `lint`, `typecheck`, `build` green
+
+**v2-P1 · GitHub sign-in and sessions**
+- [~] P1.1 Auth.js v5 (5.0.0-beta.32) with the GitHub App's OAuth (callback `/api/auth/callback/github` registered for port 3000). Sessions proven with a session cookie minted from `AUTH_SECRET`; **the real GitHub OAuth round trip is not yet clicked through** (port 3000 is busy on this Mac)
+- [x] P1.2 `proxy.ts` sends signed-out `/app/*` and `/onboarding` to `/login?callbackUrl=…` (307 verified); `/login` page; sign-out in the user menu
+- [x] P1.3 Token bridge: session → 5 min HS256 JWT `{sub: login}`; `/api/seismo/v1/me` returns `NetPranav` with installation `170203588`; `/internal/*` is not reachable through the proxy (404)
+- [x] P1.4 User menu (avatar, login, sign out), LIVE / OFFLINE / MOCK badge from the event stream (screenshots)
+
+**v2-P2 · Install and map**
+- [x] P2.1 `/v1/me` returns `appSlug` + `installUrl`; onboarding shows "Install on GitHub" when nothing is installed
+- [x] P2.2 `/v1/installations` lists the signed-in account's installations with repos and scan state (live: `NetPranav/seismo-demo-shop` → mapped)
+- [x] P2.3 `POST /v1/repos/{owner}/{repo}/scan` and `/setup-pr` (own repos only, 404 otherwise; tested with a fake GitHub client). **Live rescan** of the shop through the dashboard: commit `1bdc697`, 11/11 field reads with their source line. The setup PR was not pressed on the shop (already wired by hand)
+- [x] P2.4 Graph from the real code map: 4 APIs → 5 calls → fields → 9 code locations → 3 features (screenshot)
+
+**v2-P3 · Live data on every screen**
+- [x] P3.1 Overview (KPIs, services table, 7-day chart from new `/v1/metrics`) (screenshot with live traffic)
+- [x] P3.2 API Status with real per-field statistics (new `fields` in `/v1/compare`) (screenshot)
+- [x] P3.3 Timeline (live 3 h window, radar items, scan markers) and drift detail (real AI explanation, evidence, usages with source line + GitHub link) (screenshots after a live flip)
+- [x] P3.4 Fixes from real events: PR #3 with C1–C6 passed (screenshot)
+- [~] P3.5 Review queue and Compare & Simulate wired (`/v1/review`, `/v1/compare`; simulate runs on the real code map); no live review item exercised yet
+- [~] P3.6 Settings load/save `/v1/settings/notifications`, WhatsApp number, real test send, SDK keys card (screenshot of the loaded settings; **no WhatsApp number saved yet**)
+- [~] P3.7 Bell from `notification` SSE + `/v1/notifications` (wired; not yet seen with an item in the browser)
+- [x] P3.8 Empty states on Status, Timeline, Fixes, Graph, Compare say what to do next (never mock data)
+
+**v2-P4 · Actions**
+- [~] P4.1 Review actions call `POST /v1/review` (expected / snooze / open_pr / new `reopen` for undo); not yet clicked live
+- [x] P4.2 Demo Control `/app/demo` via `/api/demo/*` holding `DEMO_ADMIN_TOKEN` server-side (curl: toggle on/off works; 401 without a session)
+- [~] P4.3 Radar items are in `useSeismoData().raw.radar` and on the timeline; the radar page itself is Adarsh's (v2-A0)
+
+**v2-P5 · Live end-to-end on GitHub**
+- [~] P5.1 App installed on the shop (verified via `/v1/me` and `/internal/repos`); the shop is already wired by hand, so the setup PR is not needed for it
+- [~] P5.2 Traffic sent through the real SDK by a local runner against the fake providers (not yet from the running shop)
+- [~] P5.3 **Rename → alias PR `NetPranav/seismo-demo-shop#3` opened live with C1–C6 passed, GitHub issues #1/#2 created.** On GitHub the shop CI and the Seismo safety check passed, but the engine still says `ci: pending`: that GitHub App run had no `BACKEND_URL`, so the `check_suite` result went to the wrong port. To finish: redeliver that webhook (GitHub App settings → Advanced → Recent deliveries) or re-run the PR's CI, then merge → resolved; WhatsApp received
+- [ ] P5.4 Playwright smoke test
+
+Access: every `/v1` route (and Demo Control) is owner-only; other signed-in accounts get 403 (verified live with a second login). Set `SEISMO_PROJECT_OWNERS=NetPranav,adarzhpathade` so both of you can sign in; without it the first person who signs in owns the project.
+
+Found and fixed while doing this (live): D2 required a field to be completely absent from the baseline, so a few leaked responses hid a rename for 24 h (now ≤ 5%, test added); a D3 rename now closes the earlier D1 "field removed" on the same field (test added); a failed smee.io connection crashed the GitHub App (now retries); `/v1/me` hit GitHub on every page (30 s cache).
+
+**v2-P6 · Deploy and launch**
+- [ ] P6.1 Backend + GitHub App hosted, Postgres
+- [ ] P6.2 Dashboard on Vercel, production callback URL
+- [ ] P6.3 Public GitHub App; install-from-scratch test **by an owner of the deployment** (one deployment = one project: other accounts get 403 everywhere, see below)
+- [ ] P6.4 Sentry + uptime ping
+- [ ] P6.5 Rehearsals, backup video, final merge, tag `v1.0`
+
+### Adarsh
+
+- [ ] A0 Missing screens: radar, landing, login design, onboarding design, 404/error, mobile nav
+- [ ] A1 Polish every screen on live data
+- [ ] A2 Tests (Vitest graph, Playwright main paths)
+- [ ] A3 Landing final, backup video, rehearsal
+
+---
+
+## Before merge (v1) · tag `before-merge`
+
+Status on **2026-10-11**, merged into `main` by PR #4 and PR #5. Everything below was checked by running the code, not by reading the plan.
+
+### v1 · 1. How it was verified
 
 | Check | Result |
 |---|---|
@@ -25,7 +96,7 @@ Everything below was checked by running the code, not by reading the plan. "Veri
 
 ---
 
-## 2. Defects the verification found and fixed (all in this commit range)
+### v1 · 2. Defects the verification found and fixed (all in this commit range)
 
 | # | Defect | Impact if shipped | Fix |
 |---|---|---|---|
@@ -51,7 +122,7 @@ Everything below was checked by running the code, not by reading the plan. "Veri
 
 ---
 
-## 3. What happens for each kind of API change (verified end to end)
+### v1 · 3. What happens for each kind of API change (verified end to end)
 
 **The rule that never changes:** no code is generated or pasted, by us or by the AI. The only automatic fix is a **data rule** (one JSON object) appended to `seismo/aliases.json` in the customer's repo through a pull request that a human merges. That rule is applied by one small audited function, `applyAliases` from `@seismo/sdk/runtime`, which can only **add** a missing field from another field (the old name always wins, it never changes or deletes anything). Everything that is not a rename becomes a **review item** for a human.
 
@@ -70,7 +141,7 @@ Everything below was checked by running the code, not by reading the plan. "Veri
 | endpoint starts returning 404 (engine test) | **D17** "endpoint appears to be gone" | Review | Dependency disappeared |
 | 429s become common / rate-limit header changes (detector test) | **D12** | Review | Behaviour change |
 
-### The limit cap (500 → 100), concretely
+#### The limit cap (500 → 100), concretely
 1. **Detection (D9, built and verified):** the SDK sends the request's own `limit` (a customer-chosen parameter, not response data) and the array length sketch of the response. D9 fires when a new array-length maximum M is below the baseline maximum, at least 30 % of responses are exactly M, and the request asked for more than M. Evidence shown: *"asked 500, got exactly 100 in 64 % of calls"*.
 2. **Severity:** joined with the code map. The call site with `limit=500` (`lib/api.ts`) and every read of `data[]` are listed with file:line; a truncated list that feeds totals (`orders.reduce`) is arithmetic → high impact.
 3. **No automatic fix, by design.** `applyAliases` works on *responses*; a cap is fixed on the *request side* (loop over pages), which is code. Seismo never writes code. The review card carries a **fixed, pre-written template** (not AI text): *"The provider now returns at most 100 items per request. Request pages until a page comes back with fewer than 100 items (or an empty page), then merge the results."* plus the call site to change. A human makes the change.
@@ -78,11 +149,11 @@ Everything below was checked by running the code, not by reading the plan. "Veri
 
 ---
 
-## 4. P-series (NetPranav)
+### v1 · 4. P-series (NetPranav)
 
 Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done · ⏳ written but needs an external account/repo to prove live · ❌ not started
 
-### P0 · Foundation
+#### P0 · Foundation
 | ID | Task | Status | Evidence / what is missing |
 |---|---|---|---|
 | P0.0 | Contract skeletons + mock generator | ✅ | `contracts/src`, `contracts/generated/openapi.json` (22 routes), mock data validated against the schemas; request #3 sent to Adarsh |
@@ -102,7 +173,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | S4 Twilio | ❌ | Credentials in `.env`; `TWILIO_TO` (your WhatsApp number) missing |
 | S5 Node host | ❌ | Needs your hosting account |
 
-### P1 · Demo world
+#### P1 · Demo world
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P1.1 payloads + seed data | ✅ | Indian names, ₹ prices; 8 scenarios in `SCENARIOS` |
@@ -110,7 +181,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P1.3 per-provider `openapi.json` + `/changelog` (HTML + RSS) | ✅ | tested |
 | P1.8 traffic generator | ✅ (not run against a real shop) | `npm run demo:traffic` |
 
-### P2 · See your APIs
+#### P2 · See your APIs
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P2.1 contracts | ✅ | codemap, graph, installations |
@@ -120,7 +191,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P2.5 graph API, impact, installations, SSE `graph.updated` | ✅ | tested; installations derived from stored scans (scan progress is "done" only) |
 | P2.8 coverage numbers | ✅ | incl. unresolved count |
 
-### P3 · Watch live traffic
+#### P3 · Watch live traffic
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P3.1 contracts | ✅ | fingerprint v1 (status class split) |
@@ -132,7 +203,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P3.7 SDK in the shop | ✅ | Done directly in the shop (lead's request): `instrumentation.ts` + `withAliases`; verified live inside Next.js |
 | P3.8 privacy + fail-open tests | ✅ | secrets never on the wire; backend down → app unaffected |
 
-### P4 · Catch a rename
+#### P4 · Catch a rename
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P4.1 contracts | ✅ | drift-event, notification |
@@ -143,7 +214,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P4.6 notifications: dashboard SSE + **GitHub issue** | ✅ | SSE events emitted. One GitHub issue per drift event, found again by a hidden marker and updated on each state change (opened → fix pending → resolved): `alerts/dispatcher.ts` + `github-app/src/issues.ts`, tested in `p6.test.ts`/e2e. Live issue needs the app installed |
 | P4.9 soak | ✅ | e2e soak: 0 events |
 
-### P5 · Fix it safely
+#### P5 · Fix it safely
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P5.1 contracts | ✅ | alias-spec, fix-request, validation-result |
@@ -156,7 +227,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P5.10 suggestion PR for units | ✅ | Only when a human clicks "Open PR" on a D5 review card: one `scale` rule (÷ factor), branch `seismo/scale-*`, label `needs-review`, never merged by Seismo. Applied by a separate `applyTransforms` (T1 identity, T2 only the named number changes by the exact factor, T3 never throws; property-tested). Shop test: ₹49,900 → ₹499 only with the rule |
 | P5.11 cleanup PR | ❌ | Later |
 
-### P6 · Meaning changes, AI, alerts
+#### P6 · Meaning changes, AI, alerts
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P6.1 contracts | ✅ | `AiExplanationBody` (what the model must return), `AiJudgement`, `AiExplanation`, `ReviewItem` (+reason), `Notification` (+title, error, read), per-channel thresholds, `Compare`/`FieldDiff`, typed `SimulateRequest` |
@@ -171,7 +242,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P6.12 webhook drift | ✅ | `seismo.observeWebhook()` / `seismo.webhook()` in the SDK, tested; the fake payments provider does not send webhooks yet |
 | P6.13 notification settings API | ✅ | GET/PUT validated, persisted in Postgres (`settings` table), test-send |
 
-### P7 · Radar
+#### P7 · Radar
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P7.1 contract + registry | ✅ | `RadarItem` (change type, date, verbatim quote, matched files, severity, suggestion, extractor, linked drift event), `AnnouncedChange`; registry = the four fake providers. Real public feeds not added (URLs need verifying) |
@@ -180,7 +251,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P7.4 matcher | ✅ | Change → call sites and field reads in the code map → `matchedFiles`, severity capped at warning (announced, not happening), template suggestion. DoD verified: announcement on the orders changelog → item naming `lib/api/orders.ts:4` **before** the flip |
 | P7.6 alerts | ✅ | New items go through the same dispatcher (info → dashboard only); `Sunset`/`Deprecation` headers (D13) appear on the radar with their date |
 
-### P8 · Launch
+#### P8 · Launch
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P8.2 production environment | 🟡 | `Dockerfile` (one image, all processes, 1.15 GB) **built**; `docker-compose --profile full up` verified: Postgres healthy, migrations applied in the container, backend `/ready` OK, providers healthy, GitHub App reached the real GitHub API. Host ports configurable (`BACKEND_PORT`, …). No host chosen (S5) |
@@ -192,30 +263,26 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 
 ---
 
-## 5. A-series (Adarsh, `adarzhpathade`)
+### v1 · 5. A-series (Adarsh, `adarzhpathade`), as merged in PR #5
 
-Checked on GitHub: `origin/adarzhpathade` contains **no `dashboard/`** (the merge of his old branch was reverted). The old branch `origin/chore/dashboard-design-system` has a Next.js scaffold with the design system. **`NetPranav/seismo-demo-shop` now exists** (created by NetPranav's Claude on the lead's request, 2026-10-11).
+Source: `dashboard/COMPLETION.md` (Adarsh's own report) and the merged code; `lint`, `typecheck` and `build` were re-run on the merge of both branches (all green). **Every screen runs on mock data**; none is connected to the engine yet (that is v2).
 
 | Phase | Status | Notes |
 |---|---|---|
-| A0 foundation | 🟡 | A0.1 scaffold + design system exist on the old branch only; GitHub login, A0.2 graph spike, A0.3 shell, A0.4 mock layer, A0.5 CI: not started |
-| A1 demo shop, Demo Control, Compare v1 | 🟡 | **A1.1 done** (shop with checkout, invoice, orders; SDK wired in `instrumentation.ts`; `withAliases` in every client; `seismo.config.json`, `seismo.workflows.yml`, `seismo/aliases.json` + `aliases.test.ts`), **A1.5 done** (CI green). A1.2 breakage is visible (blank name, "Billed to —", ₹ amounts) but not styled; A1.3 Demo Control and A1.4 Compare UI are dashboard work |
-| A2 onboarding + graph | ❌ | APIs ready: `/v1/graph`, `/v1/graph/impact`, `/v1/coverage`, `/v1/installations` |
-| A3 status page | ❌ | APIs ready: `/v1/status`, `/v1/overview`, SDK keys |
-| A4 timeline + drift | ❌ | APIs ready: `/v1/drift-events`, SSE `drift.created/updated` |
-| A5 fix panel | 🟡 | A5.2 shop test (name blank on v2 without the rule, back with it) and A5.3 manual `withAliases` wiring are done in the shop; the panel UI is not |
-| A6 review + settings | ❌ | `/v1/review` ready; Compare & Simulate API not yet (P6.10) |
-| A7 radar UI | ❌ | waits for P7 |
-| A8 landing + launch | ❌ | — |
+| A0 foundation | ✅ (no login) | Next.js 16.4, design system, app shell, motion nav, shared UI. **GitHub login not built** (moved to v2-P1) |
+| A1 demo shop, Demo Control, Compare v1 | 🟡 | Shop done (by NetPranav's Claude, see v1 decision); Demo Control not built; Compare UI built on mocks (A6) |
+| A2 onboarding + graph | 🟡 | Flow-diagram graph `/app/graph` (~80%) on mocks; onboarding not built |
+| A3 status page | 🟡 | Overview `/app` and API Status `/app/status` on mocks (~90%); SDK keys UI missing |
+| A4 timeline + drift | 🟡 | `/app/timeline`, `/app/drift/[id]` on mocks (~85%); bell not built |
+| A5 fix panel | 🟡 | `/app/fixes` on mocks (~95%) |
+| A6 review + settings | 🟡 | `/app/review`, `/app/settings`, `/app/compare` on mocks |
+| A7 radar UI | ❌ | Not built |
+| A8 landing + launch | 🟡 | `/docs/sdk` built; landing `/` is a placeholder |
 
-**Most urgent for the team:** install `seismo-app` on `seismo-demo-shop` (lead), and Adarsh builds the dashboard against the now-real APIs.
-
----
-
-## 6. Known limitations (honest list)
+### v1 · 6. Known limitations (honest list)
 
 1. **State:** drift events, SDK keys, settings, fingerprints and code maps are in Postgres. Still in memory: the alert log, radar items and the AI cache (file cache optional), so a restart can resend a radar alert.
-2. **Single project:** all ingested data is read as project `dev`; multi-project scoping and key ownership checks are missing.
+2. **Single project per deployment** (`SEISMO_PROJECT`); key ownership and the ingest rate limit exist (v1-P3.4), several projects per deployment do not.
 3. **`/v1/me`** matches installations by account login only (organisation membership is not checked).
 4. **`applyAliases` without an endpoint applies every rule to every response.** Still additive and safe (G1–G4), but the setup PR / manual wiring must pass the endpoint (`applyAliases(body, rules, 'GET /users/{id}')`).
 5. **SDK + Next.js:** Next.js patches `fetch` too; call `seismo.init()` once in server start-up (instrumentation file) so our wrapper sees the calls. The `node:http` path still relies on the interceptor library: init before the first outbound request.
@@ -227,10 +294,6 @@ Checked on GitHub: `origin/adarzhpathade` contains **no `dashboard/`** (the merg
 11. **Alerts run in-process** (not pg-boss jobs): a backend crash mid-send loses that alert.
 12. **Rotate the NVIDIA key** after the hackathon (it was pasted in chat).
 
-## 7. What is needed to continue
+### v1 · 7. What was needed to continue (superseded)
 
-| From | What |
-|---|---|
-| NetPranav | In the GitHub App settings tick the **Check suite** event (for C7/C8). **Install `seismo-app` on `seismo-demo-shop`** (https://github.com/apps/seismo-app/installations/new); add `TWILIO_TO=whatsapp:+91…` (and join the sandbox); optional `SLACK_WEBHOOK_URL`, `RESEND_API_KEY`, `ALERT_EMAIL_TO`; choose a host (S5); merge the `netpranav` → `main` PR |
-| Adarsh | Switch to `adarzhpathade`; A0 shell + mock layer; **create `seismo-demo-shop` (A1.1)** |
-| Then (NetPranav's Claude) | Live: setup PR check, scan, alias PR, CI → C7/C8, real WhatsApp; Docker image build; deploy to the chosen host; public app (P8.3) |
+Done since: PR #4 and PR #5 merged, the Check suite event ticked, Twilio credentials added. Open items moved into the v2 checklist above (install on the shop → v2-P5.1, WhatsApp number → v2-P3.6 in Settings, host → v2-P6.1).

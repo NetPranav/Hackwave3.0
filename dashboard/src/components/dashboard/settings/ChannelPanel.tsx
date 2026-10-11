@@ -188,6 +188,7 @@ export default function ChannelPanel({ meta, config, onChange }: ChannelPanelPro
       <div className="border-t border-box-outline px-5 py-4 dark:border-dark-border md:px-6">
         <TestSend
           channelName={displayName}
+          channels={meta.id === "chat" ? [config.chatProvider === "discord" ? "discord" : "slack"] : [meta.id]}
           disabled={!config.enabled || !ready}
           disabledReason={!config.enabled ? "Turn the channel on to send a test." : "Finish the setup above to send a test."}
         />

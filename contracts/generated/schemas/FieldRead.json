@@ -29,6 +29,10 @@
     },
     "money": {
       "type": "boolean"
+    },
+    "snippet": {
+      "type": "string",
+      "maxLength": 160
     }
   },
   "required": [

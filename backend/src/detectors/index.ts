@@ -37,12 +37,15 @@ export const d1Missing: Detector = (base, win, ctx) => {
   }));
 };
 
-/** D2: a field that was never there now shows up in most responses. */
+/**
+ * D2: a field that was (almost) never there now shows up in most responses. "Almost": a few stray responses in the
+ * baseline (a rollout that started early, a reset racing in-flight batches) must not hide a rename for 24 h (mirror of D1's 5%).
+ */
 export const d2New: Detector = (base, win, ctx) => {
   if (base.statusClass !== '2xx' || win.samples < ctx.minSamples) return [];
-  return Object.entries(win.fields).filter(([p, f]) => !base.fields[p] && f.presence >= 0.5 && !isContainer(win, p)).map(([p, f]) => ({
+  return Object.entries(win.fields).filter(([p, f]) => (base.fields[p]?.presence ?? 0) <= 0.05 && f.presence >= 0.5 && !isContainer(win, p)).map(([p, f]) => ({
     ...where(base), detector: 'D2', field: p, confidence: 0.8, title: `New field: ${p}`, rung: 'review' as const,
-    evidence: { before: { presence: 0 }, after: { presence: round(f.presence) } }, exposure: 0,
+    evidence: { before: { presence: round(base.fields[p]?.presence ?? 0) }, after: { presence: round(f.presence) } }, exposure: 0,
   }));
 };
 

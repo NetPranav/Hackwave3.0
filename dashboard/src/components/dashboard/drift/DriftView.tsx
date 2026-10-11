@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Card } from "@/components/dashboard/Card";
-import { DRIFT_DETAILS_MAP } from "@/lib/mock/drift";
+import { useSeismoData } from "@/lib/api/data";
+import PageFallback from "@/components/dashboard/PageFallback";
 import DriftHero from "./DriftHero";
 import EvidenceCard from "./EvidenceCard";
 import DiagnosisCard from "./DiagnosisCard";
@@ -11,10 +14,10 @@ function NoDetail() {
   return (
     <Card className="px-5 py-12 text-center">
       <p className="font-aeonik text-base font-medium text-text-primary dark:text-white">
-        No inspector data for this event yet
+        This change is not in the engine
       </p>
       <p className="mt-1 font-aeonik-light text-sm text-text-primary/60 dark:text-white/60">
-        Only a few mock events have a full detail view. The real API will cover them all.
+        It may have been cleared by a demo reset, or the link is wrong.
       </p>
       <Link
         href="/app/timeline"
@@ -28,7 +31,9 @@ function NoDetail() {
 
 /** One drift event as a single story: what changed, why, what it touches, what to do. */
 export default function DriftView({ id }: { id: string }) {
-  const drift = DRIFT_DETAILS_MAP[id];
+  const data = useSeismoData();
+  const drift = data.driftDetail(id);
+  if (!drift && data.loading) return <PageFallback label="Loading the change" />;
 
   return (
     <main className="mx-auto max-w-[1440px] space-y-6 px-6 py-6 md:px-10 lg:px-16">

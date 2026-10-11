@@ -83,7 +83,30 @@ export function compare(fps: Fingerprint[], service: string, endpoint: string, w
     }
     for (const p of Object.keys(b.fields)) if (!Object.hasOwn(w.fields, p) && b.fields[p]!.presence >= 0.95) diff.push({ path: p, change: 'removed', before: dominant(b.fields[p]!.types) });
   }
-  return { service, endpoint, v1: synthesize(b), v2: synthesize(recent.length && older.length ? w : undefined), diff };
+  const hasAfter = recent.length > 0 && older.length > 0;
+  const paths = [...new Set([...Object.keys(b?.fields ?? {}), ...(hasAfter ? Object.keys(w?.fields ?? {}) : [])])].sort();
+  const fields = paths.map((p) => ({
+    path: p,
+    ...(b && Object.hasOwn(b.fields, p) ? { before: profile(b.fields[p]!) } : {}),
+    ...(hasAfter && w && Object.hasOwn(w.fields, p) ? { after: profile(w.fields[p]!) } : {}),
+  }));
+  return { service, endpoint, v1: synthesize(b), v2: synthesize(hasAfter ? w : undefined), diff, fields, samples: { before: b?.samples ?? 0, after: hasAfter ? (w?.samples ?? 0) : 0 } };
+}
+
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+/** Field statistics for the dashboard: types, format class, magnitude, allow-listed labels. Never a record value. */
+function profile(f: FieldBaseline) {
+  const mag = dominant(f.mag);
+  const labels = Object.keys(f.enumValues);
+  return {
+    type: dominant(f.types) ?? 'unknown',
+    ...(dominant(f.fmt) ? { format: dominant(f.fmt) } : {}),
+    presence: r3(f.presence), nullRate: r3(f.nullRate),
+    ...(mag !== undefined ? { magnitude: Number(mag) } : {}),
+    ...(f.lenP50 !== undefined ? { lengthP50: Math.round(f.lenP50) } : {}),
+    ...(labels.length ? { enumValues: labels.slice(0, 20) } : {}),
+    ...(f.arrayLenMax !== undefined ? { arrayMax: f.arrayLenMax } : {}),
+  };
 }
 
 const DETECTOR: Record<SimulateRequest['scenario']['kind'], { detector: string; rung: 'alias' | 'review'; title: (s: SimulateRequest['scenario']) => string }> = {

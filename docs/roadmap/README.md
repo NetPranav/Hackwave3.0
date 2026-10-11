@@ -1,5 +1,7 @@
 # Seismo engine roadmap
 
+> **v1 plan, done and merged (tag `before-merge`).** The current plan is [**v2: integration**](v2/README.md). IDs below are now written v1-P…/v1-A….
+
 The build plan for the whole system, from an empty repo to a published GitHub App and a live demo. It replaces the 10-day plan in [`../PS/roadmap-demo.md`](../PS/roadmap-demo.md) §1. The **why** lives in [`../PS/`](../PS/README.md); this folder is the **what, in which order, by whom**.
 
 > **Rule for every phase: when a phase is done, one feature works end to end and can be demoed.** Phases are vertical slices (data → engine → UI), not layers. We never have "a backend with no screen" or "a screen with no data" for more than a day.

@@ -65,7 +65,11 @@ export const AiExplanation = AiExplanationBody.extend({
 });
 export type AiExplanation = z.infer<typeof AiExplanation>;
 
-export const Usage = z.object({ file: z.string(), line: z.number().int(), kind: z.string(), url: z.string().optional() });
+export const Usage = z.object({
+  file: z.string(), line: z.number().int(), kind: z.string(), url: z.string().optional(),
+  // filled from the current code map when served to the dashboard
+  repo: z.string().optional(), snippet: z.string().optional(), workflows: z.array(z.string()).optional(),
+});
 
 export const DriftEvent = z.object({
   id: z.string(), service: z.string(), endpoint: z.string(), field: z.string().optional(),
@@ -79,7 +83,7 @@ export type DriftEvent = z.infer<typeof DriftEvent>;
 /** suggestion: deterministic text from the template catalog (never AI). reason: why this is not an automatic PR. */
 export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), reason: z.string().optional(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
 export type ReviewItem = z.infer<typeof ReviewItem>;
-export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr']) });
+export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr', 'reopen']) });
 
 export const Channel = z.enum(['dashboard', 'github', 'whatsapp', 'slack', 'discord', 'email']);
 export type Channel = z.infer<typeof Channel>;
@@ -131,7 +135,16 @@ export type RadarItem = z.infer<typeof RadarItem>;
 
 /** Baseline vs current synthetic examples built from fingerprint statistics (never real values). */
 export const FieldDiff = z.object({ path: z.string(), change: z.enum(['added', 'removed', 'type', 'magnitude', 'enum', 'length']), before: z.unknown().optional(), after: z.unknown().optional() });
-export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.array(FieldDiff) });
+/** Statistics of one field in one window (v2: API Status field table). Shapes only: no record values. */
+export const FieldProfile = z.object({
+  type: z.string(), format: z.string().optional(), presence: z.number(), nullRate: z.number(),
+  magnitude: z.number().optional(),            // dominant order of magnitude (10^n) for numbers
+  lengthP50: z.number().optional(),            // strings
+  enumValues: z.array(z.string()).optional(),  // allow-listed labels only
+  arrayMax: z.number().optional(),
+});
+export const FieldRow = z.object({ path: z.string(), before: FieldProfile.optional(), after: FieldProfile.optional() });
+export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.array(FieldDiff), fields: z.array(FieldRow).optional(), samples: z.object({ before: z.number(), after: z.number() }).optional() });
 export type Compare = z.infer<typeof Compare>;
 export const SimulateRequest = z.object({
   service: z.string(), endpoint: z.string(),

@@ -1,29 +1,41 @@
-// Overview data, derived from the same mocks as every other page so the numbers always agree.
-// Only the chart series, the short diff labels and the code-map figures are authored here.
+// Overview data, derived from the same data as every other page so the numbers always agree.
+// v2: functions of the live data (useSeismoData); the constants below keep the old mock values for mock mode.
 
-import { FIX_RULES } from "./fixes";
-import { REVIEW_ITEMS } from "./review";
-import { SERVICES_STATUS_DATA, type DriftState } from "./status";
-import { TIMELINE_EVENTS, type TimelineDriftEvent } from "./timeline";
+import { FIX_RULES, type FixRuleData } from "./fixes";
+import { REVIEW_ITEMS, type ReviewItem } from "./review";
+import { SERVICES_STATUS_DATA, type DriftState, type ServiceStatusItem } from "./status";
+import { TIMELINE_EVENTS, type TimelineDriftEvent, type TimelineItem } from "./timeline";
 
-const drifts = TIMELINE_EVENTS.filter((i): i is TimelineDriftEvent => i.type !== "deploy");
+export interface OverviewInput {
+  services: ServiceStatusItem[];
+  timeline: TimelineItem[];
+  fixes: FixRuleData[];
+  review: ReviewItem[];
+  codeMap: { fieldCoverage: number; callSites: number };
+}
 
-/** Code-map figures come from the GitHub App scanner (P2); fixed here. */
-const CODE_MAP = { fieldCoverage: 98.4, callSites: 186 };
+const driftsOf = (timeline: TimelineItem[]) => timeline.filter((i): i is TimelineDriftEvent => i.type === "drift");
+const openPrsOf = (fixes: FixRuleData[]) => fixes.filter((f) => f.fixPrNumber && (f.status === "pr_open" || f.status === "ci_green"));
 
-const openPrs = FIX_RULES.filter((f) => f.fixPrNumber && (f.status === "pr_open" || f.status === "ci_green"));
+export function overviewStats(d: OverviewInput) {
+  const drifts = driftsOf(d.timeline).filter((e) => e.state !== "resolved");
+  return {
+    apis: d.services.length,
+    endpoints: d.services.reduce((n, s) => n + s.endpoints.length, 0),
+    fieldCoverage: d.codeMap.fieldCoverage,
+    callSites: d.codeMap.callSites,
+    changes: d.services.filter((s) => s.state !== "normal").length,
+    breaking: drifts.filter((e) => e.severity === "breaking").length,
+    suspected: drifts.filter((e) => e.severity === "suspected").length,
+    openPrNumbers: openPrsOf(d.fixes).map((f) => f.fixPrNumber as number),
+    waitingForReview: d.review.length,
+  };
+}
+export type OverviewStats = ReturnType<typeof overviewStats>;
 
-export const OVERVIEW_STATS = {
-  apis: SERVICES_STATUS_DATA.length,
-  endpoints: SERVICES_STATUS_DATA.reduce((n, s) => n + s.endpoints.length, 0),
-  fieldCoverage: CODE_MAP.fieldCoverage,
-  callSites: CODE_MAP.callSites,
-  changes: SERVICES_STATUS_DATA.filter((s) => s.state !== "normal").length,
-  breaking: drifts.filter((e) => e.severity === "breaking").length,
-  suspected: drifts.filter((e) => e.severity === "suspected").length,
-  openPrNumbers: openPrs.map((f) => f.fixPrNumber as number),
-  waitingForReview: REVIEW_ITEMS.length,
-};
+/** Code-map figures come from the GitHub App scanner (P2); fixed here for mock mode. */
+const MOCK_INPUT: OverviewInput = { services: SERVICES_STATUS_DATA, timeline: TIMELINE_EVENTS, fixes: FIX_RULES, review: REVIEW_ITEMS, codeMap: { fieldCoverage: 98.4, callSites: 186 } };
+export const OVERVIEW_STATS = overviewStats(MOCK_INPUT);
 
 // ---- Services table -------------------------------------------------------------------------
 
@@ -47,62 +59,43 @@ export interface OverviewRow {
   action: RowAction;
 }
 
-const SHORT_DIFF: Record<string, { before: string; after: string }> = {
-  users: { before: "name", after: "display_name" },
-  payments: { before: "amount ₹", after: "amount paise" },
-  shipping: { before: "status (3)", after: "status (4)" },
-  orders: { before: "limit 500", after: "limit 100" },
-};
-
-/** Workflows for APIs with no change; the changed ones take theirs from the timeline. */
-const QUIET_WORKFLOW: Record<string, string> = {
-  inventory: "Stock Levels",
-  notifications: "Order Notifications",
-  ai: "Smart Replies",
-};
-
-const TRACE_IDS: Record<string, string> = {
-  users: "trc_8e45b6060ad",
-  payments: "trc_782cb64292e",
-  shipping: "trc_164e81eb4a0",
-  orders: "trc_5fe0281b99a",
-  inventory: "trc_9aa47cc510f",
-  notifications: "trc_3b71d09e4c2",
-  ai: "trc_c20f8a6d715",
-};
-
 const RANK: Record<DriftState, number> = { changed: 0, under_review: 1, fix_pending: 2, normal: 3 };
 
-function actionFor(name: string, slug: string, state: DriftState): RowAction {
-  const pr = openPrs.find((f) => f.serviceSlug === slug);
-  if (pr?.fixPrNumber) return { type: "pr", number: pr.fixPrNumber };
-  if (state !== "normal" && REVIEW_ITEMS.some((r) => r.service === name)) return { type: "review" };
-  return { type: "status" };
-}
-
-export const OVERVIEW_ROWS: OverviewRow[] = SERVICES_STATUS_DATA.map((svc, index) => {
-  const endpoint = svc.endpoints.find((e) => e.state !== "normal") ?? svc.endpoints[0];
-  const event = drifts.find((e) => e.serviceSlug === svc.slug);
-  return {
-    index,
-    row: {
-      id: svc.id,
-      traceId: TRACE_IDS[svc.slug] ?? "trc_000000000",
-      name: svc.name,
-      slug: svc.slug,
-      method: endpoint.method,
-      endpoint: endpoint.path,
-      callsPerMin: svc.callsPerMin,
-      lastSeen: svc.lastSeen,
-      state: svc.state,
-      diff: SHORT_DIFF[svc.slug] ?? null,
-      workflow: event?.impactedWorkflows[0] ?? QUIET_WORKFLOW[svc.slug] ?? "General traffic",
-      action: actionFor(svc.name, svc.slug, svc.state),
-    } satisfies OverviewRow,
+export function overviewRows(d: OverviewInput): OverviewRow[] {
+  const drifts = driftsOf(d.timeline).filter((e) => e.state !== "resolved");
+  const openPrs = openPrsOf(d.fixes);
+  const actionFor = (name: string, slug: string, state: DriftState): RowAction => {
+    const pr = openPrs.find((f) => f.serviceSlug === slug);
+    if (pr?.fixPrNumber) return { type: "pr", number: pr.fixPrNumber };
+    if (state !== "normal" && d.review.some((r) => r.service === name)) return { type: "review" };
+    return { type: "status" };
   };
-})
-  .sort((a, b) => RANK[a.row.state] - RANK[b.row.state] || a.index - b.index)
-  .map(({ row }) => row);
+  return d.services
+    .map((svc, index) => {
+      const endpoint = svc.endpoints.find((e) => e.state !== "normal") ?? svc.endpoints[0];
+      const event = drifts.find((e) => e.serviceSlug === svc.slug);
+      return {
+        index,
+        row: {
+          id: svc.id,
+          traceId: event?.id ?? svc.id,
+          name: svc.name,
+          slug: svc.slug,
+          method: endpoint?.method ?? "GET",
+          endpoint: endpoint?.path ?? "—",
+          callsPerMin: svc.callsPerMin,
+          lastSeen: svc.lastSeen,
+          state: svc.state,
+          diff: event?.diffSnippet ?? null,
+          workflow: event?.impactedWorkflows[0] ?? "—",
+          action: actionFor(svc.name, svc.slug, svc.state),
+        } satisfies OverviewRow,
+      };
+    })
+    .sort((a, b) => RANK[a.row.state] - RANK[b.row.state] || a.index - b.index)
+    .map(({ row }) => row);
+}
+export const OVERVIEW_ROWS: OverviewRow[] = overviewRows(MOCK_INPUT);
 
 // ---- Chart ----------------------------------------------------------------------------------
 

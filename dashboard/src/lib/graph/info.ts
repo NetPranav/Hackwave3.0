@@ -1,11 +1,10 @@
 // What to say about a node, from the same mocks as the rest of the dashboard. Used by the hover card and the side panel.
 
-import { sitesFor, type CodeSite } from "@/lib/mock/codemap";
-import { FIX_RULES } from "@/lib/mock/fixes";
-import { SERVICES_STATUS_DATA, type EndpointStatus, type FieldComparison } from "@/lib/mock/status";
-import { TIMELINE_EVENTS, type TimelineDriftEvent } from "@/lib/mock/timeline";
+import type { CodeSite } from "@/lib/mock/codemap";
+import type { EndpointStatus, FieldComparison } from "@/lib/mock/status";
+import type { TimelineDriftEvent } from "@/lib/mock/timeline";
 import { plainType, plainUsage } from "@/lib/plain";
-import { STATE_LABEL, type BuiltGraph, type GraphNode } from "./types";
+import { STATE_LABEL, type BuiltGraph, type GraphData, type GraphNode } from "./types";
 
 export interface NodeInfo {
   kind: string;
@@ -20,11 +19,11 @@ export interface NodeInfo {
   snippet?: string;
 }
 
-const drifts = TIMELINE_EVENTS.filter((i): i is TimelineDriftEvent => i.type !== "deploy");
+const driftsOf = (d: GraphData) => d.timeline.filter((i): i is TimelineDriftEvent => i.type === "drift" && i.state !== "resolved");
 const num = (n: number) => n.toLocaleString("en-US");
 
-function findEndpoint(id?: string): { ep: EndpointStatus; slug: string } | null {
-  for (const svc of SERVICES_STATUS_DATA) {
+function findEndpoint(d: GraphData, id?: string): { ep: EndpointStatus; slug: string } | null {
+  for (const svc of d.services) {
     const ep = svc.endpoints.find((e) => e.id === id);
     if (ep) return { ep, slug: svc.slug };
   }
@@ -52,8 +51,8 @@ function empty(kind: string, title: string): NodeInfo {
   return { kind, title, rows: [], sites: [], events: [], rules: [], related: [], links: [] };
 }
 
-function describeService(node: GraphNode): NodeInfo {
-  const svc = SERVICES_STATUS_DATA.find((s) => s.slug === node.ref.serviceSlug);
+function describeService(node: GraphNode, d: GraphData): NodeInfo {
+  const svc = d.services.find((s) => s.slug === node.ref.serviceSlug);
   const info = empty("Service", node.label);
   if (!svc) return info;
   info.subtitle = svc.host;
@@ -64,13 +63,13 @@ function describeService(node: GraphNode): NodeInfo {
     ["Errors", svc.errorRatePercent.toFixed(2) + "%"],
     ["Provider", svc.providerStatus],
   ];
-  info.events = drifts.filter((e) => e.serviceSlug === svc.slug && e.severity !== "info").map((e) => ({ id: e.id, title: e.title }));
+  info.events = driftsOf(d).filter((e) => e.serviceSlug === svc.slug && e.severity !== "info").map((e) => ({ id: e.id, title: e.title }));
   info.links = [{ label: "Open status", href: "/app/status/" + svc.slug }];
   return info;
 }
 
-function describeEndpoint(node: GraphNode): NodeInfo {
-  const found = findEndpoint(node.ref.endpointId);
+function describeEndpoint(node: GraphNode, d: GraphData): NodeInfo {
+  const found = findEndpoint(d, node.ref.endpointId);
   const info = empty("API call", node.label);
   if (!found) return info;
   const { ep } = found;
@@ -88,8 +87,8 @@ function describeEndpoint(node: GraphNode): NodeInfo {
   return info;
 }
 
-function describeField(node: GraphNode): NodeInfo {
-  const found = findEndpoint(node.ref.endpointId);
+function describeField(node: GraphNode, d: GraphData): NodeInfo {
+  const found = findEndpoint(d, node.ref.endpointId);
   const field = found?.ep.fields.find((f) => f.path === node.ref.field);
   const info = empty("Field", node.label);
   if (!found || !field) return info;
@@ -102,19 +101,19 @@ function describeField(node: GraphNode): NodeInfo {
     ["Typical size", field.p50Magnitude],
     ["Used in code", String(node.weight)],
   ];
-  info.sites = node.weight > 0 ? sitesFor(found.slug, field.path) : [];
+  info.sites = node.weight > 0 ? d.sitesFor(found.slug, field.path) : [];
   if (field.status !== "match") {
-    info.events = drifts.filter((e) => e.serviceSlug === found.slug && e.severity !== "info").map((e) => ({ id: e.id, title: e.title }));
+    info.events = driftsOf(d).filter((e) => e.serviceSlug === found.slug && e.severity !== "info").map((e) => ({ id: e.id, title: e.title }));
   }
-  info.rules = FIX_RULES.filter(
+  info.rules = d.fixes.filter(
     (r) => r.serviceSlug === found.slug && r.endpoint === found.ep.path && (r.targetField === field.path || r.sourceField === field.path)
   ).map((r) => ({ text: "Rule " + r.ruleId + ": " + r.targetField + " ← " + r.sourceField, prNumber: r.fixPrNumber }));
   info.links = [{ label: "Simulate a change here", href: simulateLink(found.ep, field) }];
   return info;
 }
 
-function describeCode(node: GraphNode): NodeInfo {
-  const site = sitesFor(node.ref.serviceSlug, node.ref.field ?? "").find((s) => s.file === node.ref.file && s.line === node.ref.line);
+function describeCode(node: GraphNode, d: GraphData): NodeInfo {
+  const site = d.sitesFor(node.ref.serviceSlug, node.ref.field ?? "").find((s) => s.file === node.ref.file && s.line === node.ref.line);
   const info = empty("Code spot", node.label);
   if (!site) return info;
   info.subtitle = site.file + ":" + site.line;
@@ -124,7 +123,8 @@ function describeCode(node: GraphNode): NodeInfo {
     ["Workflow", site.workflow],
   ];
   info.snippet = site.snippet;
-  info.links = [{ label: "View on GitHub", href: "https://github.com/NetPranav/seismo-demo-shop/blob/main/" + site.file + "#L" + site.line }];
+  const url = d.codeUrl(site.file, site.line);
+  info.links = url ? [{ label: "View on GitHub", href: url }] : [];
   return info;
 }
 
@@ -143,13 +143,13 @@ function describeWorkflow(node: GraphNode, graph: BuiltGraph): NodeInfo {
 export function describeNode(node: GraphNode, graph: BuiltGraph): NodeInfo {
   switch (node.type) {
     case "service":
-      return describeService(node);
+      return describeService(node, graph.data);
     case "endpoint":
-      return describeEndpoint(node);
+      return describeEndpoint(node, graph.data);
     case "field":
-      return describeField(node);
+      return describeField(node, graph.data);
     case "code":
-      return describeCode(node);
+      return describeCode(node, graph.data);
     case "workflow":
       return describeWorkflow(node, graph);
   }

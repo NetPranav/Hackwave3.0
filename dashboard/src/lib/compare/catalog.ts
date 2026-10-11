@@ -1,4 +1,4 @@
-import { SERVICES_STATUS_DATA, type EndpointStatus } from "@/lib/mock/status";
+import type { EndpointStatus, ServiceStatusItem } from "@/lib/mock/status";
 
 export interface EndpointRef {
   serviceSlug: string;
@@ -7,10 +7,11 @@ export interface EndpointRef {
 }
 
 /** Every monitored endpoint, grouped by service in the same order as the Status page. */
-export const ENDPOINTS: EndpointRef[] = SERVICES_STATUS_DATA.flatMap((svc) =>
-  svc.endpoints.map((endpoint) => ({ serviceSlug: svc.slug, serviceName: svc.name, endpoint }))
-);
+export function endpointsOf(services: ServiceStatusItem[]): EndpointRef[] {
+  return services.flatMap((svc) => svc.endpoints.map((endpoint) => ({ serviceSlug: svc.slug, serviceName: svc.name, endpoint })));
+}
 
-export function findEndpoint(id: string | undefined): EndpointRef {
-  return ENDPOINTS.find((e) => e.endpoint.id === id) ?? ENDPOINTS[0];
+/** The endpoint with this id, else the first one; undefined only when nothing is monitored yet. */
+export function findEndpoint(list: EndpointRef[], id: string | undefined): EndpointRef | undefined {
+  return list.find((e) => e.endpoint.id === id) ?? list[0];
 }

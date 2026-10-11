@@ -119,7 +119,7 @@ export function coverage(maps: CodeMap[], seenEndpoints = 0, seenFields = 0) {
   };
 }
 
-function matches(globs: string[], file: string) {
+export function matches(globs: string[], file: string) {
   return globs.some((g) => globToRegex(g).test(file));
 }
 function globToRegex(g: string) {
