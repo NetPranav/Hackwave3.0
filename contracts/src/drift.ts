@@ -65,7 +65,11 @@ export const AiExplanation = AiExplanationBody.extend({
 });
 export type AiExplanation = z.infer<typeof AiExplanation>;
 
-export const Usage = z.object({ file: z.string(), line: z.number().int(), kind: z.string(), url: z.string().optional() });
+export const Usage = z.object({
+  file: z.string(), line: z.number().int(), kind: z.string(), url: z.string().optional(),
+  // filled from the current code map when served to the dashboard
+  repo: z.string().optional(), snippet: z.string().optional(), workflows: z.array(z.string()).optional(),
+});
 
 export const DriftEvent = z.object({
   id: z.string(), service: z.string(), endpoint: z.string(), field: z.string().optional(),

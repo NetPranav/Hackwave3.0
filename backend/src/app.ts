@@ -20,6 +20,7 @@ import { memorySettings, type SettingsStore } from './settings-store.js';
 import { compare, simulate } from './compare.js';
 import { Radar, demoSources } from './radar/radar.js';
 import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
+import { codemapView, enrichEvent } from './codemap-view.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -119,7 +120,11 @@ export function buildApp(opts: AppOptions = {}) {
     const login = req.user ?? 'demo-user';
     if (!opts.installations) return mocks ? { ...mockMe(), login } : { login, installations: [] };
     const all = await opts.installations().catch(() => []);
-    return { login, installations: all.filter((i) => i.account.toLowerCase() === login.toLowerCase()).map((i) => String(i.id)) };
+    const appSlug = process.env.GITHUB_APP_SLUG ?? 'seismo-app';
+    return {
+      login, appSlug, installUrl: `https://github.com/apps/${appSlug}/installations/new`,
+      installations: all.filter((i) => i.account.toLowerCase() === login.toLowerCase()).map((i) => String(i.id)),
+    };
   });
   app.post('/v1/events/token', async (req) => {
     if (!process.env.AUTH_SECRET) return { token: 'dev' };
@@ -183,6 +188,7 @@ export function buildApp(opts: AppOptions = {}) {
     for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
     return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
   });
+  app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {
     const maps = await store.all();
     return maps.length || !mocks ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
@@ -196,7 +202,9 @@ export function buildApp(opts: AppOptions = {}) {
   });
   app.get('/v1/drift-events', async () => {
     const real = engine.list();
-    return real.length || !mocks ? real : mockDrift();
+    if (!real.length && mocks) return mockDrift();
+    const maps = await store.all();
+    return real.map((e) => enrichEvent(e, maps));
   });
   /** One detection pass now (the server also runs it every 5 s). Emits drift.created / drift.updated over SSE. */
   app.post('/internal/detect', async (req, reply) => {
@@ -229,7 +237,9 @@ export function buildApp(opts: AppOptions = {}) {
   // Review queue (P6.6): every non-alias event, with the deterministic suggestion and the AI explanation if present.
   app.get('/v1/review', async () => {
     const q = engine.reviewQueue();
-    return q.length || !mocks ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: suggestionFor(event), reason, status: 'open' as const })) : mockReview();
+    if (!q.length && mocks) return mockReview();
+    const maps = await store.all();
+    return q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: enrichEvent(event, maps), suggestion: suggestionFor(event), reason, status: 'open' as const }));
   });
   app.post('/v1/review', async (req, reply) => {
     const parsed = ReviewAction.safeParse(req.body);

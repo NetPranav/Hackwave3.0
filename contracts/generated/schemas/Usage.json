@@ -15,6 +15,18 @@
     },
     "url": {
       "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "snippet": {
+      "type": "string"
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

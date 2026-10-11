@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "scannedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "commit",
+          "scannedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "callSites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "service": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "fnName": {
+            "type": "string"
+          },
+          "unresolved": {
+            "type": "boolean"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "repo",
+          "file",
+          "line",
+          "service",
+          "method",
+          "endpoint",
+          "workflows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fieldReads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "callSiteId": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "usage": {
+            "type": "string",
+            "enum": [
+              "read",
+              "display",
+              "arithmetic",
+              "branching",
+              "persistence",
+              "outbound"
+            ]
+          },
+          "money": {
+            "type": "boolean"
+          },
+          "snippet": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "repo": {
+            "type": "string"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "callSiteId",
+          "field",
+          "file",
+          "line",
+          "usage",
+          "money",
+          "repo",
+          "workflows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "file",
+          "repo"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "repos",
+    "callSites",
+    "fieldReads",
+    "workflows"
+  ],
+  "additionalProperties": false
+}

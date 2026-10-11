@@ -42,7 +42,9 @@ export function scanDirectory(dir: string, opts: ScanOptions): CodeMap {
     seen.add(key);
     const usage = classify(node);
     const last = field.split('.').pop() ?? field;
-    fieldReads.push({ callSiteId: cs.id, field, file, line, usage, money: MONEY.test(last) && usage !== 'display' && usage !== 'read' });
+    // the source line, so the dashboard can show where the read is (code from the customer's repo, never API data)
+    const snippet = (node.getSourceFile().getFullText().split('\n')[line - 1] ?? '').trim().slice(0, 160);
+    fieldReads.push({ callSiteId: cs.id, field, file, line, usage, money: MONEY.test(last) && usage !== 'display' && usage !== 'read', ...(snippet ? { snippet } : {}) });
   };
 
   /** Follow identifier `id` (a variable holding response data) and record every field read under `prefix`. */

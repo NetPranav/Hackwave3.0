@@ -148,7 +148,7 @@ describe('P8 groundwork', () => {
     const { signUserToken } = await import('../src/auth.js');
     const me = (await app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${await signUserToken('netpranav')}` } })).json();
     delete process.env.AUTH_SECRET;
-    expect(me).toEqual({ login: 'netpranav', installations: ['11'] });
+    expect(me).toEqual({ login: 'netpranav', installations: ['11'], appSlug: 'seismo-app', installUrl: 'https://github.com/apps/seismo-app/installations/new' });
   });
   it('demo reset clears events, fingerprints, alerts and radar; needs the internal token', async () => {
     const app = buildApp();

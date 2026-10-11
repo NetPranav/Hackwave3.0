@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-hgr5wq",
+      "id": "a-dli960",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-hgr5wq",
+      "driftEvent": "drift-dli960",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.111,
-    "p50On": 0.149,
-    "p99Off": 0.373,
-    "p99On": 0.728
+    "p50Off": 0.243,
+    "p50On": 0.422,
+    "p99Off": 9.17,
+    "p99On": 4.272
   }
 }

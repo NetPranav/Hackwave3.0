@@ -32,7 +32,7 @@ describe('graph from code maps (P2.5)', () => {
   const map = {
     repo: 'demo/shop', commit: 'c', scannedAt: '2026-10-12T10:00:00.000Z',
     callSites: [{ id: 'cs1', repo: 'demo/shop', file: 'lib/pay.ts', line: 5, service: 'payments', method: 'POST', endpoint: '/payments' }, { id: 'cs2', repo: 'demo/shop', file: 'lib/x.ts', line: 9, service: 'x', method: 'GET', endpoint: '(unresolved)', unresolved: true }],
-    fieldReads: [{ callSiteId: 'cs1', field: 'amount', file: 'app/checkout/page.tsx', line: 12, usage: 'arithmetic', money: true }],
+    fieldReads: [{ callSiteId: 'cs1', field: 'amount', file: 'app/checkout/page.tsx', line: 12, usage: 'arithmetic', money: true, snippet: 'const total = p.amount * qty;' }],
     workflows: [{ id: 'checkout', name: 'checkout', file: 'app/checkout/**', functions: [], globs: ['app/checkout/**'] }],
   };
   it('stores a scan, builds the graph, traces impact to the workflow, reports coverage', async () => {
@@ -50,6 +50,17 @@ describe('graph from code maps (P2.5)', () => {
     const cov = (await a.inject('/v1/coverage')).json();
     expect(cov.unresolvedCalls).toBe(1);
     expect(cov.fieldsMapped).toBe(1);
+  });
+  it('serves the code map with workflows and enriches usages with repo, source line, workflows and a GitHub link (v2-P3)', async () => {
+    const { enrichUsages } = await import('./codemap-view.js');
+    const a = buildApp();
+    await a.inject({ method: 'POST', url: '/internal/codemap', headers: { 'x-internal-token': 'dev-internal' }, payload: map });
+    const cm = (await a.inject('/v1/codemap')).json();
+    expect(cm.repos).toEqual([{ repo: 'demo/shop', commit: 'c', scannedAt: map.scannedAt }]);
+    expect(cm.fieldReads[0]).toMatchObject({ field: 'amount', workflows: ['checkout'], snippet: 'const total = p.amount * qty;' });
+    const [u] = enrichUsages([{ file: 'app/checkout/page.tsx', line: 12, kind: 'arithmetic+money' }], [map as never]);
+    expect(u).toEqual({ file: 'app/checkout/page.tsx', line: 12, kind: 'arithmetic+money', repo: 'demo/shop', snippet: 'const total = p.amount * qty;', workflows: ['checkout'], url: 'https://github.com/demo/shop/blob/c/app/checkout/page.tsx#L12' });
+    expect(enrichUsages([{ file: 'elsewhere.ts', line: 1, kind: 'read' }], [map as never])).toEqual([{ file: 'elsewhere.ts', line: 1, kind: 'read' }]);
   });
 });
 

@@ -21,5 +21,5 @@ export const Overview = z.object({
 });
 export type Overview = z.infer<typeof Overview>;
 
-export const Me = z.object({ login: z.string(), name: z.string().optional(), avatarUrl: z.string().optional(), installations: z.array(z.string()) });
+export const Me = z.object({ login: z.string(), name: z.string().optional(), avatarUrl: z.string().optional(), installations: z.array(z.string()), appSlug: z.string().optional(), installUrl: z.string().optional() });
 export type Me = z.infer<typeof Me>;

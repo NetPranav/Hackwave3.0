@@ -32,6 +32,12 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "appSlug": {
+                      "type": "string"
+                    },
+                    "installUrl": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -398,6 +404,198 @@
         }
       }
     },
+    "/v1/codemap": {
+      "get": {
+        "summary": "Merged code maps: call sites, field reads (with source line) and workflows",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "repos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "repo": {
+                            "type": "string"
+                          },
+                          "commit": {
+                            "type": "string"
+                          },
+                          "scannedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "repo",
+                          "commit",
+                          "scannedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "callSites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "service": {
+                            "type": "string"
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "endpoint": {
+                            "type": "string"
+                          },
+                          "fnName": {
+                            "type": "string"
+                          },
+                          "unresolved": {
+                            "type": "boolean"
+                          },
+                          "workflows": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "repo",
+                          "file",
+                          "line",
+                          "service",
+                          "method",
+                          "endpoint",
+                          "workflows"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "fieldReads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "callSiteId": {
+                            "type": "string"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "usage": {
+                            "type": "string",
+                            "enum": [
+                              "read",
+                              "display",
+                              "arithmetic",
+                              "branching",
+                              "persistence",
+                              "outbound"
+                            ]
+                          },
+                          "money": {
+                            "type": "boolean"
+                          },
+                          "snippet": {
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "workflows": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "callSiteId",
+                          "field",
+                          "file",
+                          "line",
+                          "usage",
+                          "money",
+                          "repo",
+                          "workflows"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "workflows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "repo": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "file",
+                          "repo"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "repos",
+                    "callSites",
+                    "fieldReads",
+                    "workflows"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/coverage": {
       "get": {
         "summary": "Mapping coverage numbers",
@@ -669,6 +867,18 @@
                             },
                             "url": {
                               "type": "string"
+                            },
+                            "repo": {
+                              "type": "string"
+                            },
+                            "snippet": {
+                              "type": "string"
+                            },
+                            "workflows": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           },
                           "required": [
@@ -1198,6 +1408,18 @@
                                 },
                                 "url": {
                                   "type": "string"
+                                },
+                                "repo": {
+                                  "type": "string"
+                                },
+                                "snippet": {
+                                  "type": "string"
+                                },
+                                "workflows": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
                                 }
                               },
                               "required": [
@@ -1850,6 +2072,18 @@
                           },
                           "url": {
                             "type": "string"
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "workflows": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         },
                         "required": [
@@ -2344,6 +2578,104 @@
                     "github",
                     "minSeverity",
                     "aiEnabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications": {
+      "get": {
+        "summary": "What Seismo sent (newest first, max 500)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "driftId": {
+                        "type": "string"
+                      },
+                      "channel": {
+                        "type": "string",
+                        "enum": [
+                          "dashboard",
+                          "github",
+                          "whatsapp",
+                          "slack",
+                          "discord",
+                          "email"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "sentAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      },
+                      "error": {
+                        "type": "string"
+                      },
+                      "read": {
+                        "default": false,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "driftId",
+                      "channel",
+                      "title",
+                      "sentAt",
+                      "ok",
+                      "read"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/read": {
+      "post": {
+        "summary": "Mark notifications read (body {ids?}; none = all)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
                   ],
                   "additionalProperties": false
                 }
