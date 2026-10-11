@@ -4,10 +4,11 @@ import { connect } from './db/index.js';
 import { settings } from './db/schema.js';
 
 export const DEFAULT_SETTINGS: NotificationSettings = {
-  whatsapp: { enabled: !!process.env.TWILIO_TO, ...(process.env.TWILIO_TO ? { to: process.env.TWILIO_TO } : {}), minSeverity: 'breaking' },
+  // channels are on by default when their provider is configured; they still only send once a number/address is set
+  whatsapp: { enabled: !!(process.env.TWILIO_TO || process.env.TWILIO_ACCOUNT_SID), ...(process.env.TWILIO_TO ? { to: process.env.TWILIO_TO } : {}), minSeverity: 'breaking' },
   slack: { enabled: !!process.env.SLACK_WEBHOOK_URL, ...(process.env.SLACK_WEBHOOK_URL ? { webhookUrl: process.env.SLACK_WEBHOOK_URL } : {}) },
   discord: { enabled: !!process.env.DISCORD_WEBHOOK_URL, ...(process.env.DISCORD_WEBHOOK_URL ? { webhookUrl: process.env.DISCORD_WEBHOOK_URL } : {}) },
-  email: { enabled: !!process.env.ALERT_EMAIL_TO, ...(process.env.ALERT_EMAIL_TO ? { to: process.env.ALERT_EMAIL_TO } : {}) },
+  email: { enabled: !!(process.env.ALERT_EMAIL_TO || process.env.RESEND_API_KEY || process.env.SMTP_HOST), ...(process.env.ALERT_EMAIL_TO ? { to: process.env.ALERT_EMAIL_TO } : {}) },
   github: { enabled: true, minSeverity: 'breaking' },
   minSeverity: 'warning',
   aiEnabled: true,

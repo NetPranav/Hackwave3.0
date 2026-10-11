@@ -48,7 +48,10 @@ export default function SettingsView() {
 
   const meta = CHANNELS.find((c) => c.id === selected) ?? CHANNELS[0];
   const patch = (id: ChannelId, change: Partial<ChannelConfig>) => {
-    const next = { ...channels, [id]: { ...channels[id], ...change } };
+    // typing a number / address / webhook into a channel that is off switches it on (found live: the number was saved,
+    // the channel stayed off, and no alert was ever sent)
+    const autoOn = change.value && change.value.trim() && !channels[id].enabled && change.enabled === undefined ? { enabled: true } : {};
+    const next = { ...channels, [id]: { ...channels[id], ...change, ...autoOn } };
     setChannels(next);
     persist(next, aiOn);
   };

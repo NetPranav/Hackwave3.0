@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import nodemailer from 'nodemailer';
 import type { AiExplanation, Channel, DriftEvent, Notification, NotificationSettings, Severity } from '@seismo/contracts';
 
 /**
@@ -103,8 +104,15 @@ export class Dispatcher {
   }
 
   private async email(to: string, subject: string, text: string) {
+    // SMTP first (e.g. Gmail with an app password: free, sends to any address), else Resend
+    if (process.env.SMTP_HOST) {
+      const port = Number(process.env.SMTP_PORT ?? 465);
+      const tx = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 15_000, socketTimeout: 15_000 });
+      await tx.sendMail({ from: process.env.SMTP_FROM ?? `Seismo <${process.env.SMTP_USER}>`, to, subject, text });
+      return;
+    }
     const rs = this.o.resend!;
-    if (!rs.apiKey) throw new Error('Resend is not configured (RESEND_API_KEY)');
+    if (!rs.apiKey) throw new Error('Email is not configured: set SMTP_HOST/SMTP_USER/SMTP_PASS (e.g. Gmail app password) or RESEND_API_KEY');
     const r = await this.f(`${rs.baseUrl}/emails`, {
       method: 'POST', signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${rs.apiKey}`, 'content-type': 'application/json' },
