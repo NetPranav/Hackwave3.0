@@ -69,7 +69,7 @@ export default function ReviewView() {
         const n = r.prUrl ? Number(/\/pull\/(\d+)/.exec(r.prUrl)?.[1]) : undefined;
         update(item.id, { prNumber: n, prUrl: r.prUrl, error: undefined });
       })
-      .catch((e: Error) => update(item.id, { error: e.message.includes("409") ? "No suggestion PR for this change (only unit changes have one)." : "Could not open the PR." }));
+      .catch((e: Error) => update(item.id, { error: e.message.includes("409") ? "Not opened: the stress test failed or there is no fix template for this change (details on the change page)." : "Could not open the PR." }));
   };
 
   return (

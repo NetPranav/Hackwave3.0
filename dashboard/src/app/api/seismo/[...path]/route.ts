@@ -36,7 +36,8 @@ async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> 
       method: req.method,
       headers,
       body: hasBody ? await req.text() : undefined,
-      signal: isEvents ? req.signal : AbortSignal.timeout(20_000),
+      // actions (open a PR, setup PR: clone + codemod + stress test) can take up to a minute; reads should be quick
+      signal: isEvents ? req.signal : AbortSignal.timeout(hasBody ? 90_000 : 20_000),
       cache: "no-store",
     });
   } catch {

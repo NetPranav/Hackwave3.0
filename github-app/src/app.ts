@@ -199,8 +199,9 @@ export function watchFixCi(app: Probot) {
   app.on('check_suite.completed', async (ctx) => {
     const suite = ctx.payload.check_suite;
     const ref = suite.head_branch ?? '';
-    if (!ref.startsWith('seismo/alias-') || suite.app?.slug === process.env.APP_SLUG) return;     // ignore our own check suite
-    const ruleId = ref.slice('seismo/alias-'.length);
+    const m = /^seismo\/(?:alias|fix|scale)-(.+)$/.exec(ref);
+    if (!m || suite.app?.slug === process.env.APP_SLUG) return;     // ignore our own check suite
+    const ruleId = m[1]!;
     await fetch(`${process.env.BACKEND_URL ?? 'http://localhost:4000'}/internal/fix-ci`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': TOKEN() },
       body: JSON.stringify({ ruleId, conclusion: suite.conclusion, app: suite.app?.name ?? 'CI' }),
@@ -213,7 +214,7 @@ export { CHECK_NAME };
 export function watchFixPrs(app: Probot) {
   app.on('pull_request.closed', async (ctx) => {
     const ref = ctx.payload.pull_request.head.ref;
-    const m = /^seismo\/(?:alias|scale)-(.+)$/.exec(ref);
+    const m = /^seismo\/(?:alias|fix|scale)-(.+)$/.exec(ref);
     if (!m) return;
     const ruleId = m[1]!;
     await fetch(`${process.env.BACKEND_URL ?? 'http://localhost:4000'}/internal/fix-event`, {

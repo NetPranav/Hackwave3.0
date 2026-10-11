@@ -27,8 +27,17 @@ export interface OctokitFix {
 
 export interface AliasFile { version: number; rules: SeismoRule[] }
 
-const ruleKey = (r: SeismoRule) => (r.kind === 'scale' ? `scale|${r.endpoint}|${r.path}|${(r as ScaleRule).field}` : `alias|${r.endpoint}|${r.path}|${(r as AliasRule).target}`);
+const ruleKey = (r: SeismoRule) => (r.kind === 'alias' || !r.kind ? `alias|${r.endpoint}|${r.path}|${(r as AliasRule).target}` : `${r.kind}|${r.endpoint}|${r.path}|${(r as { field: string }).field}`);
 export const isScale = (r: SeismoRule): r is ScaleRule => r.kind === 'scale';
+/** Value-changing fix templates (scale, coerce, map): always needs-review, never automatic. */
+export const isTransform = (r: SeismoRule) => r.kind === 'scale' || r.kind === 'coerce' || r.kind === 'map';
+
+function transformText(rule: SeismoRule): { what: string; how: string } {
+  const r = rule as { kind: string; field: string; endpoint: string; divideBy?: number; to?: string; map?: Record<string, unknown> };
+  if (r.kind === 'scale') return { what: `every \`${r.field}\` on \`${r.endpoint}\` became ${r.divideBy} times larger (a unit change)`, how: `divide \`${r.field}\` by ${r.divideBy} when the response arrives` };
+  if (r.kind === 'coerce') return { what: `\`${r.field}\` on \`${r.endpoint}\` changed type`, how: `convert \`${r.field}\` back to a ${r.to} when that is lossless (e.g. "499" → 499); anything else is left untouched` };
+  return { what: `\`${r.field}\` on \`${r.endpoint}\` has a new value your code has never seen`, how: `map ${Object.entries(r.map ?? {}).map(([k, v]) => `\`${k}\` → \`${String(v)}\``).join(', ')} (the closest known value, chosen by the AI judge; please confirm)` };
+}
 
 /** Append one rule to the file content; returns the new text. Refuses duplicates. Stable formatting keeps diffs to one rule. */
 export function addRule(existing: string | null, rule: SeismoRule): string {
@@ -44,14 +53,19 @@ export function addRule(existing: string | null, rule: SeismoRule): string {
 
 export function prBody(rule: SeismoRule, checks: Check[], usages: { file: string; line: number }[], eventUrl?: string) {
   const tick = (c: Check) => `- ${c.passed ? '✅' : '❌'} **${c.id}** ${c.detail}`;
-  if (isScale(rule)) return [
-    `**Needs review.** Seismo saw every \`${rule.field}\` on \`${rule.endpoint}\` become ${rule.divideBy} times larger (a unit change). You asked for a suggested fix, so here it is:`,
-    '', '### The change', `One data rule in \`${ALIASES_PATH}\`: divide \`${rule.field}\` by ${rule.divideBy} when the response arrives. No code is modified.`,
+  if (isTransform(rule)) {
+    const t = transformText(rule);
+    return [
+    `**Needs review.** Seismo saw that ${t.what}. You asked for the fix, so here it is, from Seismo's fix templates (no AI-written code):`,
+    '', '### The change', `One data rule in \`${ALIASES_PATH}\`: ${t.how}. No code is modified.`,
     '```json', JSON.stringify(rule, null, 2), '```',
-    '**This changes values**, unlike an alias. Confirm the new unit with the provider before merging; if they switch back, this rule would be wrong and must be removed. Seismo never merges this and never opens it on its own.',
+    '**This changes values**, unlike an alias. Confirm with the provider before merging; if they switch back, this rule simply stops applying. Seismo never merges this and never opens it on its own.',
+    ...(checks.length ? ['', '### Stress test (before this PR was opened)', ...checks.map(tick)] : []),
+    '- ⏳ **C7/C8** the same rule is re-tested by your CI on this PR',
     '', '### Where it is used', ...(usages.length ? usages.slice(0, 8).map((u) => `- \`${u.file}:${u.line}\``) : ['- no reads found']),
     '', '### How to revert', `Delete the rule from \`${ALIASES_PATH}\` (or revert this PR).`, ...(eventUrl ? ['', `[Drift details in Seismo](${eventUrl})`] : []),
   ].join('\n');
+  }
   return [
     `Seismo noticed that \`${rule.endpoint}\` now sends \`${rule.source}\` where your code reads \`${rule.target}\`.`,
     '',
@@ -77,8 +91,12 @@ export interface OpenFixInput { owner: string; repo: string; rule: SeismoRule; c
 /** Branch `seismo/alias-<id>`, commit ONE file, open the PR. Idempotent: an open PR for the branch is returned instead of a duplicate. */
 export async function openAliasPr(octokit: OctokitFix, i: OpenFixInput): Promise<{ url: string; number: number; created: boolean }> {
   const { owner, repo, rule } = i;
-  const branch = `seismo/${isScale(rule) ? 'scale' : 'alias'}-${rule.id ?? i.eventId}`;
-  const title = isScale(rule) ? `fix(seismo): ${rule.endpoint} ${rule.field} ÷ ${rule.divideBy} (needs review)` : `fix(seismo): alias ${rule.endpoint} ${(rule as AliasRule).target} ← ${(rule as AliasRule).source}`;
+  const branch = `seismo/${isTransform(rule) ? 'fix' : 'alias'}-${rule.id ?? i.eventId}`;
+  const r = rule as { kind?: string; field?: string; to?: string; map?: Record<string, unknown> };
+  const title = isScale(rule) ? `fix(seismo): ${rule.endpoint} ${rule.field} ÷ ${rule.divideBy} (needs review)`
+    : r.kind === 'coerce' ? `fix(seismo): ${rule.endpoint} ${r.field} back to ${r.to} (needs review)`
+    : r.kind === 'map' ? `fix(seismo): ${rule.endpoint} ${r.field}: ${Object.entries(r.map ?? {}).map(([k, v]) => `${k} → ${String(v)}`).join(', ')} (needs review)`
+    : `fix(seismo): alias ${rule.endpoint} ${(rule as AliasRule).target} ← ${(rule as AliasRule).source}`;
   const open = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: 'open' });
   if (open.data[0]) return { url: open.data[0].html_url, number: open.data[0].number, created: false };
 
@@ -102,9 +120,9 @@ export async function openAliasPr(octokit: OctokitFix, i: OpenFixInput): Promise
     owner, repo, base, head: branch, title,
     body: prBody(rule, i.checks, i.usages, i.eventUrl),
   });
-  await octokit.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: isScale(rule) ? ['seismo', 'needs-review'] : ['seismo', 'auto-safe'] }).catch(() => undefined);
+  await octokit.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: isTransform(rule) ? ['seismo', 'needs-review'] : ['seismo', 'auto-safe'] }).catch(() => undefined);
   const headSha = put.data?.commit?.sha;
-  if (headSha && octokit.rest.checks && !isScale(rule)) await octokit.rest.checks.create(safetyCheckRun(owner, repo, headSha, rule, i.checks)).catch(() => undefined);
+  if (headSha && octokit.rest.checks && !isTransform(rule)) await octokit.rest.checks.create(safetyCheckRun(owner, repo, headSha, rule as AliasRule, i.checks)).catch(() => undefined);
   return { url: pr.data.html_url, number: pr.data.number, created: true };
 }
 

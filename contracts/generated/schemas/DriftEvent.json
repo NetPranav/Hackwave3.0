@@ -307,6 +307,98 @@
                 "divideBy"
               ],
               "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "coerce"
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "path": {
+                  "default": "$",
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string",
+                  "enum": [
+                    "number",
+                    "string"
+                  ]
+                },
+                "driftEvent": {
+                  "type": "string"
+                },
+                "addedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "endpoint",
+                "path",
+                "field",
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "map"
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "path": {
+                  "default": "$",
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "map": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                },
+                "driftEvent": {
+                  "type": "string"
+                },
+                "addedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "endpoint",
+                "path",
+                "field",
+                "map"
+              ],
+              "additionalProperties": false
             }
           ]
         },
@@ -331,7 +423,8 @@
                       "C5",
                       "C6",
                       "C7",
-                      "C8"
+                      "C8",
+                      "C9"
                     ]
                   },
                   "passed": {

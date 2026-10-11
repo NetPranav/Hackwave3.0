@@ -76,7 +76,7 @@ export default function ReviewActions({ canOpenPr = true, prNumber, prUrl, error
         </a>
       ) : canOpenPr ? (
         <button type="button" onClick={onOpenPr} className={QUIET + " ml-auto"}>
-          Open suggestion PR ↗
+          Open fix PR (stress-tested) ↗
         </button>
       ) : (
         <span className="ml-auto font-aeonik-mono text-[11px] uppercase tracking-wider text-text-primary/45 dark:text-white/40">

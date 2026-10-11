@@ -21,6 +21,7 @@ import { compare, simulate } from './compare.js';
 import { Radar, demoSources } from './radar/radar.js';
 import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
 import { codemapView, enrichEvent } from './codemap-view.js';
+import { templateFor } from './fix-templates.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -345,7 +346,11 @@ export function buildApp(opts: AppOptions = {}) {
     const q = engine.reviewQueue();
     if (!q.length && mocks) return mockReview();
     const maps = await store.all();
-    return q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: enrichEvent(event, maps), suggestion: suggestionFor(event), reason, status: 'open' as const }));
+    return q.map(({ event, reason }) => {
+      const tpl = templateFor(event);
+      // v2: the data rule a fix template would add (the PR opens only when a human asks and the stress test passes)
+      return { id: `rev-${event.id}`, drift: enrichEvent(event, maps), suggestion: suggestionFor(event), reason: tpl.rule ? `${reason ?? ''} Fix template: ${tpl.why}`.trim() : `${reason ?? ''} ${tpl.why}`.trim(), ...(tpl.rule ? { proposedRule: tpl.rule } : {}), status: 'open' as const };
+    });
   });
   app.post('/v1/review', async (req, reply) => {
     const parsed = ReviewAction.safeParse(req.body);
@@ -354,7 +359,7 @@ export function buildApp(opts: AppOptions = {}) {
     if (!engine.get(id)) return reply.code(404).send({ error: 'unknown_event' });
     if (parsed.data.action === 'open_pr') {
       const ev = engine.get(id)!;
-      const r = await engine.openScalePr(id, await repoFor(ev.service)).catch((e: Error) => ({ error: e.message, event: undefined }));
+      const r = await engine.openTemplatePr(id, await repoFor(ev.service)).catch((e: Error) => ({ error: e.message, event: undefined }));
       if (r.error || !r.event) return reply.code(409).send({ error: 'not_available', message: r.error });
       broadcast('drift.updated', r.event);
       return { ok: true, prUrl: r.event.fix?.validation?.prUrl };

@@ -96,10 +96,30 @@ export interface ScaleRule {
   driftEvent?: string;
   addedAt?: string;
 }
-export type SeismoRule = AliasRule | ScaleRule;
+export interface CoerceRule {
+  id?: string;
+  kind: "coerce";
+  endpoint: string;
+  path: string;
+  field: string;
+  to: "number" | "string";
+  driftEvent?: string;
+  addedAt?: string;
+}
+export interface MapRule {
+  id?: string;
+  kind: "map";
+  endpoint: string;
+  path: string;
+  field: string;
+  map: Record<string, string | number | boolean>;
+  driftEvent?: string;
+  addedAt?: string;
+}
+export type SeismoRule = AliasRule | ScaleRule | CoerceRule | MapRule;
 
 export interface CheckResult {
-  id: "C1" | "C2" | "C3" | "C4" | "C5" | "C6" | "C7" | "C8";
+  id: "C1" | "C2" | "C3" | "C4" | "C5" | "C6" | "C7" | "C8" | "C9";
   passed: boolean;
   detail?: string;
 }
@@ -154,6 +174,8 @@ export interface ReviewItemApi {
   drift: DriftEvent;
   suggestion: string;
   reason?: string;
+  /** v2: the data rule the fix template proposes (a human opens the PR, after the stress test) */
+  proposedRule?: SeismoRule;
   status: "open" | "expected" | "snoozed" | "pr_opened";
 }
 

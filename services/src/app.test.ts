@@ -64,3 +64,26 @@ describe('fake services', () => {
   });
   it('admin needs token', async () => expect((await buildServices().inject('/admin/scenarios')).statusCode).toBe(401));
 });
+
+describe('custom changes (v2 demo panel form)', () => {
+  const h = { 'x-admin-token': process.env.DEMO_ADMIN_TOKEN ?? 'dev-admin', 'content-type': 'application/json' };
+  it('rename / type / value / cap apply to that provider only; invalid input is rejected; reset clears them', async () => {
+    const app = buildServices();
+    const add = (c: object) => app.inject({ method: 'POST', url: '/admin/custom', headers: h, payload: JSON.stringify(c) });
+    expect((await add({ service: 'users', kind: 'rename', field: 'email', to: 'mail' })).statusCode).toBe(200);
+    expect((await add({ service: 'payments', kind: 'type', field: 'amount', to: 'string' })).statusCode).toBe(200);
+    expect((await add({ service: 'shipping', kind: 'value', field: 'status', value: 'lost' })).statusCode).toBe(200);
+    expect((await add({ service: 'orders', kind: 'cap', field: 'data', max: 7 })).statusCode).toBe(200);
+    expect((await add({ service: 'users', kind: 'rename', field: '__proto__', to: 'x' })).statusCode).toBe(400);
+    expect((await add({ service: 'nope', kind: 'remove', field: 'a' })).statusCode).toBe(400);
+    const u = (await app.inject('/users/u_1')).json();
+    expect(u.mail).toBe('asha.rao@example.in');
+    expect(u.email).toBeUndefined();
+    expect(typeof (await app.inject('/payments/pay_1')).json().amount).toBe('string');
+    expect((await app.inject('/shipments/sh_1')).json().status).toBe('lost');
+    expect((await app.inject('/orders?limit=50')).json().data).toHaveLength(7);
+    expect((await app.inject('/users/missing')).json()).toEqual({ error: 'not_found' });   // errors untouched
+    await app.inject({ method: 'POST', url: '/admin/reset', headers: h });
+    expect((await app.inject('/users/u_1')).json().email).toBe('asha.rao@example.in');
+  });
+});

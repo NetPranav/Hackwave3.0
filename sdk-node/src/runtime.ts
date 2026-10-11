@@ -101,49 +101,86 @@ export function applyAliases<T>(raw: T, rules: readonly AliasRule[] | undefined,
 }
 
 /**
- * Transforms (P5.10). Unlike aliases these CHANGE a value, so they are never automatic: Seismo only proposes them in a
- * `needs-review` PR that a human asked for. Supported kind: `scale` (divide one numeric field by an exact factor).
- * Guarantees, property-tested: T1 identity without matching rules (same reference) · T2 only the named numeric field
- * changes, exactly value / divideBy; strings, missing fields and non-numbers are untouched · T3 never throws.
+ * Transforms (P5.10, v2 fix templates). Unlike aliases these CHANGE a value, so they are never automatic: Seismo only
+ * proposes them in a `needs-review` PR that a human asked for, after a stress test. Kinds, all on ONE named field:
+ *  - scale:  divide a number by an exact factor (units: paise -> rupees)
+ *  - coerce: lossless type conversion back to what the code expects ("499" -> 499 with to:"number"; 499 -> "499")
+ *  - map:    replace a new enum value with a known one ({ "partially_shipped": "in_transit" })
+ * Guarantees, property-tested: T1 identity without matching rules (same reference) · T2 only the named field changes,
+ * and only when the template applies (a non-numeric string is never coerced, an unmapped value is never replaced) ·
+ * T3 never throws · T4 coerce and map are idempotent (applying twice equals once; scale is applied once per response).
  */
 export interface ScaleRule { kind: 'scale'; endpoint?: string; path?: string; field: string; divideBy: number }
+export interface CoerceRule { kind: 'coerce'; endpoint?: string; path?: string; field: string; to: 'number' | 'string' }
+export interface MapRule { kind: 'map'; endpoint?: string; path?: string; field: string; map: Record<string, string | number | boolean> }
+export type TransformRule = ScaleRule | CoerceRule | MapRule;
 
-function scaleAt(node: unknown, segs: Seg[], i: number, rule: ScaleRule): unknown {
+/** Strict decimal number text: "499", "-3", "12.50". Not "", " ", "1e3", "0x10", "12abc". */
+const NUMERIC = /^-?(0|[1-9][0-9]{0,14})(\.[0-9]{1,10})?$/;
+
+function valueAt(node: unknown, segs: Seg[], i: number, field: string, fn: (v: unknown) => unknown): unknown {
   if (i === segs.length) {
     if (!isPlain(node)) return node;
-    const d = dataProp(node, rule.field);
-    if (!d || typeof d.value !== 'number' || !Number.isFinite(d.value)) return node;
+    const d = dataProp(node, field);
+    if (!d) return node;
+    const next = fn(d.value);
+    if (Object.is(next, d.value)) return node;
     const copy: Record<string, unknown> = Object.assign(Object.create(Object.getPrototypeOf(node)), node);
-    Object.defineProperty(copy, rule.field, { value: d.value / rule.divideBy, enumerable: true, writable: true, configurable: true });
+    Object.defineProperty(copy, field, { value: next, enumerable: true, writable: true, configurable: true });
     return copy;
   }
   const seg = segs[i]!;
   if (seg === ALL) {
     if (!Array.isArray(node)) return node;
     let out: unknown[] | undefined;
-    for (let j = 0; j < node.length; j++) { const n = scaleAt(node[j], segs, i + 1, rule); if (n !== node[j]) { out ??= node.slice(); out[j] = n; } }
+    for (let j = 0; j < node.length; j++) { const n = valueAt(node[j], segs, i + 1, field, fn); if (n !== node[j]) { out ??= node.slice(); out[j] = n; } }
     return out ?? node;
   }
   if (!isPlain(node)) return node;
   const d = dataProp(node, seg);
   if (!d) return node;
-  const next = scaleAt(d.value, segs, i + 1, rule);
+  const next = valueAt(d.value, segs, i + 1, field, fn);
   if (next === d.value) return node;
   const copy: Record<string, unknown> = Object.assign(Object.create(Object.getPrototypeOf(node)), node);
   Object.defineProperty(copy, seg, { value: next, enumerable: true, writable: true, configurable: true });
   return copy;
 }
 
+/** The value function of a transform rule, or undefined when the rule is malformed (then it is ignored). */
+function transformFn(r: TransformRule): ((v: unknown) => unknown) | undefined {
+  if (!r || !safeName(r.field)) return undefined;
+  if (r.kind === 'scale') {
+    if (typeof r.divideBy !== 'number' || !Number.isFinite(r.divideBy) || r.divideBy <= 0) return undefined;
+    return (v) => (typeof v === 'number' && Number.isFinite(v) ? v / r.divideBy : v);
+  }
+  if (r.kind === 'coerce') {
+    if (r.to === 'number') return (v) => (typeof v === 'string' && NUMERIC.test(v) ? Number(v) : v);
+    if (r.to === 'string') return (v) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : v);
+    return undefined;
+  }
+  if (r.kind === 'map') {
+    const m = r.map;
+    if (!m || typeof m !== 'object' || Array.isArray(m)) return undefined;
+    const entries = Object.entries(m).filter(([k, v]) => k.length <= 128 && !FORBIDDEN.has(k) && ['string', 'number', 'boolean'].includes(typeof v));
+    if (!entries.length) return undefined;
+    const table = new Map(entries);
+    return (v) => (typeof v === 'string' && table.has(v) ? table.get(v) : v);
+  }
+  return undefined;
+}
+
 export function applyTransforms<T>(raw: T, rules: readonly unknown[] | undefined, endpoint?: string): T {
   try {
     if (!rules || rules.length === 0 || raw === null || typeof raw !== 'object') return raw;
     let cur: unknown = raw;
-    for (const r of rules as ScaleRule[]) {
-      if (!r || r.kind !== 'scale' || !safeName(r.field) || typeof r.divideBy !== 'number' || !Number.isFinite(r.divideBy) || r.divideBy <= 0) continue;
+    for (const r of rules as TransformRule[]) {
+      if (!r || !['scale', 'coerce', 'map'].includes(r.kind)) continue;
       if (!endpointMatches(r.endpoint, endpoint)) continue;
+      const fn = transformFn(r);
+      if (!fn) continue;
       const segs = parsePath(r.path ?? '$');
       if (!segs) continue;
-      cur = scaleAt(cur, segs, 0, r);
+      cur = valueAt(cur, segs, 0, r.field, fn);
     }
     return cur as T;
   } catch {
