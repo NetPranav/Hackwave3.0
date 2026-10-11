@@ -329,3 +329,19 @@ describe('serverless (Vercel): the function freezes after the response, timers n
     }
   });
 });
+
+describe('engine and the APIs on one host (hosted demo)', () => {
+  it('skips only its own uploads (/v1/...), not the app\'s calls to other paths of the same host', async () => {
+    const before = received.length;
+    // the "engine" and the "provider" are the same server here: ingestUrl serves /v1/ingest and answers other paths too
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, flushMs: 3_600_000, liveRules: false, services: { [`${ingestUrl}/users`]: 'same-host' } });
+    try {
+      await (await fetch(`${ingestUrl}/users/u_1`)).text();
+      await new Promise((r) => setTimeout(r, 50));
+      await s.flush();
+      const mine = received.slice(before).filter((f) => f['service'] === 'same-host');
+      expect(mine).toHaveLength(1);
+      expect(received.slice(before).some((f) => String(f['endpoint']).startsWith('/v1/'))).toBe(false);   // never its own upload
+    } finally { s.stop(); }
+  });
+});

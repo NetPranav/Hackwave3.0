@@ -148,7 +148,7 @@ async function goLive(state) {
   if (!shop) fail(`none of the deployment's aliases is public (${aliases.join(', ')}): turn off Vercel Authentication for Production or add a domain`);
   // the hosted shop really talks to this machine: the checkout makes provider calls through the tunnel
   const checkout = await ok(`${shop}/checkout`);
-  log(checkout ? `✓ ${shop}/checkout works through the tunnels` : `⚠ ${shop}/checkout did not answer 200 (check the shop's Vercel logs)`);
+  log(checkout ? `✓ ${shop}/checkout works (provider calls reach ${ENGINE ? 'the hosted engine' : 'this machine through the tunnels'})` : `⚠ ${shop}/checkout did not answer 200 (check the shop's Vercel logs)`);
   await fetch(`${BACKEND}/internal/demo/shop`, { method: 'POST', headers: { 'x-internal-token': process.env.INTERNAL_TOKEN, 'content-type': 'application/json' }, body: JSON.stringify({ url: shop }) }).catch(() => undefined);
   if (!args.includes('--no-homepage')) {
     const repo = JSON.parse(execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner,homepageUrl'], { cwd: SHOP_DIR, encoding: 'utf8' }));

@@ -187,7 +187,9 @@ export class Seismo {
 
   private shouldSample(rawUrl: string) {
     const u = new URL(rawUrl);
-    if (this.o.endpoint && rawUrl.startsWith(this.o.endpoint)) return false;
+    // never its own uploads (/v1/ingest, /v1/sdk/*). Only those: a hosted engine may serve the APIs the app calls on
+    // the same host (found live: every provider call was skipped when engine and providers shared one URL)
+    if (this.o.endpoint && rawUrl.startsWith(`${this.o.endpoint.replace(/\/$/, '')}/v1/`)) return false;
     if (this.o.ignore?.some((p) => p && rawUrl.startsWith(p))) return false;
     if (this.o.allowHosts) { if (!this.o.allowHosts.includes(u.host)) return false; }
     else if (PRIVATE.test(u.hostname) && !this.o.services) return false;
