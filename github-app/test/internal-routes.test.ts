@@ -15,7 +15,7 @@ afterAll(async () => { await server.stop(); });
 
 describe('internal routes (backend -> GitHub App)', () => {
   it('reject calls without the shared token', async () => {
-    for (const path of ['/internal/fix', '/internal/rules', '/internal/issue', '/internal/setup', '/internal/installations', '/internal/demo-reset']) {
+    for (const path of ['/internal/fix', '/internal/rules', '/internal/issue', '/internal/setup', '/internal/installations', '/internal/demo-reset', '/internal/repos', '/internal/scan']) {
       const r = await fetch(`http://localhost:${port}${path}`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
       expect(r.status).toBe(401);
     }

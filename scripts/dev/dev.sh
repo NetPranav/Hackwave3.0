@@ -9,6 +9,8 @@ backend_port=${PORT:-4000}
 # the backend reaches the GitHub App (PRs, issues, installations) over HTTP
 export GITHUB_APP_PORT=${GITHUB_APP_PORT:-3060}
 export GITHUB_APP_URL=${GITHUB_APP_URL:-http://localhost:$GITHUB_APP_PORT}
+# ...and the GitHub App posts code maps and CI results back to the backend
+export BACKEND_URL=${BACKEND_URL:-http://localhost:$backend_port}
 npm run dev -w backend &
 npm run worker -w backend &
 PORT=${SERVICES_PORT:-4100} npm run dev -w services &

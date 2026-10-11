@@ -104,6 +104,41 @@ describe('ingest, baselines, status (P3.4-P3.6)', () => {
 
 });
 
+describe('onboarding: installations, rescan, setup PR (v2-P2)', () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; });
+  const github = () => {
+    const calls: string[] = [];
+    return {
+      calls,
+      client: {
+        repos: async () => [{ id: 7, account: 'NetPranav', repos: ['NetPranav/seismo-demo-shop', 'NetPranav/other'] }, { id: 8, account: 'someone', repos: ['someone/x'] }],
+        scan: async (repo: string) => void calls.push('scan ' + repo),
+        setup: async (repo: string) => { calls.push('setup ' + repo); return { url: 'https://github.com/' + repo + '/pull/9', number: 9, created: true, wrapped: 4 }; },
+      },
+    };
+  };
+  it('lists only the signed-in account, with scan state; rescan and setup only for its own repos', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    const g = github();
+    const a = buildApp({ github: g.client });
+    const h = { authorization: `Bearer ${await signUserToken('netpranav')}` };
+    await a.inject({ method: 'POST', url: '/internal/codemap', headers: { 'x-internal-token': 'dev-internal' }, payload: { repo: 'NetPranav/seismo-demo-shop', commit: 'c', scannedAt: '2026-10-12T10:00:00.000Z', callSites: [], fieldReads: [], workflows: [] } });
+    const inst = (await a.inject({ url: '/v1/installations', headers: h })).json();
+    expect(inst).toEqual([{ id: '7', account: 'NetPranav', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }, { name: 'other', scan: 'pending', progress: 0 }] }]);
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/NetPranav/other/scan', headers: h })).statusCode).toBe(202);
+    expect((await a.inject({ url: '/v1/installations', headers: h })).json()[0].repos[1]).toMatchObject({ name: 'other', scan: 'running' });
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/someone/x/scan', headers: h })).statusCode).toBe(404);          // not theirs
+    const pr = await a.inject({ method: 'POST', url: '/v1/repos/NetPranav/seismo-demo-shop/setup-pr', headers: h });
+    expect(pr.json()).toMatchObject({ number: 9, created: true });
+    expect(g.calls).toEqual(['scan NetPranav/other', 'setup NetPranav/seismo-demo-shop']);
+  });
+  it('without the GitHub App the repo actions answer 503', async () => {
+    const a = buildApp();
+    expect((await a.inject({ method: 'POST', url: '/v1/repos/a/b/scan' })).statusCode).toBe(503);
+  });
+});
+
 describe('metrics for the overview chart (v2-P3.1)', () => {
   it('buckets calls, p95 and drift events per 6 h; future buckets are null', async () => {
     const { buildMetrics } = await import('./status.js');

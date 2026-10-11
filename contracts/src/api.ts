@@ -18,6 +18,8 @@ export const ROUTES: Route[] = [
   { method: 'get', path: '/v1/installations', summary: 'Installations, repos and scan progress', response: z.array(Installation), auth: 'user' },
   { method: 'get', path: '/v1/metrics', summary: 'Calls, p95 latency and drift events per 6 h bucket, last 7 days (overview chart)', response: Metrics, auth: 'user' },
   { method: 'get', path: '/v1/codemap', summary: 'Merged code maps: call sites, field reads (with source line) and workflows', response: CodeMapView, auth: 'user' },
+  { method: 'post', path: '/v1/repos/{owner}/{repo}/scan', summary: 'Rescan a repository now (only repos of your installations; 202)', response: Ok, auth: 'user' },
+  { method: 'post', path: '/v1/repos/{owner}/{repo}/setup-pr', summary: 'Open the one-time setup PR (withAliases wrappers + seismo/aliases.json)', response: z.object({ url: z.string(), number: z.number(), created: z.boolean(), wrapped: z.number() }), auth: 'user' },
   { method: 'get', path: '/v1/coverage', summary: 'Mapping coverage numbers', response: Coverage, auth: 'user' },
   { method: 'get', path: '/v1/status', summary: 'API status layer', response: StatusResponse, auth: 'user' },
   { method: 'get', path: '/v1/drift-events', summary: 'Timeline of drift events', response: z.array(DriftEvent), auth: 'user' },

@@ -37,3 +37,25 @@ export function httpInstallations(baseUrl = process.env.GITHUB_APP_URL, token = 
     return ((await r.json()) as { installations: { id: number; account: string }[] }).installations;
   };
 }
+
+/** v2-P2: what the dashboard's onboarding asks the GitHub App to do (list repos, rescan, open the setup PR). */
+export interface GithubAppClient {
+  repos(): Promise<{ id: number; account: string; repos: string[] }[]>;
+  scan(repo: string): Promise<void>;
+  setup(repo: string): Promise<{ url: string; number: number; created: boolean; wrapped: number }>;
+}
+
+export function httpGithubApp(baseUrl = process.env.GITHUB_APP_URL, token = process.env.INTERNAL_TOKEN ?? 'dev-internal'): GithubAppClient | undefined {
+  if (!baseUrl) return undefined;
+  const call = async <T>(path: string, body: unknown, timeoutMs = 20000): Promise<T> => {
+    const r = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': token }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+    if (!r.ok) throw new Error(`github-app ${path}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+    return (await r.json()) as T;
+  };
+  return {
+    repos: async () => (await call<{ installations: { id: number; account: string; repos: string[] }[] }>('/internal/repos', {})).installations,
+    scan: async (repo) => void (await call('/internal/scan', { repo })),
+    // the setup PR clones the repo and runs the codemod: allow a minute
+    setup: (repo) => call('/internal/setup', { repo }, 60000),
+  };
+}

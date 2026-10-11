@@ -664,6 +664,75 @@
         }
       }
     },
+    "/v1/repos/{owner}/{repo}/scan": {
+      "post": {
+        "summary": "Rescan a repository now (only repos of your installations; 202)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/repos/{owner}/{repo}/setup-pr": {
+      "post": {
+        "summary": "Open the one-time setup PR (withAliases wrappers + seismo/aliases.json)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "number"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "wrapped": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "number",
+                    "created",
+                    "wrapped"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/coverage": {
       "get": {
         "summary": "Mapping coverage numbers",

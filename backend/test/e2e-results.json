@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-oaxlon",
+      "id": "a-4lvsxn",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-oaxlon",
+      "driftEvent": "drift-4lvsxn",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.162,
-    "p50On": 0.236,
-    "p99Off": 1.577,
-    "p99On": 1.242
+    "p50Off": 0.3,
+    "p50On": 0.288,
+    "p99Off": 4.69,
+    "p99On": 1.5
   }
 }

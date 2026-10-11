@@ -12,7 +12,7 @@ import { buildBaselines } from './baseline.js';
 import { buildMetrics, buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
 import { DriftEngine, type FixDispatcher } from './drift-engine.js';
-import { httpFixDispatcher, httpIssueSink } from './fix-dispatcher.js';
+import { httpFixDispatcher, httpIssueSink, type GithubAppClient } from './fix-dispatcher.js';
 import { AiService } from './ai/service.js';
 import { suggestionFor } from './ai/templates.js';
 import { Dispatcher } from './alerts/dispatcher.js';
@@ -29,6 +29,8 @@ export interface AppOptions {
   /** GitHub App installations (account logins) for /v1/me; undefined = not connected. */
   installations?: () => Promise<{ id: number; account: string }[]>;
   projects?: Projects; ingestLimiter?: RateLimiter;
+  /** GitHub App actions for onboarding (repos, rescan, setup PR); undefined = not connected. */
+  github?: GithubAppClient;
   /** How long an alert waits for the AI text before sending the template (the dashboard gets the AI text when it arrives). */
   alertAiWaitMs?: number;
 }
@@ -38,8 +40,22 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Real data everywhere. Contract-shaped mock data is returned ONLY when SEISMO_MOCKS=1 (dashboard development without an engine);
  * otherwise an empty system answers with empty results, never with invented drift.
  */
+/** Cache a GitHub lookup for `ttlMs` (installations change rarely; every dashboard page asks for them). Failures are not cached. */
+function cached<T>(fn: () => Promise<T>, ttlMs = 30_000): () => Promise<T> {
+  let hit: { at: number; value: Promise<T> } | undefined;
+  return () => {
+    if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+    const value = fn();
+    hit = { at: Date.now(), value };
+    value.catch(() => { hit = undefined; });
+    return value;
+  };
+}
+
 export function buildApp(opts: AppOptions = {}) {
   const mocks = opts.mocks ?? process.env.SEISMO_MOCKS === '1';
+  const installationsOf = opts.installations ? cached(opts.installations) : undefined;
+  const reposOf = opts.github ? cached(() => opts.github!.repos()) : undefined;
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
@@ -119,7 +135,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.get('/v1/me', async (req) => {
     const login = req.user ?? 'demo-user';
     if (!opts.installations) return mocks ? { ...mockMe(), login } : { login, installations: [] };
-    const all = await opts.installations().catch(() => []);
+    const all = await installationsOf!().catch(() => []);
     const appSlug = process.env.GITHUB_APP_SLUG ?? 'seismo-app';
     return {
       login, appSlug, installUrl: `https://github.com/apps/${appSlug}/installations/new`,
@@ -178,11 +194,47 @@ export function buildApp(opts: AppOptions = {}) {
     const parsed = CodeMap.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_codemap', message: parsed.error.message });
     await store.put(parsed.data);
+    scanning.delete(parsed.data.repo);
     for (const send of sseClients) send('graph.updated', { repo: parsed.data.repo });
     return { ok: true };
   });
-  app.get('/v1/installations', async () => {
+  // v2-P2: installations of the signed-in account with their repos and scan state; rescan and setup PR per repo.
+  const scanning = new Map<string, number>();
+  const mine = async (login: string) => {
+    const all = await reposOf!();
+    return all.filter((i) => login === 'demo-user' || i.account.toLowerCase() === login.toLowerCase());
+  };
+  const ownsRepo = async (login: string, repo: string) => (await mine(login)).some((i) => i.repos.some((r) => r.toLowerCase() === repo.toLowerCase()));
+  app.post('/v1/repos/:owner/:repo/scan', async (req, reply) => {
+    if (!opts.github) return reply.code(503).send({ error: 'github_app_not_connected' });
+    const { owner, repo } = req.params as { owner: string; repo: string };
+    const full = `${owner}/${repo}`;
+    if (!(await ownsRepo(req.user ?? 'demo-user', full).catch(() => false))) return reply.code(404).send({ error: 'not_found' });
+    await opts.github.scan(full);
+    scanning.set(full, Date.now());
+    return reply.code(202).send({ ok: true });
+  });
+  app.post('/v1/repos/:owner/:repo/setup-pr', async (req, reply) => {
+    if (!opts.github) return reply.code(503).send({ error: 'github_app_not_connected' });
+    const { owner, repo } = req.params as { owner: string; repo: string };
+    const full = `${owner}/${repo}`;
+    if (!(await ownsRepo(req.user ?? 'demo-user', full).catch(() => false))) return reply.code(404).send({ error: 'not_found' });
+    try { return await opts.github.setup(full); } catch (e) { return reply.code(502).send({ error: 'setup_failed', message: String((e as Error).message).slice(0, 300) }); }
+  });
+  app.get('/v1/installations', async (req) => {
     const maps = await store.all();
+    if (opts.github) {
+      const scanned = new Set(maps.map((m) => m.repo.toLowerCase()));
+      const insts = await mine(req.user ?? 'demo-user').catch(() => []);
+      return insts.map((i) => ({
+        id: String(i.id), account: i.account,
+        repos: i.repos.map((full) => {
+          const started = scanning.get(full);
+          const state = scanned.has(full.toLowerCase()) && !started ? 'done' : started && Date.now() - started < 5 * 60_000 ? 'running' : scanned.has(full.toLowerCase()) ? 'done' : 'pending';
+          return { name: full.split('/')[1] ?? full, scan: state as 'done' | 'running' | 'pending', progress: state === 'done' ? 1 : state === 'running' ? 0.5 : 0 };
+        }),
+      }));
+    }
     if (!maps.length) return mocks ? [{ id: 'inst-1', account: 'demo', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }] }] : [];
     const byOwner = new Map<string, string[]>();
     for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
