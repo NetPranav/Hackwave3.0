@@ -10,6 +10,8 @@ const QUIET =
   "inline-flex items-center gap-1.5 rounded border border-box-outline px-3 py-1.5 font-aeonik-mono text-xs uppercase tracking-wider text-text-primary/80 transition-colors hover:border-text-primary hover:text-text-primary dark:border-dark-border dark:text-white/80 dark:hover:text-white";
 
 interface ReviewActionsProps {
+  /** only changes with a data fix (a unit change -> scale rule) have a suggestion PR */
+  canOpenPr?: boolean;
   prNumber?: number;
   prUrl?: string;
   error?: string;
@@ -19,7 +21,7 @@ interface ReviewActionsProps {
 }
 
 /** Mark expected, snooze, or open a needs-review suggestion PR. The PR is never merged automatically. */
-export default function ReviewActions({ prNumber, prUrl, error, onMarkExpected, onSnooze, onOpenPr }: ReviewActionsProps) {
+export default function ReviewActions({ canOpenPr = true, prNumber, prUrl, error, onMarkExpected, onSnooze, onOpenPr }: ReviewActionsProps) {
   const [snoozing, setSnoozing] = useState(false);
 
   return (
@@ -72,10 +74,14 @@ export default function ReviewActions({ prNumber, prUrl, error, onMarkExpected, 
         >
           PR #{prNumber} · needs review ↗
         </a>
-      ) : (
+      ) : canOpenPr ? (
         <button type="button" onClick={onOpenPr} className={QUIET + " ml-auto"}>
           Open suggestion PR ↗
         </button>
+      ) : (
+        <span className="ml-auto font-aeonik-mono text-[11px] uppercase tracking-wider text-text-primary/45 dark:text-white/40">
+          No PR: code change needed
+        </span>
       )}
       {error && <p className="w-full text-right font-aeonik-light text-xs text-warn dark:text-warn-bright">{error}</p>}
     </div>

@@ -76,16 +76,24 @@ export default function LiveDemo() {
   const status = STATUS[stage];
 
   return (
-    <section id="demo" className="mx-auto max-w-[1440px] px-6 pb-24 md:px-10 lg:px-16">
-      <Reveal>
-        <SectionLabel n="3" label="Try it" />
-        <h2 className="mt-6 max-w-3xl font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl">Break an API. Watch what happens.</h2>
-        <p className="mt-4 font-aeonik-light text-base text-text-primary/70">A pretend provider, canned data. Nothing leaves this page.</p>
-      </Reveal>
+    <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col justify-center px-6 py-24 md:px-10 lg:px-16">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <Reveal depth={0.6}>
+            <SectionLabel n="3" label="Try it" />
+          </Reveal>
+          <Reveal depth={1}>
+            <h2 className="mt-6 font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl short:md:text-5xl">Break an API. Watch what happens.</h2>
+          </Reveal>
+        </div>
+        <Reveal depth={1.2}>
+          <p className="max-w-xs font-aeonik-light text-base text-text-primary/70">A pretend provider with canned data. Press the button below.</p>
+        </Reveal>
+      </div>
 
-      <Reveal className="mt-10 overflow-hidden rounded-xl border border-box-outline bg-section">
+      <Reveal depth={1.8} className="mt-10 overflow-hidden rounded-xl border border-box-outline bg-section short:mt-7">
         <div className="grid lg:grid-cols-2">
-          <div className="space-y-5 border-b border-box-outline p-6 md:p-8 lg:border-b-0 lg:border-r">
+          <div className="space-y-4 border-b border-box-outline p-6 lg:border-b-0 lg:border-r short:space-y-3 short:p-5">
             <div className="flex items-center justify-between font-aeonik-mono text-[11px] uppercase tracking-[0.2em] text-text-primary/50">
               <span>What the API sends</span>
               <span className="flex items-center gap-2 normal-case tracking-normal">
@@ -98,7 +106,7 @@ export default function LiveDemo() {
             <Json stage={stage} view="app" />
           </div>
 
-          <div className="flex flex-col justify-between gap-8 p-6 md:p-8">
+          <div className="flex flex-col justify-between gap-6 p-6 short:p-5">
             <div>
               <p className="font-aeonik-mono text-[11px] uppercase tracking-[0.2em] text-text-primary/50">What Seismo sees</p>
               <div className="mt-5">
@@ -111,7 +119,7 @@ export default function LiveDemo() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="mt-6 rounded-md border border-box-outline bg-dash-bg p-4"
+                  className="mt-5 rounded-md border border-box-outline bg-dash-bg p-4"
                 >
                   <p className={cn("font-aeonik-mono text-xs font-medium tracking-wider", status.tone)}>● {status.label}</p>
                   <p className="mt-2 font-aeonik text-base leading-snug">{status.text}</p>
@@ -122,13 +130,13 @@ export default function LiveDemo() {
             <button
               type="button"
               onClick={next}
-              className="w-full rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-transform hover:scale-[1.02] sm:w-fit"
+              className="w-full rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-colors hover:bg-accent sm:w-fit"
             >
               {BUTTON[stage]} →
             </button>
           </div>
         </div>
       </Reveal>
-    </section>
+    </div>
   );
 }

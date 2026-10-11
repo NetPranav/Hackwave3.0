@@ -106,7 +106,7 @@ function Details({ item, aiOn, prNumber, prUrl, error, onMarkExpected, onSnooze,
       </div>
 
       <div className="mt-4">
-        <ReviewActions prNumber={prNumber} prUrl={prUrl} error={error} onMarkExpected={onMarkExpected} onSnooze={onSnooze} onOpenPr={onOpenPr} />
+        <ReviewActions canOpenPr={item.detectorId === "D5" || item.suggestion.kind === "transform"} prNumber={prNumber} prUrl={prUrl} error={error} onMarkExpected={onMarkExpected} onSnooze={onSnooze} onOpenPr={onOpenPr} />
       </div>
     </div>
   );

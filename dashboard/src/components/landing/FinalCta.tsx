@@ -1,51 +1,43 @@
 import Link from "next/link";
 import { Threads } from "@/components/ui";
 import Logo from "@/components/layout/Logo";
+import Magnetic from "./Magnetic";
 import Reveal from "./Reveal";
 
-/** The close: one more field of threads, one clear button, and a plain footer. */
+/** Slide 11: one more field of threads, the closing line, two buttons, and the footer pinned to the bottom. */
 export default function FinalCta() {
   return (
     <>
-      <section className="relative isolate overflow-hidden">
-        <div aria-hidden className="absolute inset-0 -z-10">
-          <Threads
-            color="#1a1918"
-            accentColor="#ff6e3e"
-            lineCount={60}
-            thickness={0.5}
-            amplitude={1.4}
-            distance={0.5}
-            speed={0.4}
-            angle={-20}
-            taper={0.8}
-            brightness={1.1}
-            parting={0.6}
-            enableMouseInteraction
-            fade={0.5}
-            opacity={0.6}
-          />
-        </div>
-        <Reveal className="mx-auto flex min-h-[70svh] max-w-[1440px] flex-col justify-center px-6 py-24 md:px-10 lg:px-16">
-          <h2 className="max-w-4xl font-aeonik text-5xl leading-[0.92] tracking-tight md:text-7xl xl:text-8xl">
+      <div aria-hidden className="absolute inset-0 -z-10">
+        <Threads color="#1a1918" accentColor="#ff6e3e" lineCount={60} thickness={0.5} amplitude={1.4} distance={0.5} speed={0.4} angle={-20} taper={0.8} brightness={1.1} parting={0.6} enableMouseInteraction fade={0.5} opacity={0.6} />
+      </div>
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col justify-center px-6 py-24 md:px-10 lg:px-16">
+        <Reveal depth={1}>
+          <h2 className="max-w-5xl font-aeonik text-5xl leading-[0.92] tracking-tight md:text-7xl xl:text-8xl short:xl:text-7xl">
             Know when your APIs change. <span className="text-accent">Before your users do.</span>
           </h2>
+        </Reveal>
+        <Reveal depth={1.4}>
           <p className="mt-6 max-w-xl font-aeonik-light text-base leading-relaxed text-text-primary/75 md:text-lg">
             Install the GitHub App, add one line, and see your first dependency map in minutes.
           </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/login" className="rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-transform hover:scale-[1.03]">
+        </Reveal>
+        <Reveal depth={1.8} className="mt-9 flex flex-wrap gap-3">
+          <Magnetic>
+            <Link href="/login" className="block rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-colors hover:bg-accent">
               Install on GitHub
             </Link>
-            <Link href="/login" className="rounded-md border border-text-primary bg-section/70 px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider backdrop-blur-sm transition-colors hover:bg-section">
+          </Magnetic>
+          <Magnetic>
+            <Link href="/login" className="block rounded-md border border-text-primary bg-section/70 px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider backdrop-blur-sm transition-colors hover:bg-section">
               Sign in with GitHub
             </Link>
-          </div>
+          </Magnetic>
         </Reveal>
-      </section>
+      </div>
 
-      <footer className="border-t border-box-outline">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-6 md:px-10 lg:px-16">
+      <footer className="border-t border-box-outline bg-page-bg/80 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-5 md:px-10 lg:px-16">
           <Logo />
           <nav aria-label="Footer" className="flex flex-wrap gap-5 font-aeonik-mono text-xs uppercase tracking-wider text-text-primary/60">
             <Link href="/docs/sdk" className="hover:text-accent">Docs</Link>

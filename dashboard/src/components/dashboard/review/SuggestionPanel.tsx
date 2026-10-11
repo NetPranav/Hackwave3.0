@@ -24,9 +24,16 @@ export default function SuggestionPanel({ suggestion }: { suggestion: ReviewSugg
 
       <p className="mt-3 font-aeonik text-sm font-medium text-text-primary dark:text-white">{suggestion.summary}</p>
 
-      <pre className="mt-2 whitespace-pre-wrap break-words rounded border border-box-outline/70 bg-inset px-3 py-2.5 font-aeonik-mono text-[11px] leading-relaxed text-text-primary/85 dark:border-dark-border dark:bg-dark-inset dark:text-white/85">
-        <code>{formatRule(suggestion.rule)}</code>
-      </pre>
+      {suggestion.rule ? (
+        <pre className="mt-2 whitespace-pre-wrap break-words rounded border border-box-outline/70 bg-inset px-3 py-2.5 font-aeonik-mono text-[11px] leading-relaxed text-text-primary/85 dark:border-dark-border dark:bg-dark-inset dark:text-white/85">
+          <code>{formatRule(suggestion.rule)}</code>
+        </pre>
+      ) : (
+        <p className="mt-2 rounded border border-dashed border-box-outline px-3 py-2.5 font-aeonik-light text-xs leading-relaxed text-text-primary/70 dark:border-dark-border dark:text-white/70">
+          No one-click fix for this kind of change: it needs a change in your code (above), and Seismo never writes code. Fixes
+          that are data (a renamed field, a unit conversion) get a pull request; this one is yours to make.
+        </p>
+      )}
 
       <p className="mt-2 font-aeonik-light text-xs leading-relaxed text-text-primary/60 dark:text-white/60">
         {suggestion.note}
