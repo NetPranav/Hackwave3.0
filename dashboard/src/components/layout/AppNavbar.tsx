@@ -2,9 +2,12 @@
 
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/hooks/useTheme";
+import LiveBadge from "./LiveBadge";
 import Logo from "./Logo";
 import NavMenu from "./NavMenu";
 import { BREADCRUMBS } from "./navConfig";
+import NotificationBell from "./NotificationBell";
+import UserMenu from "./UserMenu";
 
 function ThemeToggle({ isDark, onToggle }: { isDark: boolean; onToggle: () => void }) {
   return (
@@ -66,11 +69,10 @@ export default function AppNavbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-1.5 font-aeonik-mono text-[10px] text-text-primary/60 dark:text-white/60 sm:flex">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ok dark:bg-ok-bright" />
-            <span>LIVE</span>
-          </div>
+          <LiveBadge />
+          <NotificationBell />
           <ThemeToggle isDark={isDark} onToggle={toggle} />
+          <UserMenu />
         </div>
       </div>
     </header>

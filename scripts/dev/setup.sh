@@ -16,4 +16,6 @@ else
 fi
 npm run build -w contracts
 npm run db:migrate -w backend
+bash scripts/dev/dashboard-env.sh
+[ -d dashboard/node_modules ] || (cd dashboard && npm install --no-audit --no-fund)
 echo "setup done"

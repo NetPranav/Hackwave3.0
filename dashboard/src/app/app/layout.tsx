@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import AppNavbar from "@/components/layout/AppNavbar";
+import { LiveProvider } from "@/lib/api/live";
 
 export default function DashboardLayout({ children }: LayoutProps<"/app">) {
   return (
+    <LiveProvider>
     <div className="min-h-screen bg-dash-bg text-text-primary transition-colors duration-150 antialiased selection:bg-accent selection:text-white dark:bg-dark-dash-bg dark:text-white">
       <Suspense
         fallback={
@@ -13,5 +15,6 @@ export default function DashboardLayout({ children }: LayoutProps<"/app">) {
       </Suspense>
       {children}
     </div>
+    </LiveProvider>
   );
 }
