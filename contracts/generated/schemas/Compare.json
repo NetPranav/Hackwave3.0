@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "service": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "v1": {},
+    "v2": {},
+    "diff": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "type",
+              "magnitude",
+              "enum",
+              "length"
+            ]
+          },
+          "before": {},
+          "after": {}
+        },
+        "required": [
+          "path",
+          "change"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "service",
+    "endpoint",
+    "v1",
+    "v2",
+    "diff"
+  ],
+  "additionalProperties": false
+}

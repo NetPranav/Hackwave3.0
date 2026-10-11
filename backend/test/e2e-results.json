@@ -1,0 +1,406 @@
+{
+  "none (soak)": {
+    "events": [],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "alerts": [],
+    "githubIssues": [],
+    "redGraphNodes": []
+  },
+  "users-rename": {
+    "events": [
+      {
+        "detector": "D3",
+        "endpoint": "GET /users/{id}",
+        "field": "name",
+        "title": "Field renamed: name → display_name",
+        "severity": "breaking",
+        "state": "fix_pending",
+        "usages": 2
+      }
+    ],
+    "prsOpened": 1,
+    "prRule": {
+      "id": "a-hgr5wq",
+      "kind": "alias",
+      "endpoint": "GET /users/{id}",
+      "path": "$",
+      "target": "name",
+      "source": "display_name",
+      "driftEvent": "drift-hgr5wq",
+      "addedAt": "2026-10-11"
+    },
+    "reviewQueue": [],
+    "alerts": [
+      "github",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected",
+      "fix_pending"
+    ],
+    "redGraphNodes": [
+      "wf:checkout (fix_pending)",
+      "svc:users (fix_pending)",
+      "ep:users:GET /users/{id} (fix_pending)",
+      "f:users:/users/{id}:name (fix_pending)",
+      "code:app/checkout/page.tsx:14 (fix_pending)",
+      "code:app/checkout/page.tsx:11 (fix_pending)"
+    ]
+  },
+  "users-error-shape": {
+    "events": [
+      {
+        "detector": "D11",
+        "endpoint": "GET /users/{id}",
+        "title": "Error response shape changed (4xx)",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 5
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D11",
+        "suggestion": "Error responses have a new shape. Update error parsing at app/checkout/page.tsx:14, app/checkout/page.tsx:13, app/checkout/page.tsx:11 (+2 more) so failures are not misread as success.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "email",
+      "slack",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected"
+    ],
+    "redGraphNodes": [
+      "svc:users (suspected)",
+      "ep:users:GET /users/{id} (suspected)"
+    ]
+  },
+  "payments-amount-type": {
+    "events": [
+      {
+        "detector": "D4",
+        "endpoint": "POST /payments",
+        "field": "amount",
+        "title": "Type changed: amount integer → string",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 2
+      },
+      {
+        "detector": "D4",
+        "endpoint": "GET /payments/{id}",
+        "field": "amount",
+        "title": "Type changed: amount integer → string",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 1
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D4",
+        "field": "amount",
+        "suggestion": "amount changed type. Convert it explicitly where it is read (lib/payments.ts:6, lib/payments.ts:7), e.g. Number(amount), and add a test with the new type. Seismo never converts types automatically.",
+        "explanation": "template"
+      },
+      {
+        "detector": "D4",
+        "field": "amount",
+        "suggestion": "amount changed type. Convert it explicitly where it is read (lib/payments.ts:16), e.g. Number(amount), and add a test with the new type. Seismo never converts types automatically.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "github",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected",
+      "suspected",
+      "breaking",
+      "breaking"
+    ],
+    "redGraphNodes": [
+      "wf:checkout (breaking)",
+      "svc:payments (breaking)",
+      "ep:payments:POST /payments (breaking)",
+      "ep:payments:GET /payments/{id} (breaking)",
+      "f:payments:/payments:amount (breaking)",
+      "code:lib/payments.ts:6 (breaking)",
+      "code:lib/payments.ts:7 (breaking)",
+      "f:payments:/payments/{id}:amount (breaking)",
+      "code:lib/payments.ts:16 (breaking)"
+    ]
+  },
+  "shipping-deprecation": {
+    "events": [
+      {
+        "detector": "D13",
+        "endpoint": "GET /shipments/{id}",
+        "title": "Sunset announced: Wed, 30 Dec 2026 00:00:00 GMT",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 2
+      },
+      {
+        "detector": "D13",
+        "endpoint": "GET /shipments/{id}",
+        "title": "Endpoint marked deprecated",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 2
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D13",
+        "suggestion": "The provider announced deprecation (Sunset announced: Wed, 30 Dec 2026 00:00:00 GMT). Plan the migration before the date; the radar tracks the deadline.",
+        "explanation": "template"
+      },
+      {
+        "detector": "D13",
+        "suggestion": "The provider announced deprecation (Endpoint marked deprecated). Plan the migration before the date; the radar tracks the deadline.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "email",
+      "slack",
+      "dashboard",
+      "github",
+      "email",
+      "slack",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected",
+      "suspected"
+    ],
+    "redGraphNodes": [
+      "svc:shipping (suspected)",
+      "ep:shipping:GET /shipments/{id} (suspected)"
+    ]
+  },
+  "orders-cursor": {
+    "events": [
+      {
+        "detector": "D1",
+        "endpoint": "GET /orders",
+        "field": "page",
+        "title": "Field removed: page",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      },
+      {
+        "detector": "D1",
+        "endpoint": "GET /orders",
+        "field": "total",
+        "title": "Field removed: total",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      },
+      {
+        "detector": "D2",
+        "endpoint": "GET /orders",
+        "field": "next_cursor",
+        "title": "New field: next_cursor",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      },
+      {
+        "detector": "D10",
+        "endpoint": "GET /orders",
+        "field": "next_cursor",
+        "title": "Pagination changed to cursors (next_cursor); page, total gone",
+        "severity": "info",
+        "state": "normal",
+        "usages": 0
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [],
+    "alerts": [],
+    "githubIssues": [],
+    "redGraphNodes": []
+  },
+  "payments-paise": {
+    "events": [
+      {
+        "detector": "D5",
+        "endpoint": "POST /payments",
+        "field": "amount",
+        "title": "Unit change: amount ×100",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 2
+      },
+      {
+        "detector": "D5",
+        "endpoint": "GET /payments/{id}",
+        "field": "amount",
+        "title": "Unit change: amount ×100",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 1
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D5",
+        "field": "amount",
+        "suggestion": "Every amount is now 100 times what it was (a unit change). In the payments adapter, divide amount by 100 before using it (lib/payments.ts:6, lib/payments.ts:7), or confirm the new unit with the provider. Money fields are never fixed automatically.",
+        "explanation": "template"
+      },
+      {
+        "detector": "D5",
+        "field": "amount",
+        "suggestion": "Every amount is now 100 times what it was (a unit change). In the payments adapter, divide amount by 100 before using it (lib/payments.ts:16), or confirm the new unit with the provider. Money fields are never fixed automatically.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "github",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected",
+      "suspected",
+      "breaking",
+      "breaking"
+    ],
+    "redGraphNodes": [
+      "wf:checkout (breaking)",
+      "svc:payments (breaking)",
+      "ep:payments:POST /payments (breaking)",
+      "ep:payments:GET /payments/{id} (breaking)",
+      "f:payments:/payments:amount (breaking)",
+      "code:lib/payments.ts:6 (breaking)",
+      "code:lib/payments.ts:7 (breaking)",
+      "f:payments:/payments/{id}:amount (breaking)",
+      "code:lib/payments.ts:16 (breaking)"
+    ]
+  },
+  "shipping-enum": {
+    "events": [
+      {
+        "detector": "D7",
+        "endpoint": "GET /shipments/{id}",
+        "field": "status",
+        "title": "New status value: partially_shipped",
+        "severity": "warning",
+        "state": "suspected",
+        "usages": 1
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D7",
+        "field": "status",
+        "suggestion": "status has a value your code has never seen. Add an explicit case for it in every if/switch that reads status (app/checkout/page.tsx:16); do not let it fall into a default branch silently.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "email",
+      "slack",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected"
+    ],
+    "redGraphNodes": [
+      "wf:checkout (suspected)",
+      "svc:shipping (suspected)",
+      "ep:shipping:GET /shipments/{id} (suspected)",
+      "f:shipping:/shipments/{id}:status (suspected)",
+      "code:app/checkout/page.tsx:16 (suspected)"
+    ]
+  },
+  "orders-limit-cap": {
+    "events": [
+      {
+        "detector": "D9",
+        "endpoint": "GET /orders",
+        "field": "data",
+        "title": "Silent truncation: asked 500, got exactly 100 in 100% of calls",
+        "severity": "breaking",
+        "state": "breaking",
+        "usages": 3
+      }
+    ],
+    "prsOpened": 0,
+    "reviewQueue": [
+      {
+        "detector": "D9",
+        "field": "data",
+        "suggestion": "The provider now returns at most 100 items per request. Request pages until a page comes back with fewer than 100 items (or an empty page) and merge them, at the call site (app/orders/page.tsx:5, app/orders/page.tsx:9, app/orders/page.tsx:9). Until then, totals and lists are silently incomplete.",
+        "explanation": "template"
+      }
+    ],
+    "alerts": [
+      "github",
+      "github",
+      "email",
+      "slack",
+      "whatsapp",
+      "dashboard"
+    ],
+    "githubIssues": [
+      "suspected",
+      "breaking"
+    ],
+    "redGraphNodes": [
+      "svc:orders (breaking)",
+      "ep:orders:GET /orders (breaking)"
+    ]
+  },
+  "resolve after merge": {
+    "state": "resolved",
+    "graphAllGreen": true
+  },
+  "sdk overhead (ms)": {
+    "p50Off": 0.111,
+    "p50On": 0.149,
+    "p99Off": 0.373,
+    "p99On": 0.728
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "service": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "statusClass": {
+      "default": "2xx",
+      "type": "string",
+      "enum": [
+        "2xx",
+        "3xx",
+        "4xx",
+        "5xx"
+      ]
+    },
+    "windowStart": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "windowSeconds": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "count": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "statusCounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "latencyMs": {
+      "type": "object",
+      "properties": {
+        "p50": {
+          "type": "number"
+        },
+        "p95": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "p50",
+        "p95"
+      ],
+      "additionalProperties": false
+    },
+    "headers": {
+      "type": "object",
+      "properties": {
+        "deprecation": {
+          "type": "string"
+        },
+        "sunset": {
+          "type": "string"
+        },
+        "rateLimitLimit": {
+          "type": "string"
+        },
+        "rateLimitRemaining": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reqQueryKeys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reqLimit": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "shapeHash": {
+      "type": "string"
+    },
+    "fields": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "types": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "nulls": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fmt": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "len": {
+            "type": "object",
+            "properties": {
+              "p5": {
+                "type": "number"
+              },
+              "p50": {
+                "type": "number"
+              },
+              "p95": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "p5",
+              "p50",
+              "p95"
+            ],
+            "additionalProperties": false
+          },
+          "mag": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "num": {
+            "type": "object",
+            "properties": {
+              "p5": {
+                "type": "number"
+              },
+              "p50": {
+                "type": "number"
+              },
+              "p95": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "p5",
+              "p50",
+              "p95"
+            ],
+            "additionalProperties": false
+          },
+          "enumValues": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "hashes": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "arrayLen": {
+            "type": "object",
+            "properties": {
+              "p50": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "atMax": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "p50",
+              "max",
+              "atMax"
+            ],
+            "additionalProperties": false
+          },
+          "idHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "n",
+          "types",
+          "nulls"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "v",
+    "service",
+    "method",
+    "endpoint",
+    "statusClass",
+    "windowStart",
+    "windowSeconds",
+    "count",
+    "statusCounts",
+    "latencyMs",
+    "headers",
+    "reqQueryKeys",
+    "shapeHash",
+    "fields"
+  ],
+  "additionalProperties": false
+}

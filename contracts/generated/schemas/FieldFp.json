@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "n": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "types": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "nulls": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "fmt": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "len": {
+      "type": "object",
+      "properties": {
+        "p5": {
+          "type": "number"
+        },
+        "p50": {
+          "type": "number"
+        },
+        "p95": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "p5",
+        "p50",
+        "p95"
+      ],
+      "additionalProperties": false
+    },
+    "mag": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "num": {
+      "type": "object",
+      "properties": {
+        "p5": {
+          "type": "number"
+        },
+        "p50": {
+          "type": "number"
+        },
+        "p95": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "p5",
+        "p50",
+        "p95"
+      ],
+      "additionalProperties": false
+    },
+    "enumValues": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "arrayLen": {
+      "type": "object",
+      "properties": {
+        "p50": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "atMax": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "p50",
+        "max",
+        "atMax"
+      ],
+      "additionalProperties": false
+    },
+    "idHashes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "n",
+    "types",
+    "nulls"
+  ],
+  "additionalProperties": false
+}

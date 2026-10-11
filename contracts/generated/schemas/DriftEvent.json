@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "service": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
+    "detector": {
+      "type": "string",
+      "pattern": "^D\\d{1,2}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "breaking"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "suspected",
+        "breaking",
+        "fix_pending",
+        "resolved",
+        "expected",
+        "snoozed"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "detectedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "before": {},
+    "after": {},
+    "usages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "line",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "explanation": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 600
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 400
+        },
+        "recommendation": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 400
+        },
+        "risk": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "channels": {
+          "type": "object",
+          "properties": {
+            "whatsapp": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 300
+            },
+            "slack": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1500
+            },
+            "emailSubject": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 140
+            },
+            "emailBody": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 3000
+            }
+          },
+          "required": [
+            "whatsapp",
+            "slack",
+            "emailSubject",
+            "emailBody"
+          ],
+          "additionalProperties": false
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "latencyMs": {
+          "type": "number"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "ai",
+            "template"
+          ]
+        },
+        "judgement": {
+          "type": "object",
+          "properties": {
+            "choice": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "choice",
+            "confidence",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "title",
+        "summary",
+        "impact",
+        "recommendation",
+        "risk",
+        "channels",
+        "confidence",
+        "model",
+        "latencyMs",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "fix": {
+      "type": "object",
+      "properties": {
+        "rung": {
+          "type": "string",
+          "enum": [
+            "alias",
+            "transform",
+            "behaviour"
+          ]
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "default": "alias",
+                  "type": "string",
+                  "const": "alias"
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "path": {
+                  "default": "$",
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "driftEvent": {
+                  "type": "string"
+                },
+                "addedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "endpoint",
+                "path",
+                "target",
+                "source"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "scale"
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "path": {
+                  "default": "$",
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "divideBy": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "driftEvent": {
+                  "type": "string"
+                },
+                "addedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "endpoint",
+                "path",
+                "field",
+                "divideBy"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "driftId": {
+              "type": "string"
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "enum": [
+                      "C1",
+                      "C2",
+                      "C3",
+                      "C4",
+                      "C5",
+                      "C6",
+                      "C7",
+                      "C8"
+                    ]
+                  },
+                  "passed": {
+                    "type": "boolean"
+                  },
+                  "detail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "passed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "ci": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "green",
+                "red"
+              ]
+            },
+            "prUrl": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "driftId",
+            "checks",
+            "ci"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "rung"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "service",
+    "endpoint",
+    "detector",
+    "title",
+    "severity",
+    "state",
+    "confidence",
+    "detectedAt",
+    "before",
+    "after",
+    "usages"
+  ],
+  "additionalProperties": false
+}

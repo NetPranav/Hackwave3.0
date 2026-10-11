@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "detector": {
+      "type": "string"
+    },
+    "affected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "line",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "breaking"
+      ]
+    },
+    "fixRung": {
+      "type": "string",
+      "enum": [
+        "alias",
+        "transform",
+        "behaviour"
+      ]
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "explanation": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "detector",
+    "affected",
+    "severity",
+    "fixRung",
+    "workflows",
+    "explanation"
+  ],
+  "additionalProperties": false
+}

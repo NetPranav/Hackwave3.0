@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "callSiteId": {
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
+    "file": {
+      "type": "string"
+    },
+    "line": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "usage": {
+      "type": "string",
+      "enum": [
+        "read",
+        "display",
+        "arithmetic",
+        "branching",
+        "persistence",
+        "outbound"
+      ]
+    },
+    "money": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "callSiteId",
+    "field",
+    "file",
+    "line",
+    "usage",
+    "money"
+  ],
+  "additionalProperties": false
+}

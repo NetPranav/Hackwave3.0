@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "service": {
+      "type": "string",
+      "enum": [
+        "users",
+        "payments",
+        "shipping",
+        "orders"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "rename",
+        "units",
+        "enum",
+        "pagination",
+        "default",
+        "error",
+        "rate-limit"
+      ]
+    },
+    "description": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "service",
+    "title",
+    "kind",
+    "description"
+  ],
+  "additionalProperties": false
+}

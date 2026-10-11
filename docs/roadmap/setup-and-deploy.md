@@ -48,6 +48,9 @@ Node host is chosen by spike S5 (must not sleep: webhooks). Candidates: Render, 
 - **Releases:** the lead merges personal branches into `main` through PRs (merge commit), tag `v0.N`; `v1.0` on Day 14.
 - **The demo repo** (`seismo-demo-shop`) has its own CI (lint, typecheck, Vitest incl. `seismo/aliases.test.ts`) and deploys to Vercel on push to its `main`.
 
+## 4b. Containers (built in P8 groundwork)
+One image runs every engine process: `docker build -t seismo .`, then pick the process (`node backend/dist/server.js` by default after migrations, `node services/dist/server.js`, `node github-app/dist/server.js`). `docker compose --profile full up --build` starts Postgres, the fake providers, the backend and the GitHub App together; `docker compose up -d db` starts only Postgres. Any host that runs containers and does not sleep works (spike S5 still picks one).
+
 ## 5. Secrets and config
 - Every app has `.env.example` (committed) listing every variable with a comment; real values only in `.env` (git-ignored), Vercel/host env settings, and GitHub Actions secrets.
 - Key secrets: `DATABASE_URL`, GitHub App `APP_ID` / `PRIVATE_KEY` (base64) / `WEBHOOK_SECRET` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`, `AUTH_SECRET`, `NIM_API_KEY`, `NIM_BASE_URL`, `NIM_MODEL_SMART`, `NIM_MODEL_FAST`, `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM`, `RESEND_API_KEY`, `DEMO_ADMIN_TOKEN`, `SEISMO_SDK_KEY` (demo shop).

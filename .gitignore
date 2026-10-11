@@ -39,3 +39,6 @@ venv/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Turborepo local cache + logs
+.turbo/

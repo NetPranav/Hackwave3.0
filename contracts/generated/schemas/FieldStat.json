@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string"
+    },
+    "types": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "presence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "formatClass": {
+      "type": "string"
+    },
+    "lengthBuckets": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "magnitude": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "percentiles": {
+      "type": "object",
+      "properties": {
+        "p10": {
+          "type": "number"
+        },
+        "p50": {
+          "type": "number"
+        },
+        "p90": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "p10",
+        "p50",
+        "p90"
+      ],
+      "additionalProperties": false
+    },
+    "enumValues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "saltedHashes": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "path",
+    "types",
+    "presence"
+  ],
+  "additionalProperties": false
+}

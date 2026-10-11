@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8"
+      ]
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "passed"
+  ],
+  "additionalProperties": false
+}

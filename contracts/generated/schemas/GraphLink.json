@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "has",
+        "reads",
+        "in",
+        "feeds"
+      ]
+    }
+  },
+  "required": [
+    "source",
+    "target",
+    "kind"
+  ],
+  "additionalProperties": false
+}

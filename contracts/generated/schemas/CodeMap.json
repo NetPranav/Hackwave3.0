@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "repo": {
+      "type": "string"
+    },
+    "commit": {
+      "type": "string"
+    },
+    "scannedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "callSites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "service": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "fnName": {
+            "type": "string"
+          },
+          "unresolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "repo",
+          "file",
+          "line",
+          "service",
+          "method",
+          "endpoint"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fieldReads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "callSiteId": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "usage": {
+            "type": "string",
+            "enum": [
+              "read",
+              "display",
+              "arithmetic",
+              "branching",
+              "persistence",
+              "outbound"
+            ]
+          },
+          "money": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "callSiteId",
+          "field",
+          "file",
+          "line",
+          "usage",
+          "money"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "file",
+          "functions",
+          "globs"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "repo",
+    "commit",
+    "scannedAt",
+    "callSites",
+    "fieldReads",
+    "workflows"
+  ],
+  "additionalProperties": false
+}

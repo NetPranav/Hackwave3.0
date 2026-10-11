@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "endpoint": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "suspected",
+        "breaking",
+        "fix_pending",
+        "resolved",
+        "expected",
+        "snoozed"
+      ]
+    },
+    "callsPerMin": {
+      "type": "number"
+    },
+    "errorRate": {
+      "type": "number"
+    },
+    "p95Ms": {
+      "type": "number"
+    },
+    "rate429": {
+      "type": "number"
+    },
+    "fieldsMapped": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "endpoint",
+    "method",
+    "state",
+    "callsPerMin",
+    "errorRate",
+    "p95Ms",
+    "rate429",
+    "fieldsMapped"
+  ],
+  "additionalProperties": false
+}

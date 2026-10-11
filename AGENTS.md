@@ -80,4 +80,25 @@ bash scripts/team-status.sh               # team briefing
 bash scripts/team-publish-status.sh       # publish .team/status/<handle>.md
 bash scripts/check-md-links.sh            # docs link check (also in CI)
 ```
-Planned (P0, see `docs/roadmap/setup-and-deploy.md` §2): `npm install` · `npm run setup` · `npm run gh:register` · `npm run dev` · `npm run test` · `npm run e2e` · `npm run demo:traffic` · `npm run demo:reset`. CI (`.github/workflows/ci.yml`) runs lint/typecheck/test/build for every workspace folder that has a `package.json`. Update this section when they're real.
+Engine (all real now):
+```bash
+npm install && npm run setup        # .env from .env.example, database, migrations
+npm run gh:register                 # create your dev GitHub App (manifest flow)
+npm run dev                         # backend + worker + fake providers (+ GitHub App when WEBHOOK_PROXY_URL is set)
+npm test                            # every workspace via Turbo (unit, property, e2e)
+npm run demo:traffic -- --rps 5     # traffic against the fake providers
+npm run demo:reset -- --warm        # providers v1, Seismo data cleared, DEMO_REPO reset, AI cache warm
+docker compose --profile full up --build   # everything in containers (offline backup)
+```
+CI (`.github/workflows/ci.yml`) runs ESLint and Turbo typecheck/test/build for the engine workspaces, and the dashboard's own scripts.
+
+<!-- BEGIN:turborepo-agent-rules -->
+
+# This is NOT the Turborepo you know
+
+Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
+
+Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
+
+This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
+<!-- END:turborepo-agent-rules -->

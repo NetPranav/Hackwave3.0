@@ -79,33 +79,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - id: detect
-        run: |
-          dirs=""
-          for d in contracts sdk-node backend github-app services dashboard; do
-            if [ -f "$d/package.json" ]; then dirs="$dirs $d"; fi
-          done
-          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
-          echo "Node projects:${dirs:- none yet}"
-      - if: steps.detect.outputs.dirs != ''
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - if: steps.detect.outputs.dirs != ''
-        name: Install, lint, typecheck, test, build
+          node-version: "22"
+      - name: Engine workspaces (contracts, sdk-node, backend, github-app, services) via Turbo
         run: |
-          for d in ${{ steps.detect.outputs.dirs }}; do
-            echo "::group::$d"
-            (
-              cd "$d"
-              if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
-              npm run lint --if-present
-              npm run typecheck --if-present
-              npm test --if-present
-              npm run build --if-present
-            )
-            echo "::endgroup::"
-          done
+          if [ ! -f package.json ]; then echo "No root package.json yet"; exit 0; fi
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+          npx eslint .
+          npx turbo run typecheck test build
+      - name: Dashboard (own package, own lockfile; owned by adarzhpathade)
+        run: |
+          [ -f dashboard/package.json ] || { echo "No dashboard yet"; exit 0; }
+          cd dashboard
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+          npm run lint --if-present
+          npm run typecheck --if-present
+          npm test --if-present
+          npm run build --if-present
 
   ci-ok:
     name: ci-ok

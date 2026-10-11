@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "service",
+              "endpoint",
+              "field",
+              "code",
+              "workflow"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "suspected",
+              "breaking",
+              "fix_pending",
+              "resolved",
+              "expected",
+              "snoozed"
+            ]
+          },
+          "size": {
+            "type": "number"
+          },
+          "service": {
+            "type": "string"
+          },
+          "deprecationDate": {
+            "type": "string"
+          },
+          "unused": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "label",
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "has",
+              "reads",
+              "in",
+              "feeds"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "nodes",
+    "links"
+  ],
+  "additionalProperties": false
+}

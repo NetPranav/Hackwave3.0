@@ -1,0 +1,43 @@
+# Local / offline stack (P0.3, P8). `docker compose up -d db` for Postgres only,
+# `docker compose --profile full up --build` for everything (backend, worker-in-backend, fake providers, GitHub App).
+services:
+  db:
+    image: postgres:17
+    environment: { POSTGRES_USER: seismo, POSTGRES_PASSWORD: seismo, POSTGRES_DB: seismo }
+    ports: ['5433:5432']
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ['CMD-SHELL', 'pg_isready -U seismo'], interval: 5s, retries: 10 }
+
+  services:
+    profiles: [full]
+    image: seismo:latest
+    build: .
+    command: node services/dist/server.js
+    environment: { PORT: '4100', DEMO_ADMIN_TOKEN: '${DEMO_ADMIN_TOKEN:-dev-admin}' }
+    ports: ['${SERVICES_PORT:-4100}:4100']
+    healthcheck: { test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4100/health || exit 1'], interval: 10s }
+
+  backend:
+    profiles: [full]
+    image: seismo:latest
+    build: .
+    env_file: [.env]
+    environment:
+      PORT: '4000'
+      DATABASE_URL: postgres://seismo:seismo@db:5432/seismo
+      SERVICES_URL: http://services:4100
+      GITHUB_APP_URL: http://github-app:3001
+    ports: ['${BACKEND_PORT:-4000}:4000']
+    depends_on: { db: { condition: service_healthy }, services: { condition: service_started } }
+
+  github-app:
+    profiles: [full]
+    image: seismo:latest
+    build: .
+    command: node github-app/dist/server.js
+    env_file: [.env]
+    environment: { GITHUB_APP_PORT: '3001', GITHUB_APP_HOST: 0.0.0.0, BACKEND_URL: http://backend:4000 }
+    ports: ['${GITHUB_APP_HOST_PORT:-3001}:3001']
+
+volumes:
+  pgdata:
