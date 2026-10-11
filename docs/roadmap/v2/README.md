@@ -108,7 +108,7 @@ browser ── EventSource /api/seismo/v1/events ──► same handler streams 
 |---|---|---|
 | P6.1 | Backend + GitHub App on the chosen host (Docker image exists), Postgres (Neon) | Public `/ready` OK |
 | P6.2 | Dashboard on Vercel; production callback URL added to the GitHub App | Sign in on the public URL |
-| P6.3 | GitHub App made public; install-from-scratch test on a second account | Fresh install → graph → drift → PR |
+| P6.3 | GitHub App made public; install-from-scratch test (fresh repo, by an owner of the deployment: one deployment = one project, other accounts get 403) | Fresh install → graph → drift → PR |
 | P6.4 | Sentry (optional DSN) + uptime ping | Errors visible |
 | P6.5 | Rehearsals, backup video, final merge into `main`, tag `v1.0` | Demo day ready |
 

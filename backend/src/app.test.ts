@@ -168,6 +168,19 @@ describe('project ownership and ingest rate limit (P3.4)', () => {
     expect((await a.inject({ url: '/v1/projects', headers: await tok('mallory') })).json()).toEqual([]);
     expect((await a.inject({ url: '/v1/projects', headers: await tok('alice') })).json()).toEqual([{ id: 'dev', owner: 'alice' }]);
   });
+  it('everything else under /v1 is owner-only too: settings, drift events, notifications (403 for others)', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    process.env.SEISMO_PROJECT_OWNERS = 'NetPranav';
+    const a = buildApp();
+    const owner = await tok('netpranav'), other = await tok('stranger');
+    for (const url of ['/v1/settings/notifications', '/v1/drift-events', '/v1/notifications', '/v1/overview', '/v1/codemap']) {
+      expect((await a.inject({ url, headers: owner })).statusCode).toBe(200);
+      expect((await a.inject({ url, headers: other })).statusCode).toBe(403);
+    }
+    expect((await a.inject({ method: 'POST', url: '/v1/notifications/test', headers: other })).statusCode).toBe(403);
+    expect((await a.inject({ url: '/v1/me', headers: other })).statusCode).toBe(200);          // can still learn who they are
+    expect((await a.inject({ url: '/v1/projects', headers: other })).json()).toEqual([]);
+  });
   it('SEISMO_PROJECT_OWNERS fixes the owners', async () => {
     process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
     process.env.SEISMO_PROJECT_OWNERS = 'NetPranav, adarzhpathade';

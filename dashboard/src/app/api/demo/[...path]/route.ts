@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { backendUrl, ownsProject } from "@/lib/server/backend";
 
 /**
  * v2-P4.2: Demo Control's server side. Flips the fake providers with DEMO_ADMIN_TOKEN, which never reaches the browser.
@@ -7,12 +8,13 @@ import { auth } from "@/auth";
  *   POST /api/demo/rollout/{id} {percent}   POST /api/demo/reset
  */
 const SERVICES = () => process.env.SERVICES_URL ?? "http://localhost:4100";
-const BACKEND = () => process.env.SEISMO_API_URL ?? "http://localhost:4000";
 
 async function handle(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
   if (process.env.DEMO_MODE !== "true") return Response.json({ error: "demo_mode_off" }, { status: 404 });
   const session = await auth();
   if (!session?.user?.login) return Response.json({ error: "unauthorized" }, { status: 401 });
+  // only the project's owners may flip providers or reset the data
+  if (!(await ownsProject(session.user.login))) return Response.json({ error: "forbidden" }, { status: 403 });
   const { path } = await ctx.params;
   const admin = { "x-admin-token": process.env.DEMO_ADMIN_TOKEN ?? "", "content-type": "application/json" };
   const call = async (url: string, init: RequestInit) => {
@@ -29,7 +31,7 @@ async function handle(req: Request, ctx: { params: Promise<{ path: string[] }> }
     return call(`${SERVICES()}/admin/${head}/${encodeURIComponent(id)}`, { method: "POST", headers: admin, body: await req.text() });
   if (req.method === "POST" && head === "reset") {
     const services = await call(`${SERVICES()}/admin/reset`, { method: "POST", headers: admin, body: "{}" });
-    const seismo = await call(`${BACKEND()}/internal/demo/reset`, {
+    const seismo = await call(`${backendUrl()}/internal/demo/reset`, {
       method: "POST",
       headers: { "x-internal-token": process.env.INTERNAL_TOKEN ?? "dev-internal", "content-type": "application/json" },
       body: "{}",

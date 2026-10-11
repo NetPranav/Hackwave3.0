@@ -1,5 +1,5 @@
-import { SignJWT } from "jose";
 import { auth } from "@/auth";
+import { backendToken as bearer, backendUrl as API } from "@/lib/server/backend";
 
 /**
  * v2-P0.3 / P1.3: the only way the browser talks to the Seismo backend.
@@ -8,19 +8,6 @@ import { auth } from "@/auth";
  *  - Streams responses through, so the SSE endpoint (/v1/events) works with a plain EventSource and no token in the URL.
  * Only /v1/* paths are forwarded; /internal and /admin stay unreachable from the browser.
  */
-// Not PORT: inside `next dev` that is the dashboard's own port.
-const API = () => process.env.SEISMO_API_URL ?? "http://localhost:4000";
-
-async function bearer(login: string, scope: "api" | "sse") {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) return undefined; // backend in local no-auth mode
-  return new SignJWT({ scope })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(login)
-    .setExpirationTime(scope === "sse" ? "60s" : "5m")
-    .sign(new TextEncoder().encode(secret));
-}
-
 async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
   const session = await auth();
   const login = session?.user?.login;

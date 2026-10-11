@@ -118,8 +118,16 @@ export function buildApp(opts: AppOptions = {}) {
   });
 
   // Every /v1 route except SDK ingest and SSE is user-scoped (P0.11).
+  // ...and to the deployment's project: only its owners see or change anything (v2). /v1/me and /v1/projects stay
+  // open to any signed-in user so the dashboard can say "this project belongs to someone else".
+  const OPEN_TO_ANY_USER = ['/v1/me', '/v1/projects'];
   app.addHook('onRequest', async (req, reply) => {
-    if (req.url.startsWith('/v1/') && !req.url.startsWith('/v1/ingest') && !req.url.startsWith('/v1/events')) return requireUser(req, reply);
+    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events')) return;
+    await requireUser(req, reply);
+    if (reply.sent) return;
+    const path = req.url.split('?')[0]!;
+    if (OPEN_TO_ANY_USER.includes(path) || path.startsWith('/v1/projects/')) return;   // key routes run their own owner check
+    if ((await projects.access(PROJECT_ID(), req.user ?? 'demo-user')) !== 'ok') return reply.code(403).send({ error: 'forbidden', message: 'This Seismo project belongs to another account.' });
   });
 
   app.get('/health', async () => ({ ok: true }));
@@ -380,7 +388,9 @@ export function buildApp(opts: AppOptions = {}) {
 
   // SSE stub (P0.4). Real events arrive with P2/P4.
   app.get('/v1/events', async (req, reply) => {
-    if (!(await userFrom(req, 'sse'))) return reply.code(401).send({ error: 'unauthorized' });
+    const sseUser = await userFrom(req, 'sse');
+    if (!sseUser) return reply.code(401).send({ error: 'unauthorized' });
+    if ((await projects.access(PROJECT_ID(), sseUser)) !== 'ok') return reply.code(403).send({ error: 'forbidden' });
     reply.raw.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'access-control-allow-origin': '*' });
     reply.raw.write('event: hello\ndata: {}\n\n');
     const send = (event: string, data: unknown) => reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);

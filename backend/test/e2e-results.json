@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-4lvsxn",
+      "id": "a-xh5d22",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-4lvsxn",
+      "driftEvent": "drift-xh5d22",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.3,
-    "p50On": 0.288,
-    "p99Off": 4.69,
-    "p99On": 1.5
+    "p50Off": 0.112,
+    "p50On": 0.144,
+    "p99Off": 0.357,
+    "p99On": 0.534
   }
 }

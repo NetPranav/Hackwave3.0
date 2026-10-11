@@ -13,7 +13,7 @@ Two parts:
 Legend: [x] done and verified (how is in brackets) · [~] built, not yet proven live · [ ] not started.
 
 **v2-P0 · Operational foundation**
-- [x] P0.1 `npm run dev` also starts the dashboard; fixed the fake providers and GitHub App ports, exports `GITHUB_APP_URL`/`BACKEND_URL` (each process verified on this Mac on free ports 4050/4160/3060/3100, because 3000/4000 are used by another project here)
+- [~] P0.1 `npm run dev` also starts the dashboard; fixed the fake providers and GitHub App ports, exports `GITHUB_APP_URL`/`BACKEND_URL`. Each process was verified separately on free ports (4050/4160/3060/3100) because 3000/4000 are used by another project on this Mac; **the script as a whole has not been run yet**. Lesson from the live run: a GitHub App started without `BACKEND_URL` posts code maps and CI results to whatever listens on :4000
 - [x] P0.2 `scripts/dev/dashboard-env.sh` (also run by `npm run setup`) writes the git-ignored `dashboard/.env.local` (ran it; `git check-ignore` confirms)
 - [x] P0.3 Data layer: `/api/seismo/[...path]` proxy, `lib/api/{types,live,adapt,data,settings}`, one EventSource, `useLive()` with polling fallback (curl + headless browser: `/v1/*` via the proxy, SSE `hello` through it)
 - [x] P0.4 `NEXT_PUBLIC_USE_MOCKS=1` returns the old mocks from the same hooks (typecheck; mock path keeps the original constants)
@@ -28,7 +28,7 @@ Legend: [x] done and verified (how is in brackets) · [~] built, not yet proven 
 **v2-P2 · Install and map**
 - [x] P2.1 `/v1/me` returns `appSlug` + `installUrl`; onboarding shows "Install on GitHub" when nothing is installed
 - [x] P2.2 `/v1/installations` lists the signed-in account's installations with repos and scan state (live: `NetPranav/seismo-demo-shop` → mapped)
-- [~] P2.3 `POST /v1/repos/{owner}/{repo}/scan` and `/setup-pr` (own repos only, 404 otherwise; tested with a fake GitHub client); GitHub App `/internal/repos` (live) and `/internal/scan` (not yet run live)
+- [x] P2.3 `POST /v1/repos/{owner}/{repo}/scan` and `/setup-pr` (own repos only, 404 otherwise; tested with a fake GitHub client). **Live rescan** of the shop through the dashboard: commit `1bdc697`, 11/11 field reads with their source line. The setup PR was not pressed on the shop (already wired by hand)
 - [x] P2.4 Graph from the real code map: 4 APIs → 5 calls → fields → 9 code locations → 3 features (screenshot)
 
 **v2-P3 · Live data on every screen**
@@ -49,15 +49,17 @@ Legend: [x] done and verified (how is in brackets) · [~] built, not yet proven 
 **v2-P5 · Live end-to-end on GitHub**
 - [~] P5.1 App installed on the shop (verified via `/v1/me` and `/internal/repos`); the shop is already wired by hand, so the setup PR is not needed for it
 - [~] P5.2 Traffic sent through the real SDK by a local runner against the fake providers (not yet from the running shop)
-- [~] P5.3 **Rename → alias PR `NetPranav/seismo-demo-shop#3` opened live with C1–C6 passed, GitHub issues #1/#2 created.** Still to do: shop CI → C7/C8, merge → resolved, WhatsApp received
+- [~] P5.3 **Rename → alias PR `NetPranav/seismo-demo-shop#3` opened live with C1–C6 passed, GitHub issues #1/#2 created.** On GitHub the shop CI and the Seismo safety check passed, but the engine still says `ci: pending`: that GitHub App run had no `BACKEND_URL`, so the `check_suite` result went to the wrong port. To finish: redeliver that webhook (GitHub App settings → Advanced → Recent deliveries) or re-run the PR's CI, then merge → resolved; WhatsApp received
 - [ ] P5.4 Playwright smoke test
+
+Access: every `/v1` route (and Demo Control) is owner-only; other signed-in accounts get 403 (verified live with a second login). Set `SEISMO_PROJECT_OWNERS=NetPranav,adarzhpathade` so both of you can sign in; without it the first person who signs in owns the project.
 
 Found and fixed while doing this (live): D2 required a field to be completely absent from the baseline, so a few leaked responses hid a rename for 24 h (now ≤ 5%, test added); a D3 rename now closes the earlier D1 "field removed" on the same field (test added); a failed smee.io connection crashed the GitHub App (now retries); `/v1/me` hit GitHub on every page (30 s cache).
 
 **v2-P6 · Deploy and launch**
 - [ ] P6.1 Backend + GitHub App hosted, Postgres
 - [ ] P6.2 Dashboard on Vercel, production callback URL
-- [ ] P6.3 Public GitHub App, install-from-scratch test
+- [ ] P6.3 Public GitHub App; install-from-scratch test **by an owner of the deployment** (one deployment = one project: other accounts get 403 everywhere, see below)
 - [ ] P6.4 Sentry + uptime ping
 - [ ] P6.5 Rehearsals, backup video, final merge, tag `v1.0`
 
