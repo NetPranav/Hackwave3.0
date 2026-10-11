@@ -3,6 +3,7 @@
   "type": "object",
   "properties": {
     "version": {
+      "default": 1,
       "type": "number",
       "const": 1
     },
@@ -11,20 +12,40 @@
       "items": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "alias",
+            "type": "string",
+            "const": "alias"
+          },
           "endpoint": {
+            "type": "string"
+          },
+          "path": {
+            "default": "$",
+            "type": "string"
+          },
+          "target": {
             "type": "string"
           },
           "source": {
             "type": "string"
           },
-          "target": {
+          "driftEvent": {
+            "type": "string"
+          },
+          "addedAt": {
             "type": "string"
           }
         },
         "required": [
+          "kind",
           "endpoint",
-          "source",
-          "target"
+          "path",
+          "target",
+          "source"
         ],
         "additionalProperties": false
       }

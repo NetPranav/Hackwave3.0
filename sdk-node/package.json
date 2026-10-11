@@ -6,11 +6,30 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./runtime": { "types": "./dist/runtime.d.ts", "default": "./dist/runtime.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    }
   },
-  "files": ["dist"],
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run" },
-  "dependencies": { "@mswjs/interceptors": "^0.45.0", "fflate": "^0.8.2" },
-  "devDependencies": { "@seismo/contracts": "*", "@types/node": "^22.0.0" }
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mswjs/interceptors": "^0.45.0",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@seismo/contracts": "*",
+    "@types/node": "^22.0.0",
+    "fast-check": "^4.10.2"
+  }
 }

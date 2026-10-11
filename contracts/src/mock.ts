@@ -40,7 +40,7 @@ export const mockDrift = (): DriftEvent[] => [
     severity: 'breaking', state: 'fix_pending', confidence: 0.94, detectedAt: NOW, before: { email: 'a@b.c' }, after: { emailAddress: 'a@b.c' },
     usages: [{ file: 'src/checkout.ts', line: 42, kind: 'read' }],
     explanation: { summary: 'The email field was renamed.', impact: 'Checkout reads user.email.', suggestion: 'Add an alias rule.', confidence: 0.94, model: 'template', latencyMs: 0, source: 'template' },
-    fix: { rung: 'alias', rule: { endpoint: 'GET /users/{id}', source: 'emailAddress', target: 'email' } },
+    fix: { rung: 'alias', rule: { kind: 'alias', path: '$', endpoint: 'GET /users/{id}', source: 'emailAddress', target: 'email' } },
   },
 ];
 

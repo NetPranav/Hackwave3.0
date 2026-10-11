@@ -2,20 +2,40 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "default": "alias",
+      "type": "string",
+      "const": "alias"
+    },
     "endpoint": {
+      "type": "string"
+    },
+    "path": {
+      "default": "$",
+      "type": "string"
+    },
+    "target": {
       "type": "string"
     },
     "source": {
       "type": "string"
     },
-    "target": {
+    "driftEvent": {
+      "type": "string"
+    },
+    "addedAt": {
       "type": "string"
     }
   },
   "required": [
+    "kind",
     "endpoint",
-    "source",
-    "target"
+    "path",
+    "target",
+    "source"
   ],
   "additionalProperties": false
 }
