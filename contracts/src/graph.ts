@@ -16,4 +16,4 @@ export const Installation = z.object({
 });
 export type Installation = z.infer<typeof Installation>;
 
-export const Coverage = z.object({ endpointsMapped: z.number(), endpointsSeen: z.number(), fieldsMapped: z.number(), fieldsSeen: z.number() });
+export const Coverage = z.object({ endpointsMapped: z.number(), endpointsSeen: z.number(), fieldsMapped: z.number(), fieldsSeen: z.number(), unresolvedCalls: z.number().optional() });

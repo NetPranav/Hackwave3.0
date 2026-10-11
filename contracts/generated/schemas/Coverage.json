@@ -13,6 +13,9 @@
     },
     "fieldsSeen": {
       "type": "number"
+    },
+    "unresolvedCalls": {
+      "type": "number"
     }
   },
   "required": [
