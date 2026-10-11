@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "servicesMonitored": {
+      "type": "number"
+    },
+    "endpoints": {
+      "type": "number"
+    },
+    "coveragePct": {
+      "type": "number"
+    },
+    "openDrifts": {
+      "type": "object",
+      "properties": {
+        "info": {
+          "type": "number"
+        },
+        "warning": {
+          "type": "number"
+        },
+        "breaking": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "info",
+        "warning",
+        "breaking"
+      ],
+      "additionalProperties": false
+    },
+    "fixPrsOpen": {
+      "type": "number"
+    },
+    "radarUpcoming": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "servicesMonitored",
+    "endpoints",
+    "coveragePct",
+    "openDrifts",
+    "fixPrsOpen",
+    "radarUpcoming"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "expected",
+        "snooze",
+        "open_pr"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "action"
+  ],
+  "additionalProperties": false
+}

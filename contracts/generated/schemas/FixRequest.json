@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "driftId": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "rung": {
+      "type": "string",
+      "enum": [
+        "alias",
+        "transform",
+        "behaviour"
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint",
+        "source",
+        "target"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "driftId",
+    "repo",
+    "rung"
+  ],
+  "additionalProperties": false
+}

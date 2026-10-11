@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "file": {
+      "type": "string"
+    },
+    "line": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "service": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "fnName": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "repo",
+    "file",
+    "line",
+    "service",
+    "method",
+    "endpoint"
+  ],
+  "additionalProperties": false
+}

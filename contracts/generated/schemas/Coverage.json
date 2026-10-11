@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "endpointsMapped": {
+      "type": "number"
+    },
+    "endpointsSeen": {
+      "type": "number"
+    },
+    "fieldsMapped": {
+      "type": "number"
+    },
+    "fieldsSeen": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "endpointsMapped",
+    "endpointsSeen",
+    "fieldsMapped",
+    "fieldsSeen"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "impact": {
+      "type": "string"
+    },
+    "suggestion": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "model": {
+      "type": "string"
+    },
+    "latencyMs": {
+      "type": "number"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "ai",
+        "template"
+      ]
+    }
+  },
+  "required": [
+    "summary",
+    "impact",
+    "suggestion",
+    "confidence",
+    "model",
+    "latencyMs",
+    "source"
+  ],
+  "additionalProperties": false
+}
