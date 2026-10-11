@@ -16,8 +16,9 @@ const manifest = {
   callback_urls: ['http://localhost:3000/api/auth/callback/github'],
   setup_url: 'http://localhost:3000/onboarding',
   public: false,
-  default_permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'write', metadata: 'read', workflows: 'read' },
-  default_events: ['push', 'pull_request', 'installation', 'installation_repositories'],
+  default_permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'write', metadata: 'read' },
+  // installation / installation_repositories events are always delivered; listing them is rejected by GitHub.
+  default_events: ['push', 'pull_request'],
 };
 const page = `<form id=f method=post action="https://github.com/settings/apps/new"><input type=hidden name=manifest value='${JSON.stringify(manifest).replace(/'/g, '&#39;')}'></form><script>f.submit()</script>`;
 
