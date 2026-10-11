@@ -135,7 +135,16 @@ export type RadarItem = z.infer<typeof RadarItem>;
 
 /** Baseline vs current synthetic examples built from fingerprint statistics (never real values). */
 export const FieldDiff = z.object({ path: z.string(), change: z.enum(['added', 'removed', 'type', 'magnitude', 'enum', 'length']), before: z.unknown().optional(), after: z.unknown().optional() });
-export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.array(FieldDiff) });
+/** Statistics of one field in one window (v2: API Status field table). Shapes only: no record values. */
+export const FieldProfile = z.object({
+  type: z.string(), format: z.string().optional(), presence: z.number(), nullRate: z.number(),
+  magnitude: z.number().optional(),            // dominant order of magnitude (10^n) for numbers
+  lengthP50: z.number().optional(),            // strings
+  enumValues: z.array(z.string()).optional(),  // allow-listed labels only
+  arrayMax: z.number().optional(),
+});
+export const FieldRow = z.object({ path: z.string(), before: FieldProfile.optional(), after: FieldProfile.optional() });
+export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.array(FieldDiff), fields: z.array(FieldRow).optional(), samples: z.object({ before: z.number(), after: z.number() }).optional() });
 export type Compare = z.infer<typeof Compare>;
 export const SimulateRequest = z.object({
   service: z.string(), endpoint: z.string(),

@@ -104,6 +104,22 @@ describe('ingest, baselines, status (P3.4-P3.6)', () => {
 
 });
 
+describe('metrics for the overview chart (v2-P3.1)', () => {
+  it('buckets calls, p95 and drift events per 6 h; future buckets are null', async () => {
+    const { buildMetrics } = await import('./status.js');
+    const now = Date.parse('2026-10-11T13:00:00Z');
+    const f = (iso: string, count: number, p95: number) => ({ ...fp(count), windowStart: iso, count, latencyMs: { p50: 1, p95 } });
+    const m = buildMetrics([f('2026-10-11T07:00:00Z', 10, 120), f('2026-10-11T08:00:00Z', 5, 200), f('2026-10-10T01:00:00Z', 3, 50)] as never, [{ detectedAt: '2026-10-11T12:30:00Z', severity: 'breaking' }, { detectedAt: '2026-10-11T12:40:00Z', severity: 'info' }], now);
+    expect(m).toHaveLength(7);
+    const today = m[6]!;
+    expect(today.date).toBe('2026-10-11');
+    expect(today.buckets.map((b) => b.calls)).toEqual([0, 15, 0, null]);
+    expect(today.buckets[1]!.p95Ms).toBe(200);
+    expect(today.buckets[2]!.drifts).toBe(1);
+    expect(m[5]!.buckets[0]!.calls).toBe(3);
+  });
+});
+
 describe('project ownership and ingest rate limit (P3.4)', () => {
   const env = { ...process.env };
   afterEach(() => { process.env = { ...env }; });

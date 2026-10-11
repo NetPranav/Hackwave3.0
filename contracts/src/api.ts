@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ApiError } from './common.js';
 import { Graph, Installation, Coverage } from './graph.js';
 import { CodeMapView } from './codemap.js';
-import { StatusResponse, Overview, Me } from './status.js';
+import { StatusResponse, Overview, Me, Metrics } from './status.js';
 import { Notification, DriftEvent, ReviewItem, ReviewAction, RadarItem, NotificationSettings, Compare, SimulateRequest, SimulateResult } from './drift.js';
 import { Fingerprint } from './fingerprint.js';
 import { Scenario, ServiceVersions, RolloutRequest } from './fake-services.js';
@@ -16,6 +16,7 @@ export const ROUTES: Route[] = [
   { method: 'get', path: '/v1/graph', summary: 'Dependency graph', response: Graph, auth: 'user' },
   { method: 'get', path: '/v1/graph/impact', summary: 'Upstream/downstream path of a node (query: node)', response: Graph, auth: 'user' },
   { method: 'get', path: '/v1/installations', summary: 'Installations, repos and scan progress', response: z.array(Installation), auth: 'user' },
+  { method: 'get', path: '/v1/metrics', summary: 'Calls, p95 latency and drift events per 6 h bucket, last 7 days (overview chart)', response: Metrics, auth: 'user' },
   { method: 'get', path: '/v1/codemap', summary: 'Merged code maps: call sites, field reads (with source line) and workflows', response: CodeMapView, auth: 'user' },
   { method: 'get', path: '/v1/coverage', summary: 'Mapping coverage numbers', response: Coverage, auth: 'user' },
   { method: 'get', path: '/v1/status', summary: 'API status layer', response: StatusResponse, auth: 'user' },

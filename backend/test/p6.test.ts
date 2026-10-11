@@ -97,6 +97,10 @@ describe('Compare & Simulate (P6.10)', () => {
     expect(c.diff).toContainEqual({ path: 'amount', change: 'magnitude', before: '10^2', after: '10^4' });
     expect(c.v1).toMatchObject({ amount: 100, currency: 'XXX', status: 'captured' });   // currency is not allow-listed in this test: format class only
     expect(JSON.stringify(c)).not.toMatch(/499|49900/);
+    // v2: per-field statistics for the API Status page (shapes only)
+    expect(c.fields?.find((f) => f.path === 'amount')).toMatchObject({ before: { type: 'integer', magnitude: 2, presence: 1 }, after: { type: 'integer', magnitude: 4, presence: 1 } });
+    expect(c.samples?.before).toBeGreaterThan(0);
+    expect(c.samples?.after).toBeGreaterThan(0);
   });
   it('synthesize builds nested arrays from paths', () => {
     const s = buildServices();

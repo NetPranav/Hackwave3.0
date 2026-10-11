@@ -9,7 +9,7 @@ import { buildGraph, coverage, impact, statesFromEvents } from './graph.js';
 import { memoryStore, type CodeMapStore } from './codemap-store.js';
 import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
 import { buildBaselines } from './baseline.js';
-import { buildStatus, providerStatus } from './status.js';
+import { buildMetrics, buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
 import { DriftEngine, type FixDispatcher } from './drift-engine.js';
 import { httpFixDispatcher, httpIssueSink } from './fix-dispatcher.js';
@@ -188,6 +188,7 @@ export function buildApp(opts: AppOptions = {}) {
     for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
     return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
   });
+  app.get('/v1/metrics', async () => buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list()));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {
     const maps = await store.all();

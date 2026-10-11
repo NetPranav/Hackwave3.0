@@ -21,5 +21,10 @@ export const Overview = z.object({
 });
 export type Overview = z.infer<typeof Overview>;
 
+export const MetricsDay = z.object({
+  date: z.string(),
+  buckets: z.array(z.object({ start: z.string(), calls: z.number().nullable(), p95Ms: z.number().nullable(), drifts: z.number().nullable() })),
+});
+export const Metrics = z.array(MetricsDay);
 export const Me = z.object({ login: z.string(), name: z.string().optional(), avatarUrl: z.string().optional(), installations: z.array(z.string()), appSlug: z.string().optional(), installUrl: z.string().optional() });
 export type Me = z.infer<typeof Me>;

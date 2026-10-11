@@ -404,6 +404,74 @@
         }
       }
     },
+    "/v1/metrics": {
+      "get": {
+        "summary": "Calls, p95 latency and drift events per 6 h bucket, last 7 days (overview chart)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "date": {
+                        "type": "string"
+                      },
+                      "buckets": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "start": {
+                              "type": "string"
+                            },
+                            "calls": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "p95Ms": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "drifts": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "start",
+                            "calls",
+                            "p95Ms",
+                            "drifts"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "date",
+                      "buckets"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/codemap": {
       "get": {
         "summary": "Merged code maps: call sites, field reads (with source line) and workflows",
@@ -1863,6 +1931,113 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "before": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "format": {
+                                "type": "string"
+                              },
+                              "presence": {
+                                "type": "number"
+                              },
+                              "nullRate": {
+                                "type": "number"
+                              },
+                              "magnitude": {
+                                "type": "number"
+                              },
+                              "lengthP50": {
+                                "type": "number"
+                              },
+                              "enumValues": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "arrayMax": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "presence",
+                              "nullRate"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "after": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "format": {
+                                "type": "string"
+                              },
+                              "presence": {
+                                "type": "number"
+                              },
+                              "nullRate": {
+                                "type": "number"
+                              },
+                              "magnitude": {
+                                "type": "number"
+                              },
+                              "lengthP50": {
+                                "type": "number"
+                              },
+                              "enumValues": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "arrayMax": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "presence",
+                              "nullRate"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "samples": {
+                      "type": "object",
+                      "properties": {
+                        "before": {
+                          "type": "number"
+                        },
+                        "after": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "before",
+                        "after"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
