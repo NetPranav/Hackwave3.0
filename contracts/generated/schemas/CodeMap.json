@@ -43,6 +43,9 @@
           },
           "fnName": {
             "type": "string"
+          },
+          "unresolved": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -80,12 +83,15 @@
             "type": "string",
             "enum": [
               "read",
-              "branch",
-              "money",
-              "persist",
               "display",
-              "pass_through"
+              "arithmetic",
+              "branching",
+              "persistence",
+              "outbound"
             ]
+          },
+          "money": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -93,7 +99,8 @@
           "field",
           "file",
           "line",
-          "usage"
+          "usage",
+          "money"
         ],
         "additionalProperties": false
       }
@@ -117,13 +124,20 @@
             "items": {
               "type": "string"
             }
+          },
+          "globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "id",
           "name",
           "file",
-          "functions"
+          "functions",
+          "globs"
         ],
         "additionalProperties": false
       }

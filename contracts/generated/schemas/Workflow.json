@@ -16,13 +16,20 @@
       "items": {
         "type": "string"
       }
+    },
+    "globs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [
     "id",
     "name",
     "file",
-    "functions"
+    "functions",
+    "globs"
   ],
   "additionalProperties": false
 }

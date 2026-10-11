@@ -27,6 +27,9 @@
     },
     "fnName": {
       "type": "string"
+    },
+    "unresolved": {
+      "type": "boolean"
     }
   },
   "required": [

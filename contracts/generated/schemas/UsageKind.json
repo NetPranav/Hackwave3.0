@@ -3,10 +3,10 @@
   "type": "string",
   "enum": [
     "read",
-    "branch",
-    "money",
-    "persist",
     "display",
-    "pass_through"
+    "arithmetic",
+    "branching",
+    "persistence",
+    "outbound"
   ]
 }
