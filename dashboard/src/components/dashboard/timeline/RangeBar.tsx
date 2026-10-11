@@ -5,11 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/dashboard/Card";
 import AnimatedNumber from "@/components/dashboard/AnimatedNumber";
+import { useSeismoData, type SeismoData } from "@/lib/api/data";
 import {
-  TIMELINE_BUCKETS,
-  TIMELINE_BUCKET_MS,
-  TIMELINE_NOW,
-  TIMELINE_WINDOW_START,
   type EventSeverity,
   type TimelineDriftEvent,
   type TimelineItem,
@@ -43,11 +40,13 @@ const DOT_TONE: Record<EventSeverity, string> = {
 };
 
 const EASE = [0.16, 1, 0.3, 1] as const;
-const WINDOW_MS = TIMELINE_BUCKETS * TIMELINE_BUCKET_MS;
-const HOUR_SLOTS = [1, 5, 9]; // 04:00, 05:00, 06:00 fall on slot edges
+/** The time window shown (mock: fixed; live: the last 3 hours, see lib/api/data.tsx). */
+type Win = SeismoData["timelineWindow"];
+/** Slot edges that fall on a full hour. */
+const hourSlots = (w: Win) => Array.from({ length: w.buckets }, (_, i) => i).filter((i) => i > 0 && (w.start + i * w.bucketMs) % 3_600_000 === 0);
 
-export function bucketOf(timestamp: string): number {
-  return Math.floor((Date.parse(timestamp) - TIMELINE_WINDOW_START) / TIMELINE_BUCKET_MS);
+export function bucketOf(timestamp: string, w: Win): number {
+  return Math.floor((Date.parse(timestamp) - w.start) / w.bucketMs);
 }
 
 function hhmm(ms: number): string {
@@ -55,15 +54,15 @@ function hhmm(ms: number): string {
   return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
 }
 
-function buildBuckets(items: TimelineItem[]): Bucket[] {
-  const buckets: Bucket[] = Array.from({ length: TIMELINE_BUCKETS }, (_, index) => ({
+function buildBuckets(items: TimelineItem[], w: Win): Bucket[] {
+  const buckets: Bucket[] = Array.from({ length: w.buckets }, (_, index) => ({
     index,
     events: [],
     deploys: [],
     worst: null,
   }));
   for (const item of items) {
-    const b = buckets[bucketOf(item.timestamp)];
+    const b = buckets[bucketOf(item.timestamp, w)];
     if (!b) continue;
     if (item.type === "deploy") {
       b.deploys.push(item.commitMessage);
@@ -79,9 +78,9 @@ function barHeight(b: Bucket): number {
   return b.worst ? Math.min(HEIGHT[b.worst] + (b.events.length - 1) * 8, 100) : 0;
 }
 
-function Tooltip({ bucket, height }: { bucket: Bucket; height: number }) {
-  const start = TIMELINE_WINDOW_START + bucket.index * TIMELINE_BUCKET_MS;
-  const edge = bucket.index < 2 ? "left-0" : bucket.index >= TIMELINE_BUCKETS - 2 ? "right-0" : "left-1/2 -translate-x-1/2";
+function Tooltip({ bucket, height, w }: { bucket: Bucket; height: number; w: Win }) {
+  const start = w.start + bucket.index * w.bucketMs;
+  const edge = bucket.index < 2 ? "left-0" : bucket.index >= w.buckets - 2 ? "right-0" : "left-1/2 -translate-x-1/2";
   return (
     <motion.div
       initial={{ opacity: 0, y: 4, scale: 0.97 }}
@@ -95,7 +94,7 @@ function Tooltip({ bucket, height }: { bucket: Bucket; height: number }) {
       )}
     >
       <div className="text-text-primary/50 dark:text-white/45">
-        {hhmm(start)}–{hhmm(start + TIMELINE_BUCKET_MS)} UTC
+        {hhmm(start)}–{hhmm(start + w.bucketMs)} UTC
       </div>
       {bucket.events.map((e) => (
         <div key={e.title} className="mt-1 flex items-start gap-1.5 text-text-primary dark:text-white">
@@ -155,7 +154,7 @@ function Legend() {
 }
 
 /** Faint grid, dashed hour lines and the pulsing NOW marker that sit behind the bars. */
-function ChartBackdrop({ reduce, nowPct }: { reduce: boolean; nowPct: number }) {
+function ChartBackdrop({ reduce, nowPct, w }: { reduce: boolean; nowPct: number; w: Win }) {
   return (
     <>
       <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col justify-between">
@@ -164,14 +163,14 @@ function ChartBackdrop({ reduce, nowPct }: { reduce: boolean; nowPct: number }) 
         <span className="h-px w-full bg-box-outline/70 dark:bg-dark-border" />
       </div>
 
-      {HOUR_SLOTS.map((slot) => (
+      {hourSlots(w).map((slot) => (
         <motion.span
           key={slot}
           aria-hidden
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          style={{ left: (slot / TIMELINE_BUCKETS) * 100 + "%" }}
+          style={{ left: (slot / w.buckets) * 100 + "%" }}
           className="pointer-events-none absolute inset-y-0 w-px border-l border-dashed border-box-outline/60 dark:border-dark-border/60"
         />
       ))}
@@ -200,10 +199,11 @@ interface BarSlotProps {
   hovered: number | null;
   setHovered: (index: number | null) => void;
   onSelectBucket: (index: number | null) => void;
+  w: Win;
 }
 
 /** One 15-minute column: the bar (or an empty tick), its hover tooltip and the click target. */
-function BarSlot({ bucket: b, reduce, selectedBucket, hovered, setHovered, onSelectBucket }: BarSlotProps) {
+function BarSlot({ bucket: b, reduce, selectedBucket, hovered, setHovered, onSelectBucket, w }: BarSlotProps) {
   const isSelected = selectedBucket === b.index;
   const h = barHeight(b);
   const dimmed = b.worst && !isSelected && selectedBucket !== null;
@@ -214,7 +214,7 @@ function BarSlot({ bucket: b, reduce, selectedBucket, hovered, setHovered, onSel
     <div className="relative">
       <button
         type="button"
-        aria-label={hhmm(TIMELINE_WINDOW_START + b.index * TIMELINE_BUCKET_MS) + ": " + b.events.length + " changes"}
+        aria-label={hhmm(w.start + b.index * w.bucketMs) + ": " + b.events.length + " changes"}
         aria-pressed={isSelected}
         disabled={!hasContent}
         onClick={() => onSelectBucket(isSelected ? null : b.index)}
@@ -250,19 +250,20 @@ function BarSlot({ bucket: b, reduce, selectedBucket, hovered, setHovered, onSel
           />
         )}
       </button>
-      <AnimatePresence>{hovered === b.index && hasContent && <Tooltip bucket={b} height={h} />}</AnimatePresence>
+      <AnimatePresence>{hovered === b.index && hasContent && <Tooltip bucket={b} height={h} w={w} />}</AnimatePresence>
     </div>
   );
 }
 
 /** When did things happen? One bar per 15 minutes; height = severity of the worst event. Click a bar to focus the feed. */
 export default function RangeBar({ items, selectedBucket, onSelectBucket }: RangeBarProps) {
+  const w = useSeismoData().timelineWindow;
   const reduce = useReducedMotion() ?? false;
   const [hovered, setHovered] = useState<number | null>(null);
-  const buckets = buildBuckets(items);
+  const buckets = buildBuckets(items, w);
   const drifts = items.filter((i): i is TimelineDriftEvent => i.type !== "deploy");
   const countOf = (sev: EventSeverity) => drifts.filter((i) => i.severity === sev).length;
-  const nowPct = ((TIMELINE_NOW - TIMELINE_WINDOW_START) / WINDOW_MS) * 100;
+  const nowPct = ((w.now - w.start) / (w.buckets * w.bucketMs)) * 100;
 
   return (
     <Card className="p-5 md:p-6">
@@ -283,7 +284,7 @@ export default function RangeBar({ items, selectedBucket, onSelectBucket }: Rang
       </div>
 
       <div className="relative mt-8 h-28">
-        <ChartBackdrop reduce={reduce} nowPct={nowPct} />
+        <ChartBackdrop reduce={reduce} nowPct={nowPct} w={w} />
         <div className="relative z-10 grid h-full grid-cols-12">
           {buckets.map((b) => (
             <BarSlot
@@ -294,6 +295,7 @@ export default function RangeBar({ items, selectedBucket, onSelectBucket }: Rang
               hovered={hovered}
               setHovered={setHovered}
               onSelectBucket={onSelectBucket}
+              w={w}
             />
           ))}
         </div>
@@ -315,9 +317,9 @@ export default function RangeBar({ items, selectedBucket, onSelectBucket }: Rang
       </div>
 
       <div className="relative mt-1 h-4 font-aeonik-mono text-[10px] text-text-primary/50 dark:text-white/45" aria-hidden>
-        {HOUR_SLOTS.map((slot) => (
-          <span key={slot} style={{ left: (slot / TIMELINE_BUCKETS) * 100 + "%" }} className="absolute -translate-x-1/2">
-            {hhmm(TIMELINE_WINDOW_START + slot * TIMELINE_BUCKET_MS)}
+        {hourSlots(w).map((slot) => (
+          <span key={slot} style={{ left: (slot / w.buckets) * 100 + "%" }} className="absolute -translate-x-1/2">
+            {hhmm(w.start + slot * w.bucketMs)}
           </span>
         ))}
       </div>

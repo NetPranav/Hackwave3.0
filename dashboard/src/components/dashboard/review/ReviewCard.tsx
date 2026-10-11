@@ -15,6 +15,8 @@ interface ReviewCardProps {
   aiOn: boolean;
   expanded: boolean;
   prNumber?: number;
+  prUrl?: string;
+  error?: string;
   onToggle: () => void;
   onMarkExpected: () => void;
   onSnooze: (label: string) => void;
@@ -75,7 +77,7 @@ function Summary({ item, expanded, onToggle }: Pick<ReviewCardProps, "item" | "e
   );
 }
 
-function Details({ item, aiOn, prNumber, onMarkExpected, onSnooze, onOpenPr }: Omit<ReviewCardProps, "expanded" | "onToggle">) {
+function Details({ item, aiOn, prNumber, prUrl, error, onMarkExpected, onSnooze, onOpenPr }: Omit<ReviewCardProps, "expanded" | "onToggle">) {
   return (
     <div className="border-t border-box-outline/50 px-5 pb-5 pt-5 dark:border-dark-border/50 md:px-6 md:pb-6">
       <ShapeDiff split before={item.before} after={item.after} />
@@ -104,7 +106,7 @@ function Details({ item, aiOn, prNumber, onMarkExpected, onSnooze, onOpenPr }: O
       </div>
 
       <div className="mt-4">
-        <ReviewActions prNumber={prNumber} onMarkExpected={onMarkExpected} onSnooze={onSnooze} onOpenPr={onOpenPr} />
+        <ReviewActions prNumber={prNumber} prUrl={prUrl} error={error} onMarkExpected={onMarkExpected} onSnooze={onSnooze} onOpenPr={onOpenPr} />
       </div>
     </div>
   );

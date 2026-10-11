@@ -83,7 +83,7 @@ export type DriftEvent = z.infer<typeof DriftEvent>;
 /** suggestion: deterministic text from the template catalog (never AI). reason: why this is not an automatic PR. */
 export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), reason: z.string().optional(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
 export type ReviewItem = z.infer<typeof ReviewItem>;
-export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr']) });
+export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr', 'reopen']) });
 
 export const Channel = z.enum(['dashboard', 'github', 'whatsapp', 'slack', 'discord', 'email']);
 export type Channel = z.infer<typeof Channel>;

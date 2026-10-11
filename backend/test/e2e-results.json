@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-dli960",
+      "id": "a-oaxlon",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-dli960",
+      "driftEvent": "drift-oaxlon",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.243,
-    "p50On": 0.422,
-    "p99Off": 9.17,
-    "p99On": 4.272
+    "p50Off": 0.162,
+    "p50On": 0.236,
+    "p99Off": 1.577,
+    "p99On": 1.242
   }
 }

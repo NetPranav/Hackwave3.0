@@ -1,7 +1,13 @@
 // What-if simulation. Deterministic: it reads the code map and the existing alias rules, nothing else. No AI.
 
-import { sitesFor, type CodeSite } from "@/lib/mock/codemap";
-import { FIX_RULES } from "@/lib/mock/fixes";
+import type { CodeSite } from "@/lib/mock/codemap";
+import type { FixRuleData } from "@/lib/mock/fixes";
+
+/** Code map and fixes to simulate against (useSeismoData: live or mock). */
+export interface SimDeps {
+  sitesFor: (serviceSlug: string, field: string) => CodeSite[];
+  fixes: FixRuleData[];
+}
 import type { ReviewSuggestion } from "@/lib/mock/review";
 import type { EndpointStatus } from "@/lib/mock/status";
 
@@ -59,11 +65,11 @@ function classify(input: SimInput, sites: CodeSite[]): FieldClass {
   return "plain";
 }
 
-function coverageOf(input: SimInput): SimResult["coverage"] {
+function coverageOf(input: SimInput, fixes: FixRuleData[]): SimResult["coverage"] {
   if (input.kind !== "rename") {
     return { covered: false, text: "A safe fix only adds a missing field, so it cannot handle this kind of change. A person has to decide." };
   }
-  const rule = FIX_RULES.find(
+  const rule = fixes.find(
     (f) =>
       f.serviceSlug === input.serviceSlug &&
       f.endpoint === input.endpoint.path &&
@@ -120,8 +126,8 @@ function suggestionFor(input: SimInput, automatic: boolean, fieldClass: FieldCla
   }
 }
 
-export function simulate(input: SimInput): SimResult {
-  const sites = sitesFor(input.serviceSlug, input.field);
+export function simulate(input: SimInput, deps: SimDeps): SimResult {
+  const sites = deps.sitesFor(input.serviceSlug, input.field);
   const workflows = [...new Set(sites.map((s) => s.workflow))];
   const fieldClass = classify(input, sites);
 
@@ -147,7 +153,7 @@ export function simulate(input: SimInput): SimResult {
     verdict,
     sites,
     workflows,
-    coverage: coverageOf(input),
+    coverage: coverageOf(input, deps.fixes),
     suggestion: suggestionFor(input, automatic, fieldClass),
   };
 }

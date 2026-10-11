@@ -6,14 +6,8 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
 import GlideSelect, { type GlideSelectOption } from "@/components/ui/GlideSelect";
 import { Card } from "@/components/dashboard/Card";
-import {
-  BUCKET_LABELS,
-  CHART_DAYS,
-  CHART_MAX,
-  CHART_TICKS,
-  OVERVIEW_STATS,
-  type ChartMetric,
-} from "@/lib/mock/overview";
+import { BUCKET_LABELS, overviewStats, type ChartMetric } from "@/lib/mock/overview";
+import { useSeismoData } from "@/lib/api/data";
 
 const BAR_COLOR: Record<ChartMetric, string> = {
   volume: "bg-text-primary/75 hover:bg-text-primary dark:bg-white/80 dark:hover:bg-white",
@@ -21,14 +15,13 @@ const BAR_COLOR: Record<ChartMetric, string> = {
   drifts: "bg-accent hover:bg-accent/80",
 };
 
-const METRIC_OPTIONS: GlideSelectOption[] = [
+const metricOptions = (changes: number): GlideSelectOption[] => [
   { value: "volume", label: "TRAFFIC", tag: "requests/min" },
   { value: "latency", label: "RESPONSE TIME", tag: "ms" },
-  { value: "drifts", label: "DETECTED CHANGES", tag: OVERVIEW_STATS.changes + " active" },
+  { value: "drifts", label: "DETECTED CHANGES", tag: changes + " active" },
 ];
 
 const BARS_PER_DAY = BUCKET_LABELS.length;
-const TOTAL_BARS = CHART_DAYS.length * BARS_PER_DAY;
 
 function describe(metric: ChartMetric, value: number, note?: string | null): string {
   if (metric === "volume") return value.toLocaleString("en-US") + " req/min";
@@ -44,6 +37,10 @@ interface Hover {
 
 /** Seven days, four bars a day. Switch the metric in the corner; hover a bar for its value. Today stops at "now". */
 export default function MetricChart() {
+  const data = useSeismoData();
+  const { days: CHART_DAYS, max: CHART_MAX, ticks: CHART_TICKS } = data.chart;
+  const TOTAL_BARS = CHART_DAYS.length * BARS_PER_DAY;
+  const METRIC_OPTIONS = metricOptions(overviewStats(data).changes);
   const { isDark } = useTheme();
   const reduce = useReducedMotion() ?? false;
   const [metric, setMetric] = useState<ChartMetric>("volume");

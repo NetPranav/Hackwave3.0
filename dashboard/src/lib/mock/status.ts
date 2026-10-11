@@ -12,7 +12,7 @@ export interface FieldComparison {
   observedPresence: string;
   p50Magnitude: string;
   enumValues?: string[];
-  status: "match" | "missing_renamed" | "new_field" | "unit_drift" | "enum_expanded" | "limit_capped";
+  status: "match" | "missing_renamed" | "new_field" | "unit_drift" | "enum_expanded" | "limit_capped" | "type_changed" | "removed";
   note?: string;
 }
 

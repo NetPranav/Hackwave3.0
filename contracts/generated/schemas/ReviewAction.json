@@ -10,7 +10,8 @@
       "enum": [
         "expected",
         "snooze",
-        "open_pr"
+        "open_pr",
+        "reopen"
       ]
     }
   },

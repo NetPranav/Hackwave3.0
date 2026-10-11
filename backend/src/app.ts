@@ -254,6 +254,13 @@ export function buildApp(opts: AppOptions = {}) {
       broadcast('drift.updated', r.event);
       return { ok: true, prUrl: r.event.fix?.validation?.prUrl };
     }
+    if (parsed.data.action === 'reopen') {
+      // undo of expected/snooze from the dashboard: back to what the detector said
+      const ev = engine.get(id)!;
+      engine.setState(id, ev.severity === 'breaking' ? 'breaking' : 'suspected');
+      broadcast('drift.updated', engine.get(id));
+      return { ok: true };
+    }
     engine.setState(id, parsed.data.action === 'expected' ? 'expected' : 'snoozed');
     broadcast('drift.updated', engine.get(id));
     return { ok: true };

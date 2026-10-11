@@ -113,7 +113,7 @@ export interface LiveResult<T> {
 }
 
 /** Fetch `path` and keep it fresh. Returns `mock` (and never fetches) when NEXT_PUBLIC_USE_MOCKS=1. */
-export function useLive<T>(path: string | null, refreshOn: LiveEvent[] = [], mock?: T): LiveResult<T> {
+export function useLive<T>(path: string | null, refreshOn: LiveEvent[] = [], mock?: T, opts: { pollMs?: number } = {}): LiveResult<T> {
   const { connected, subscribe } = useLiveContext();
   const [data, setData] = useState<T | undefined>(USE_MOCKS ? mock : undefined);
   const [error, setError] = useState<ApiError | Error | undefined>();
@@ -152,9 +152,9 @@ export function useLive<T>(path: string | null, refreshOn: LiveEvent[] = [], moc
 
   useEffect(() => {
     if (USE_MOCKS || path === null) return;
-    const t = setInterval(reload, connected ? 30_000 : 5_000);
+    const t = setInterval(reload, connected ? (opts.pollMs ?? 30_000) : Math.min(opts.pollMs ?? 5_000, 5_000));
     return () => clearInterval(t);
-  }, [path, connected, reload]);
+  }, [path, connected, reload, opts.pollMs]);
 
   return { data, error, loading, reload };
 }

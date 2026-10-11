@@ -6,7 +6,8 @@ import RubberSegment, { type RubberSegmentItem } from "@/components/ui/RubberSeg
 import { Card } from "@/components/dashboard/Card";
 import { useCopy } from "@/hooks/useCopy";
 import StateLabel from "@/components/dashboard/status/StateLabel";
-import { OVERVIEW_ROWS, type OverviewRow } from "@/lib/mock/overview";
+import { overviewRows, type OverviewRow } from "@/lib/mock/overview";
+import { useSeismoData } from "@/lib/api/data";
 
 export type TableFilter = "all" | "drifts" | "fixes" | "review" | "healthy";
 
@@ -118,6 +119,7 @@ function DiffCell({ diff }: { diff: OverviewRow["diff"] }) {
 
 /** Every monitored API, worst first: what changed, which workflow it touches, and the next click. */
 export default function ServicesTable({ filter, onFilterChange }: { filter: TableFilter; onFilterChange: (f: TableFilter) => void }) {
+  const OVERVIEW_ROWS = overviewRows(useSeismoData());
   const rows = OVERVIEW_ROWS.filter((r) => matches(r, filter));
 
   return (

@@ -122,6 +122,9 @@ export interface Usage {
   line: number;
   kind: string;
   url?: string;
+  repo?: string;
+  snippet?: string;
+  workflows?: string[];
 }
 
 export interface DriftEvent {
@@ -199,11 +202,24 @@ export interface RadarItemApi {
   detectedAt?: string;
 }
 
+export interface FieldProfile {
+  type: string;
+  format?: string;
+  presence: number;
+  nullRate: number;
+  magnitude?: number;
+  lengthP50?: number;
+  enumValues?: string[];
+  arrayMax?: number;
+}
+
 export interface CompareApi {
   service: string;
   endpoint: string;
   v1: unknown;
   v2: unknown;
+  fields?: { path: string; before?: FieldProfile; after?: FieldProfile }[];
+  samples?: { before: number; after: number };
   diff: { path: string; change: "added" | "removed" | "type" | "magnitude" | "enum" | "length"; before?: unknown; after?: unknown }[];
 }
 

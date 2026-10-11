@@ -34,6 +34,19 @@ describe('detectors on real v1 -> v2 fake-service traffic', () => {
     expect(r.confidence).toBeGreaterThanOrEqual(0.75);
     expect(f.some((x) => x.detector === 'D1' && x.field === 'name')).toBe(false); // explained by the rename
   });
+  it('D3 rename still found when a few v2 responses leaked into the baseline (reset racing in-flight batches)', async () => {
+    const s = buildServices();
+    const base: Fingerprint[] = [];
+    await toggle(s, 'users-rename');
+    base.push(...(await capture(s, '/users/u_1', 2, { service: 'users', at: T0 - 5000 })));   // 2 stray v2 responses
+    await toggle(s, 'users-rename', false);                                                       // back to v1
+    for (let i = 0; i < 3; i++) base.push(...(await capture(s, '/users/u_1', 40, { service: 'users', at: T0 + i * 5000 })));
+    await toggle(s, 'users-rename');
+    const win = await capture(s, '/users/u_1', 40, { service: 'users', at: T0 + 600_000 });
+    const b = buildBaselines(base)[0]!, w = buildBaselines(win)[0]!;
+    expect(b.fields['display_name']!.presence).toBeGreaterThan(0);
+    expect(runDetectors(b, w).find((x) => x.detector === 'D3')?.rename).toMatchObject({ from: 'name', to: 'display_name' });
+  });
   it('D4 type change: payments amount number -> string', async () => {
     const f = await detect('payments-amount-type', '/payments/pay_1', 'payments');
     expect(f.find((x) => x.detector === 'D4' && x.field === 'amount')).toBeTruthy();

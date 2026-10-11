@@ -12,6 +12,8 @@ const FIELD_STATUS: Record<FieldComparison["status"], { label: string; tone: Fie
   missing_renamed: { label: "RENAMED", tone: "accent" },
   limit_capped: { label: "LIMITED", tone: "accent" },
   unit_drift: { label: "UNIT CHANGED", tone: "warn" },
+  type_changed: { label: "TYPE CHANGED", tone: "warn" },
+  removed: { label: "REMOVED", tone: "accent" },
   new_field: { label: "NEW FIELD", tone: "info" },
   enum_expanded: { label: "NEW OPTION", tone: "info" },
   match: { label: "SAME", tone: "match" },
@@ -148,6 +150,7 @@ function FieldRow({ field }: { field: FieldComparison }) {
 /** Endpoint tabs plus the baseline-vs-now field table. Changed fields sort first and carry the colour; matches fade back. */
 export default function EndpointFields({ endpoints, index, onIndexChange }: EndpointFieldsProps) {
   const endpoint = endpoints[index] ?? endpoints[0];
+  if (!endpoint) return null;
   const isMatch = (f: FieldComparison) => FIELD_STATUS[f.status].tone === "match";
   const fields = [...endpoint.fields].sort((a, b) => Number(isMatch(a)) - Number(isMatch(b)));
   const changed = fields.filter((f) => !isMatch(f)).length;

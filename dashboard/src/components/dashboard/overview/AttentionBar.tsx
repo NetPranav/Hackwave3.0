@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { Card } from "@/components/dashboard/Card";
 import AnimatedNumber from "@/components/dashboard/AnimatedNumber";
-import { OVERVIEW_STATS as S } from "@/lib/mock/overview";
+import { overviewStats } from "@/lib/mock/overview";
+import { useSeismoData } from "@/lib/api/data";
 
 function Cell({
   href,
@@ -35,6 +38,7 @@ function Cell({
 
 /** The two things only a person can do: decide on the review items, merge the open fix PRs. */
 export default function AttentionBar() {
+  const S = overviewStats(useSeismoData());
   const prs = S.openPrNumbers.length;
   return (
     <Card aria-label="Needs your attention">

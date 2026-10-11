@@ -35,6 +35,17 @@ describe('drift engine (P4.2/P4.5)', () => {
     expect(ev.usages[0]!.file).toBe('app/checkout/page.tsx');
     expect(ev.fix).toEqual({ rung: 'alias', rule: { kind: 'alias', path: '$', endpoint: 'GET /users/{id}', source: 'display_name', target: 'name' } });
   });
+  it('an earlier "field removed" (D1) on the renamed field is closed as explained once D3 sees the rename', async () => {
+    const e = await scenario([codeMap([{ field: 'name', usage: 'display' }])], async (s) => void (await toggle(s, 'users-rename')));
+    // as in a live run where D1 fired a pass before the new name could be scored
+    const d1 = { id: 'drift-d1', service: 'users', endpoint: 'GET /users/{id}', field: 'name', detector: 'D1', title: 'Field removed: name', severity: 'breaking' as const, state: 'breaking' as const, confidence: 0.9, detectedAt: new Date(NOW - 10_000).toISOString(), before: { presence: 1 }, after: { presence: 0 }, usages: [] };
+    (e as unknown as { events: Map<string, unknown> }).events.set('users|GET|/users/{id}|D1|name', { event: d1, runs: 3, lastSeen: NOW - 5000 });
+    const changed = await e.run(NOW);
+    const closed = e.list().find((x) => x.id === 'drift-d1')!;
+    expect(closed.state).toBe('resolved');
+    expect(closed.title).toBe('Field removed: name (explained: renamed to display_name)');
+    expect(changed.map((c) => c.id)).toContain('drift-d1');   // so the dashboard and the GitHub issue are updated
+  });
   it('a field read in a branch/arithmetic is breaking once confirmed', async () => {
     const e = await scenario([codeMap([{ field: 'name', usage: 'arithmetic' }])], async (s) => void (await toggle(s, 'users-rename')));
     await e.run(NOW); await e.run(NOW + 5000);

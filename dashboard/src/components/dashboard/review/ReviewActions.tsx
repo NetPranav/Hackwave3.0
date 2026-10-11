@@ -11,13 +11,15 @@ const QUIET =
 
 interface ReviewActionsProps {
   prNumber?: number;
+  prUrl?: string;
+  error?: string;
   onMarkExpected: () => void;
   onSnooze: (label: string) => void;
   onOpenPr: () => void;
 }
 
 /** Mark expected, snooze, or open a needs-review suggestion PR. The PR is never merged automatically. */
-export default function ReviewActions({ prNumber, onMarkExpected, onSnooze, onOpenPr }: ReviewActionsProps) {
+export default function ReviewActions({ prNumber, prUrl, error, onMarkExpected, onSnooze, onOpenPr }: ReviewActionsProps) {
   const [snoozing, setSnoozing] = useState(false);
 
   return (
@@ -63,7 +65,7 @@ export default function ReviewActions({ prNumber, onMarkExpected, onSnooze, onOp
 
       {prNumber ? (
         <a
-          href={"https://github.com/NetPranav/seismo-demo-shop/pull/" + prNumber}
+          href={prUrl ?? "https://github.com/NetPranav/seismo-demo-shop/pull/" + prNumber}
           target="_blank"
           rel="noreferrer"
           className="ml-auto font-aeonik-mono text-xs uppercase tracking-wider text-text-primary/70 underline-offset-4 hover:text-text-primary hover:underline dark:text-white/70 dark:hover:text-white"
@@ -75,6 +77,7 @@ export default function ReviewActions({ prNumber, onMarkExpected, onSnooze, onOp
           Open suggestion PR ↗
         </button>
       )}
+      {error && <p className="w-full text-right font-aeonik-light text-xs text-warn dark:text-warn-bright">{error}</p>}
     </div>
   );
 }

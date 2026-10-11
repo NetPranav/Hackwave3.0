@@ -2,43 +2,59 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { TIMELINE_EVENTS, type TimelineDriftEvent } from "@/lib/mock/timeline";
+import type { TimelineDriftEvent } from "@/lib/mock/timeline";
+import EmptyState from "@/components/dashboard/EmptyState";
+import { useSeismoData } from "@/lib/api/data";
 import RangeBar, { bucketOf } from "./RangeBar";
 import TimelineToolbar from "./TimelineToolbar";
 import DriftEventCard from "./DriftEventCard";
 import { SeverityNode } from "./EventStatus";
 import DeployRow from "./DeployRow";
 
-const PROVIDERS = Array.from(
-  new Map(
-    TIMELINE_EVENTS.filter((i): i is TimelineDriftEvent => i.type !== "deploy").map((e) => [
-      e.serviceSlug,
-      { slug: e.serviceSlug, name: e.service },
-    ])
-  ).values()
-);
 
 const ENTER = { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const };
 
 /** Timeline: when it happened (range bar), what to look at (toolbar), then the feed. */
 export default function TimelineView() {
+  const data = useSeismoData();
+  const TIMELINE_EVENTS = data.timeline;
+  const win = data.timelineWindow;
+  const PROVIDERS = Array.from(
+    new Map(
+      TIMELINE_EVENTS.filter((i): i is TimelineDriftEvent => i.type !== "deploy").map((e) => [
+        e.serviceSlug,
+        { slug: e.serviceSlug, name: e.service },
+      ])
+    ).values()
+  );
   const [severity, setSeverity] = useState("all");
   const [service, setService] = useState("all");
   const [query, setQuery] = useState("");
   const [bucket, setBucket] = useState<number | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>("drf_users_name_rename");
+  const [expandedId, setExpandedId] = useState<string | null>(data.mode === "mock" ? "drf_users_name_rename" : null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return TIMELINE_EVENTS.filter((item) => {
-      if (bucket !== null && bucketOf(item.timestamp) !== bucket) return false;
+      if (bucket !== null && bucketOf(item.timestamp, win) !== bucket) return false;
       if (item.type === "deploy") return severity === "all" || severity === "info" ? service === "all" && !q : false;
       if (severity !== "all" && item.severity !== severity) return false;
       if (service !== "all" && item.serviceSlug !== service) return false;
       if (!q) return true;
       return [item.title, item.service, item.endpoint, item.detectorId].some((t) => t.toLowerCase().includes(q));
     });
-  }, [severity, service, query, bucket]);
+  }, [severity, service, query, bucket, TIMELINE_EVENTS, win]);
+
+  if (!TIMELINE_EVENTS.length)
+    return (
+      <EmptyState
+        loading={data.loading}
+        label="Timeline"
+        title="No changes detected yet"
+        body="Seismo compares live API responses with a learned baseline. Detected changes, announced deprecations and code-map scans appear here as they happen."
+        action={{ href: "/app/status", text: "See API status" }}
+      />
+    );
 
   return (
     <main className="mx-auto max-w-[1440px] space-y-6 px-6 py-6 md:px-10 lg:px-16">
