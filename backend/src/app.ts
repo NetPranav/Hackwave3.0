@@ -7,16 +7,30 @@ import {
 } from '@seismo/contracts';
 import { buildGraph, coverage, impact } from './graph.js';
 import { memoryStore, type CodeMapStore } from './codemap-store.js';
+import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
+import { buildBaselines } from './baseline.js';
+import { buildStatus, providerStatus } from './status.js';
+import { gunzipSync } from 'node:zlib';
 
 /** P0.4 skeleton: routes return contract-shaped mock data until the real engine (P2-P6) replaces each one. */
-export function buildApp(opts: { store?: CodeMapStore } = {}) {
+export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys } = {}) {
   const store = opts.store ?? memoryStore();
+  const ingestStore = opts.ingest ?? memoryIngest();
+  const keys = opts.keys ?? new SdkKeys();
   const sseClients = new Set<(event: string, data: unknown) => void>();
   const app = Fastify({ logger: process.env.NODE_ENV === 'test' ? false : { level: 'info' } });
   app.register(cors, { origin: true });
 
   const ingestKeys = new Set((process.env.SEISMO_SDK_KEYS ?? 'dev-key').split(','));
   let notif = mockNotificationSettings();
+
+  // SDK batches arrive gzipped.
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body: Buffer, done) => {
+    try {
+      const raw = req.headers['content-encoding'] === 'gzip' ? gunzipSync(body) : body;
+      done(null, raw.length ? JSON.parse(raw.toString('utf8')) : {});
+    } catch (e) { done(e as Error, undefined); }
+  });
 
   // Every /v1 route except SDK ingest and SSE is user-scoped (P0.11).
   app.addHook('onRequest', async (req, reply) => {
@@ -31,7 +45,14 @@ export function buildApp(opts: { store?: CodeMapStore } = {}) {
     if (!process.env.AUTH_SECRET) return { token: 'dev' };
     return { token: await signUserToken(req.user!, '60s', 'sse') };
   });
-  app.get('/v1/overview', async () => mockOverview());
+  app.get('/v1/overview', async () => {
+    const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
+    const maps = await store.all();
+    if (!fps.length && !maps.length) return mockOverview();
+    const st = buildStatus(fps);
+    const cov = coverage(maps);
+    return { ...mockOverview(), servicesMonitored: st.length || mockOverview().servicesMonitored, endpoints: cov.endpointsMapped || mockOverview().endpoints, coveragePct: cov.fieldsSeen ? Math.round((100 * cov.fieldsMapped) / cov.fieldsSeen) : 0 };
+  });
   // Graph from real code maps; mock data until the first scan has been stored (so the dashboard always has something to draw).
   app.get('/v1/graph', async () => {
     const maps = await store.all();
@@ -63,7 +84,13 @@ export function buildApp(opts: { store?: CodeMapStore } = {}) {
     const maps = await store.all();
     return maps.length ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
   });
-  app.get('/v1/status', async () => ({ services: mockStatus() }));
+  app.get('/v1/status', async () => {
+    const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
+    if (!fps.length) return { services: mockStatus() };
+    const services = [...new Set(fps.map((f) => f.service))];
+    const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
+    return { services: buildStatus(fps, { provider }) };
+  });
   app.get('/v1/drift-events', async () => mockDrift());
   app.get('/v1/radar', async () => mockRadar());
   app.get('/v1/review', async () => mockReview());
@@ -73,12 +100,18 @@ export function buildApp(opts: { store?: CodeMapStore } = {}) {
   app.post('/v1/notifications/test', async () => ({ ok: true }));
 
   app.post('/v1/ingest', async (req, reply) => {
-    const key = String(req.headers['x-seismo-key'] ?? '');
-    if (!ingestKeys.has(key)) return reply.code(401).send({ error: 'bad_key' });
+    const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
+    if (!projectId) return reply.code(401).send({ error: 'bad_key' });
     const parsed = Fingerprint.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_fingerprint', message: parsed.error.message });
+    await ingestStore.add(projectId, parsed.data);
+    for (const send of sseClients) send('status.updated', { service: parsed.data.service });
     return { ok: true };
   });
+
+  app.post('/v1/projects/:id/keys', async (req) => keys.create((req.params as { id: string }).id));
+  app.delete('/v1/projects/:id/keys/:keyId', async (req) => { keys.revoke((req.params as { keyId: string }).keyId); return { ok: true }; });
+  app.get('/v1/baselines', async () => buildBaselines(await ingestStore.since('dev', Date.now() - 24 * 3600_000)));
 
   // SSE stub (P0.4). Real events arrive with P2/P4.
   app.get('/v1/events', async (req, reply) => {

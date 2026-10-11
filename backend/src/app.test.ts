@@ -50,3 +50,37 @@ describe('graph from code maps (P2.5)', () => {
     expect(cov.fieldsMapped).toBe(1);
   });
 });
+
+import { gzipSync } from 'node:zlib';
+describe('ingest, baselines, status (P3.4-P3.6)', () => {
+  const fp = (n: number, status = '200') => ({
+    v: 1, service: 'payments', method: 'POST', endpoint: '/payments', windowStart: new Date().toISOString(), windowSeconds: 5, count: n,
+    statusCounts: { [status]: n }, latencyMs: { p50: 40, p95: 90 }, headers: { sunset: 'Wed, 30 Dec 2026 00:00:00 GMT' }, reqQueryKeys: [], shapeHash: 'x',
+    fields: { amount: { n, types: { integer: n }, nulls: 0, mag: { '2': n } } },
+  });
+  it('accepts gzip from the SDK, rejects bad keys, builds status + baseline', async () => {
+    const a = buildApp();
+    const body = gzipSync(JSON.stringify(fp(120)));
+    const h = { 'x-seismo-key': 'dev-key', 'content-type': 'application/json', 'content-encoding': 'gzip' };
+    expect((await a.inject({ method: 'POST', url: '/v1/ingest', headers: { ...h, 'x-seismo-key': 'nope' }, payload: body })).statusCode).toBe(401);
+    expect((await a.inject({ method: 'POST', url: '/v1/ingest', headers: h, payload: body })).statusCode).toBe(200);
+    await a.inject({ method: 'POST', url: '/v1/ingest', headers: h, payload: gzipSync(JSON.stringify(fp(100, '429'))) });
+    const st = (await a.inject('/v1/status')).json().services[0];
+    expect(st.service).toBe('payments');
+    expect(st.errorRate).toBeCloseTo(100 / 220, 2);
+    expect(st.endpoints[0].rate429).toBeGreaterThan(0);
+    expect(st.upcomingChange).toContain('Sunset');
+    const base = (await a.inject('/v1/baselines')).json()[0];
+    expect(base.samples).toBe(220);
+    expect(base.ready).toBe(true);
+    expect(base.fields.amount.presence).toBe(1);
+  });
+  it('creates and revokes SDK keys', async () => {
+    const a = buildApp();
+    const { id, key } = (await a.inject({ method: 'POST', url: '/v1/projects/p1/keys' })).json();
+    const post = () => a.inject({ method: 'POST', url: '/v1/ingest', headers: { 'x-seismo-key': key, 'content-type': 'application/json' }, payload: JSON.stringify(fp(1)) });
+    expect((await post()).statusCode).toBe(200);
+    await a.inject({ method: 'DELETE', url: `/v1/projects/p1/keys/${id}` });
+    expect((await post()).statusCode).toBe(401);
+  });
+});
