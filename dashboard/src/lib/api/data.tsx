@@ -5,6 +5,7 @@ import { sitesFor as mockSitesFor, UNRESOLVED_READS, type CodeSite } from "@/lib
 import { DRIFT_DETAILS_MAP, type DriftDetailData } from "@/lib/mock/drift";
 import { FIX_RULES, type FixRuleData } from "@/lib/mock/fixes";
 import { CHART_DAYS, CHART_MAX, CHART_TICKS, type ChartDay, type ChartMetric } from "@/lib/mock/overview";
+import { RADAR_ITEMS, type RadarItem } from "@/lib/mock/radar";
 import { REVIEW_ITEMS, type ReviewItem } from "@/lib/mock/review";
 import { SERVICES_STATUS_DATA, type ServiceStatusItem } from "@/lib/mock/status";
 import { TIMELINE_BUCKETS, TIMELINE_BUCKET_MS, TIMELINE_EVENTS, TIMELINE_NOW, TIMELINE_WINDOW_START, type TimelineItem } from "@/lib/mock/timeline";
@@ -14,6 +15,7 @@ import {
   toChart,
   toDriftDetail,
   toFixes,
+  toRadar,
   toReview,
   toServices,
   toTimeline,
@@ -41,6 +43,7 @@ export interface SeismoData {
   timelineWindow: { start: number; bucketMs: number; buckets: number; now: number };
   fixes: FixRuleData[];
   review: ReviewItem[];
+  radar: RadarItem[];
   driftDetail: (id: string) => DriftDetailData | undefined;
   sitesFor: (serviceSlug: string, field: string) => CodeSite[];
   unresolvedReads: { file: string; line: number; reason: string }[];
@@ -59,6 +62,7 @@ const MOCK: SeismoData = {
   timelineWindow: { start: TIMELINE_WINDOW_START, bucketMs: TIMELINE_BUCKET_MS, buckets: TIMELINE_BUCKETS, now: TIMELINE_NOW },
   fixes: FIX_RULES,
   review: REVIEW_ITEMS,
+  radar: RADAR_ITEMS,
   driftDetail: (id) => DRIFT_DETAILS_MAP[id],
   sitesFor: mockSitesFor,
   unresolvedReads: UNRESOLVED_READS,
@@ -155,6 +159,7 @@ function LiveDataProvider({ children }: { children: ReactNode }) {
       timelineWindow: { start: now - WINDOW_BUCKETS * BUCKET_MS, bucketMs: BUCKET_MS, buckets: WINDOW_BUCKETS, now },
       fixes: toFixes(evs),
       review: toReview(reviewItems),
+      radar: toRadar(radarItems),
       driftDetail: (id) => {
         const e = evs.find((x) => x.id === id);
         return e ? toDriftDetail(e, compares[e.service + "|" + e.endpoint], reviewIds) : undefined;

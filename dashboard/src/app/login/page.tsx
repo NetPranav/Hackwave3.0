@@ -1,36 +1,84 @@
 import type { Metadata } from "next";
-import Logo from "@/components/layout/Logo";
+import AuthPage from "@/components/auth/AuthPage";
+import GithubMark from "@/components/auth/GithubMark";
 import { signIn } from "@/auth";
 
 export const metadata: Metadata = { title: "Sign in · Seismo" };
 
-// v2-P1.2: sign in with GitHub (the Seismo GitHub App's OAuth). Visual design: Adarsh (v2-A0).
-export default function LoginPage() {
-  async function signInWithGitHub() {
-    "use server";
-    await signIn("github", { redirectTo: "/app" });
-  }
+// v2-P1: real GitHub sign-in (Auth.js, the Seismo GitHub App's OAuth). New users continue to onboarding.
+async function signInWithGitHub() {
+  "use server";
+  await signIn("github", { redirectTo: "/onboarding" });
+}
 
+const NEXT_STEPS = [
+  { title: "Sign in with GitHub", text: "One click. No new password." },
+  { title: "Install the Seismo app", text: "You choose which repos it can read." },
+  { title: "See your map", text: "Every API you call, and the code that depends on it." },
+];
+
+const PROMISES = ["Read-only. We never change your code on our own.", "We see the shape of API data, never the values.", "Every fix is a pull request you merge."];
+
+export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-page-bg px-6">
-      <div className="w-full max-w-sm rounded-xl border border-box-outline bg-section p-8">
-        <Logo href="/" />
-        <h1 className="mt-8 font-aeonik text-3xl leading-tight tracking-tight text-text-primary">Sign in</h1>
-        <p className="mt-2 font-aeonik-light text-sm leading-relaxed text-text-primary/70">
-          Seismo uses your GitHub account. We only read your login; your code is reached through the Seismo GitHub App you install.
-        </p>
-        <form action={signInWithGitHub} className="mt-8">
+    <AuthPage logo={false}>
+      <main className="grid flex-1 items-center gap-10 py-6 lg:min-h-0 lg:grid-cols-2 lg:gap-16">
+        <section>
+          <h1 className="font-aeonik text-5xl leading-[0.95] tracking-tight md:text-7xl">Sign in to Seismo</h1>
+          <p className="mt-5 max-w-lg font-aeonik-light text-base leading-relaxed text-text-primary/70">
+            Know when an API you depend on changes, before your users do.
+          </p>
+
+          <form action={signInWithGitHub}>
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-btn-primary px-6 py-3 font-aeonik-mono text-sm uppercase tracking-wider text-white transition hover:scale-[1.02] hover:opacity-90"
+            className="mt-8 inline-flex w-full max-w-md items-center justify-center gap-3 rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-transform hover:scale-[1.02]"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
-            </svg>
-            Sign in with GitHub
+            <GithubMark />
+            Continue with GitHub
           </button>
-        </form>
-      </div>
-    </main>
+          </form>
+
+          <ul className="mt-8 max-w-md space-y-2.5">
+            {PROMISES.map((p) => (
+              <li key={p} className="flex gap-2.5 font-aeonik-light text-sm text-text-primary/70">
+                <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                {p}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <aside className="rounded-xl border border-box-outline bg-section p-6 md:p-10">
+          <p className="font-aeonik-mono text-xs uppercase tracking-[0.2em] text-text-primary/50">What happens next</p>
+          <ol className="mt-6 space-y-4">
+            {NEXT_STEPS.map((s, i) => (
+              <li
+                key={s.title}
+                className="group relative flex cursor-default items-center gap-4 overflow-hidden rounded-md border border-box-outline bg-section p-4"
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-0 origin-left scale-x-0 bg-btn-primary transition-transform duration-300 ease-out group-hover:scale-x-100"
+                />
+                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded border border-accent font-aeonik-mono text-sm text-accent transition-colors duration-300 group-hover:bg-accent group-hover:text-white">
+                  {i + 1}
+                </span>
+                <div className="relative flex-1">
+                  <p className="font-aeonik text-base transition-colors duration-300 group-hover:text-white">{s.title}</p>
+                  <p className="mt-0.5 font-aeonik-light text-sm text-text-primary/60 transition-colors duration-300 group-hover:text-white/70">{s.text}</p>
+                </div>
+                <span
+                  aria-hidden
+                  className="relative -translate-x-3 font-aeonik-mono text-lg text-accent opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                >
+                  →
+                </span>
+              </li>
+            ))}
+          </ol>
+        </aside>
+      </main>
+    </AuthPage>
   );
 }

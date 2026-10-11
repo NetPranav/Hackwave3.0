@@ -8,6 +8,7 @@ import type { ReviewItem, ReviewReason } from "@/lib/mock/review";
 import type { DriftState as ViewState, EndpointStatus, FieldComparison, ProviderHealth, ServiceStatusItem } from "@/lib/mock/status";
 import type { EventSeverity, EventState, TimelineDeployMarker, TimelineDriftEvent, TimelineItem } from "@/lib/mock/timeline";
 import type { ChartDay } from "@/lib/mock/overview";
+import type { RadarItem } from "@/lib/mock/radar";
 import type {
   CheckResult,
   CompareApi,
@@ -570,4 +571,38 @@ export function toChart(days: MetricsDay[], events: DriftEvent[]) {
   const max = { volume: maxOf("volume"), latency: maxOf("latency"), drifts: maxOf("drifts") };
   const ticks = (m: number, unit = "") => [m, (m * 3) / 4, m / 2, m / 4, 0].map((v) => short(v) + unit);
   return { days: chartDays, max, ticks: { volume: ticks(max.volume), latency: ticks(max.latency, "ms"), drifts: ticks(max.drifts) } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Radar (GET /v1/radar) -> Adarsh's radar page model
+
+const SIM: Partial<Record<string, "rename" | "scale" | "enum" | "cap">> = { rename: "rename", units: "scale", enum: "enum", limit: "cap" };
+
+export function toRadar(items: RadarItemApi[]): RadarItem[] {
+  return items.map((r) => {
+    const [method, path] = splitEndpoint(r.endpoint ?? "");
+    const change = SIM[r.changeType];
+    return {
+      id: r.id,
+      service: serviceName(r.service),
+      serviceSlug: r.service,
+      title: r.title,
+      kind: r.kind,
+      changeType: r.changeType as RadarItem["changeType"],
+      ...(r.date ? { date: r.date.slice(0, 10) } : {}),
+      source: r.source,
+      ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
+      ...(r.quote ? { quote: r.quote } : {}),
+      ...(r.endpoint ? { endpoint: r.endpoint } : {}),
+      ...(r.field ? { field: r.field } : {}),
+      matchedFiles: r.matchedFiles,
+      severity: r.severity,
+      suggestion: r.suggestion,
+      extractedBy: r.extractedBy,
+      ...(r.driftEventId ? { driftEventId: r.driftEventId } : {}),
+      explanation: r.suggestion || r.title,
+      aiModel: r.extractedBy === "ai" ? "AI extraction (quote verified)" : r.extractedBy,
+      ...(change && r.endpoint && r.field ? { simulation: { endpoint: endpointId(r.service, method, path), change, field: r.field, value: "" } } : {}),
+    };
+  });
 }

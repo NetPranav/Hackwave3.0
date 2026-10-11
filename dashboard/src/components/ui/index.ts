@@ -7,3 +7,6 @@ export type {
 
 export { default as Counter } from "./Counter";
 export type { CounterProps } from "./Counter";
+
+export { default as Threads } from "./Threads";
+export type { ThreadsProps } from "./Threads";
