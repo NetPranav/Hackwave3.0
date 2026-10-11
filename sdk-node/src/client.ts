@@ -140,8 +140,10 @@ export class Seismo {
   }
 
   private serviceOf(url: URL) {
-    for (const [prefix, name] of Object.entries(this.o.services ?? {})) if (url.href.startsWith(prefix)) return name;
-    return url.host;
+    // the most specific prefix wins ("http://x/orders" before "http://x")
+    let best: [string, string] | undefined;
+    for (const [prefix, name] of Object.entries(this.o.services ?? {})) if (url.href.startsWith(prefix) && (!best || prefix.length > best[0].length)) best = [prefix, name];
+    return best ? best[1] : url.host;
   }
 
   private async capture(meta: { url: string; method: string; status: number; headers: Headers }, res: Response, latency: number) {

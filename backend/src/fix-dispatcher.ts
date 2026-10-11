@@ -55,7 +55,7 @@ export function httpGithubApp(baseUrl = process.env.GITHUB_APP_URL, token = proc
   return {
     repos: async () => (await call<{ installations: { id: number; account: string; repos: string[] }[] }>('/internal/repos', {})).installations,
     scan: async (repo) => void (await call('/internal/scan', { repo })),
-    // the setup PR clones the repo and runs the codemod: allow a minute
-    setup: (repo) => call('/internal/setup', { repo }, 60000),
+    // the setup PR clones the repo, runs the codemod and updates the lockfile (npm): allow almost 3 minutes
+    setup: (repo) => call('/internal/setup', { repo }, 170_000),
   };
 }
