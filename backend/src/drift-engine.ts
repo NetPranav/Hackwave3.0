@@ -87,6 +87,14 @@ export class DriftEngine {
     return { event: t.event };
   }
 
+  /** Demo reset (P8.5): forget every event, in memory and in the store. */
+  async clear(): Promise<void> {
+    await this.init();
+    const ids = [...this.events.values()].map((t) => t.event.id);
+    this.events.clear();
+    await this.store.remove(ids).catch(() => undefined);
+  }
+
   /** P5.6: the customer's CI finished on the fix PR -> C7 + C8 and the CI state on the event. */
   recordCi(ruleId: string, conclusion: string, by = 'CI'): DriftEvent | undefined {
     for (const [k, t] of this.events) {

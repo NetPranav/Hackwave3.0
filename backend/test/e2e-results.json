@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-e1hb5o",
+      "id": "a-f3gg68",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-e1hb5o",
+      "driftEvent": "drift-f3gg68",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.191,
-    "p50On": 0.16,
-    "p99Off": 0.868,
-    "p99On": 0.895
+    "p50Off": 0.142,
+    "p50On": 0.188,
+    "p99Off": 0.581,
+    "p99On": 0.614
   }
 }

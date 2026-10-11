@@ -7,6 +7,8 @@ import { fingerprints, projects, sdkKeys } from './db/schema.js';
 export interface IngestStore {
   add(projectId: string, fp: Fingerprint): Promise<void>;
   since(projectId: string, sinceMs: number): Promise<Fingerprint[]>;
+  /** Demo reset only. */
+  clear(projectId: string): Promise<void>;
 }
 
 export function memoryIngest(): IngestStore {
@@ -14,6 +16,7 @@ export function memoryIngest(): IngestStore {
   return {
     add: async (projectId, fp) => void rows.push({ projectId, at: Date.parse(fp.windowStart), fp }),
     since: async (projectId, sinceMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs).map((r) => r.fp),
+    clear: async (projectId) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.projectId === projectId) rows.splice(i, 1); },
   };
 }
 
@@ -27,6 +30,7 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
       const rows = await db.select().from(fingerprints).where(gt(fingerprints.windowStart, new Date(sinceMs)));
       return rows.filter((r) => r.projectId === projectId).map((r) => r.payload as Fingerprint);
     },
+    async clear(projectId) { await db.delete(fingerprints).where(eq(fingerprints.projectId, projectId)); },
   };
 }
 

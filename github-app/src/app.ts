@@ -5,6 +5,7 @@ import { ALIASES_PATH, CHECK_NAME, openAliasPr, type Check, type OctokitFix } fr
 import { upsertIssue, type OctokitIssues } from './issues.js';
 import { publishCodeMap, scanRepo, withCheckout } from './scan-repo.js';
 import { openSetupPr, planSetup, type OctokitGit } from './setup-pr.js';
+import { resetDemoRepo, type OctokitReset } from './demo-reset.js';
 
 /**
  * Probot app (P2.2). Webhooks are acknowledged immediately; scans run after the handler returns
@@ -118,6 +119,24 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
       const b = (await readJson(req)) as { repo: string; eventId: string; title: string; body: string; severity: string; state: string };
       const { owner, name, kit } = await octokitFor(b.repo);
       return send(res, 200, await upsertIssue(kit as unknown as OctokitIssues, { ...b, owner, repo: name }));
+    } catch (e) { return send(res, 500, { error: String(e) }); }
+  });
+  // /v1/me: which accounts have the app installed (app-level call, no user token needed)
+  router.post('/internal/installations', async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
+    try {
+      const kit = await app.auth();
+      const r = await kit.request('GET /app/installations', { per_page: 100 });
+      return send(res, 200, { installations: (r.data as { id: number; account: { login?: string } | null }[]).map((i) => ({ id: i.id, account: i.account?.login ?? '' })) });
+    } catch (e) { return send(res, 500, { error: String(e) }); }
+  });
+  // P8.5: demo reset, repo side (DEMO_REPO only)
+  router.post('/internal/demo-reset', async (req: IncomingMessage, res: ServerResponse) => {
+    if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
+    try {
+      const b = (await readJson(req)) as { repo: string };
+      const { kit } = await octokitFor(b.repo);
+      return send(res, 200, await resetDemoRepo(kit as unknown as OctokitReset, b.repo));
     } catch (e) { return send(res, 500, { error: String(e) }); }
   });
   // P5.3: one-time setup PR (dashboard onboarding button, via the backend)

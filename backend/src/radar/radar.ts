@@ -123,6 +123,9 @@ export class Radar {
     return fresh;
   }
 
+  /** Demo reset: forget items and seen entries (spec snapshots are kept so the next poll does not diff against nothing). */
+  clear() { this.items.clear(); this.seen.clear(); }
+
   /** Sunset / Deprecation headers seen in traffic (D13 events) appear on the radar too. */
   fromHeaders(events: DriftEvent[]): RadarItem[] {
     const fresh: RadarItem[] = [];

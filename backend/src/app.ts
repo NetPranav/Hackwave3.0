@@ -24,6 +24,8 @@ import type { RadarItem } from '@seismo/contracts';
 export interface AppOptions {
   store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher; mocks?: boolean;
   ai?: AiService; dispatcher?: Dispatcher; settings?: SettingsStore; radar?: Radar;
+  /** GitHub App installations (account logins) for /v1/me; undefined = not connected. */
+  installations?: () => Promise<{ id: number; account: string }[]>;
   /** How long an alert waits for the AI text before sending the template (the dashboard gets the AI text when it arrives). */
   alertAiWaitMs?: number;
 }
@@ -100,9 +102,21 @@ export function buildApp(opts: AppOptions = {}) {
   });
 
   app.get('/health', async () => ({ ok: true }));
-  app.get('/ready', async () => ({ ok: true }));
+  // Readiness: the stores answer (Postgres reachable when configured).
+  app.get('/ready', async (_req, reply) => {
+    try {
+      await Promise.race([Promise.all([store.all(), settingsStore.get()]), sleep(3000).then(() => { throw new Error('timeout'); })]);
+      return { ok: true };
+    } catch (e) { return reply.code(503).send({ ok: false, error: String((e as Error).message) }); }
+  });
 
-  app.get('/v1/me', async (req) => ({ ...mockMe(), login: req.user ?? 'demo-user' }));
+  // The signed-in user and the GitHub App installations on their account (P0.11).
+  app.get('/v1/me', async (req) => {
+    const login = req.user ?? 'demo-user';
+    if (!opts.installations) return mocks ? { ...mockMe(), login } : { login, installations: [] };
+    const all = await opts.installations().catch(() => []);
+    return { login, installations: all.filter((i) => i.account.toLowerCase() === login.toLowerCase()).map((i) => String(i.id)) };
+  });
   app.post('/v1/events/token', async (req) => {
     if (!process.env.AUTH_SECRET) return { token: 'dev' };
     return { token: await signUserToken(req.user!, '60s', 'sse') };
@@ -191,6 +205,16 @@ export function buildApp(opts: AppOptions = {}) {
     radar.fromHeaders(engine.list());
     const items = radar.list(engine.list());
     return items.length || !mocks ? items : mockRadar();
+  });
+  // P8.5: demo reset (data side). Services are reset by the script; the repo side goes through the GitHub App.
+  app.post('/internal/demo/reset', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    await engine.clear();
+    await ingestStore.clear('dev');
+    dispatcher.clear();
+    radar.clear();
+    broadcast('demo.reset', {});
+    return { ok: true };
   });
   app.post('/internal/radar/poll', async (req, reply) => {
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });

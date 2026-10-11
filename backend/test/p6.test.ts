@@ -139,3 +139,21 @@ describe('review actions + settings API (P6.6, P6.13)', () => {
     expect((await app.inject('/v1/compare')).statusCode).toBe(400);
   });
 });
+
+describe('P8 groundwork', () => {
+  it('/ready answers; /v1/me lists only the signed-in account installations', async () => {
+    const app = buildApp({ installations: async () => [{ id: 11, account: 'NetPranav' }, { id: 12, account: 'someone-else' }] });
+    expect((await app.inject('/ready')).json()).toEqual({ ok: true });
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    const { signUserToken } = await import('../src/auth.js');
+    const me = (await app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${await signUserToken('netpranav')}` } })).json();
+    delete process.env.AUTH_SECRET;
+    expect(me).toEqual({ login: 'netpranav', installations: ['11'] });
+  });
+  it('demo reset clears events, fingerprints, alerts and radar; needs the internal token', async () => {
+    const app = buildApp();
+    expect((await app.inject({ method: 'POST', url: '/internal/demo/reset' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/internal/demo/reset', headers: { 'x-internal-token': 'dev-internal' } })).json()).toEqual({ ok: true });
+    expect((await app.inject('/v1/drift-events')).json()).toEqual([]);
+  });
+});

@@ -80,6 +80,9 @@ export class Dispatcher {
     return out;
   }
 
+  /** Demo reset: forget what was sent. */
+  clear() { this.log.length = 0; this.sent.clear(); }
+
   /** "Send test" button (P6.13). */
   async test(): Promise<Notification[]> {
     const fake: DriftEvent = { id: `test-${Date.now()}`, service: 'seismo', endpoint: 'TEST', detector: 'D0', title: 'Test notification from Seismo', severity: 'breaking', state: 'breaking', confidence: 1, detectedAt: new Date().toISOString(), before: null, after: null, usages: [] };

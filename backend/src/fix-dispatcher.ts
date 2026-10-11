@@ -27,3 +27,13 @@ export function httpIssueSink(baseUrl = process.env.GITHUB_APP_URL, token = proc
     },
   };
 }
+
+/** GitHub App installations (for /v1/me). */
+export function httpInstallations(baseUrl = process.env.GITHUB_APP_URL, token = process.env.INTERNAL_TOKEN ?? 'dev-internal') {
+  if (!baseUrl) return undefined;
+  return async () => {
+    const r = await fetch(`${baseUrl}/internal/installations`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': token }, body: '{}', signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`installations: ${r.status}`);
+    return ((await r.json()) as { installations: { id: number; account: string }[] }).installations;
+  };
+}

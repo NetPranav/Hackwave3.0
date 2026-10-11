@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.turbo
+.turbo
+.git
+.env
+.env.*
+!.env.example
+dashboard
+docs
+*.pdf
+*.jpeg
+**/test/e2e-results.json
