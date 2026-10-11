@@ -1,6 +1,6 @@
 # COMPLETION.md: what is built, what is verified, what is left
 
-Status on **2026-10-11** (Day 1 of 14), branch `netpranav` (updated after P6 and the demo shop).
+Status on **2026-10-11** (Day 1 of 14), branch `netpranav` (updated after P6, P7, P5.3/5.6/5.10, restart safety and P8 groundwork).
 Everything below was checked by running the code, not by reading the plan. "Verified" means a test or a live run in this repo proves it; claims without proof are marked as such.
 
 ---
@@ -9,7 +9,7 @@ Everything below was checked by running the code, not by reading the plan. "Veri
 
 | Check | Result |
 |---|---|
-| Full test suite, run **twice** in a row (`npx turbo run test --force`) | 135 tests, 5 packages, green both times: contracts 5 · services 9 · github-app 25 · sdk 22 · backend 74 (+1 live-NIM test that runs only with `LIVE_NIM=1`, passed separately) |
+| Full test suite (`npx turbo run test --force`), run twice per change set | **170 tests** green: contracts 5 · services 9 · github-app 35 · sdk 26 · backend 92, plus environment-gated tests (3 Postgres-store tests pass against the local database; 2 live-NIM tests pass with `LIVE_NIM=1`) |
 | Demo shop repo (`NetPranav/seismo-demo-shop`) | typecheck, 5 tests (invoice v1/v2 ± alias rule, alias guarantees), `next build`, 0 production advisories; its own CI green on GitHub |
 | Typecheck + build of every engine package (`turbo run typecheck build`) | 10/10 tasks green |
 | ESLint over the repo | clean |
@@ -95,7 +95,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P0.8 | `npm run setup` / `npm run dev` | ✅ | setup verified; dev script starts backend, worker, services, app |
 | P0.9 | CI via Turbo | ✅ | green on GitHub (run 38114122769); deploy automation not built |
 | P0.10 | SDK distribution decision | ✅ | `docs/roadmap/sdk-distribution.md` (npm scope still open, Q10) |
-| P0.11 | Dashboard↔backend auth | 🟡 | Backend side verified live (signed tokens, SSE token). `/v1/me` still returns placeholder name/installations (not mapped to real installations); dashboard side is Adarsh's |
+| P0.11 | Dashboard↔backend auth | ✅ / ⏳ | Signed tokens + SSE token verified live; `/v1/me` returns the installations of the signed-in account from the GitHub App (tested; live once the app is installed). Dashboard side is Adarsh's |
 | S1 NIM | ✅ | `response_format` json_schema works on Ultra (~3.8 s) and Super (~1.9 s) |
 | S2 body capture | ✅ (revised) | Library interception misses pre-existing keep-alive sockets → own fetch wrapper (defect #1) |
 | S3 Probot | ✅ | Probot 14.3.2 on Node 26, custom routes via `addHandler` |
@@ -126,7 +126,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P3.1 contracts | ✅ | fingerprint v1 (status class split) |
 | P3.2 SDK capture, sampling, queue, batching, gzip, retry-once-then-drop | ✅ | 20 SDK tests; overhead measured (p50 +0.04 ms, p99 ≈ +0.6 ms; budget < 1 ms) |
 | P3.3 fingerprinter | ✅ | format classes, magnitude, salted hashes, batch sketches |
-| P3.4 projects + keys + ingest | 🟡 | create/revoke keys and validated gzip ingest tested. **Gaps:** keys kept in memory (lost on restart); every key's data lands in project `dev`; no ownership check on `/v1/projects/{id}/keys`; no ingest rate limit |
+| P3.4 projects + keys + ingest | 🟡 | Keys created/revoked, stored as hashes in Postgres and reloaded on restart (pg test). **Gaps:** all data still read as project `dev`; no ownership check on `/v1/projects/{id}/keys`; no ingest rate limit |
 | P3.5 baselines | ✅ | presence, types, formats, enums, magnitude, lengths, shapes; `ready` flag computed (engine uses its own 50-sample minimum) |
 | P3.6 status + overview + provider status | ✅ / 🟡 | Real numbers + drift colours; Statuspage poller written for GitHub only, not shown live |
 | P3.7 SDK in the shop | ✅ | Done directly in the shop (lead's request): `instrumentation.ts` + `withAliases`; verified live inside Next.js |
@@ -136,7 +136,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | ID | Status | Evidence / missing |
 |---|---|---|
 | P4.1 contracts | ✅ | drift-event, notification |
-| P4.2 framework, schedule (5 s), state machine | 🟡 | suspected → confirmed by persistence over 2 runs (verified). **Confirmation probes not built.** Events live in memory (`drift_events` table unused → lost on restart) |
+| P4.2 framework, schedule (5 s), state machine | ✅ | suspected → confirmed over 2 runs; events persisted in Postgres (`drift_events`) and reloaded at start; **baseline freeze** while a confirmed change is open (restart test: no lost event, no duplicate PR or alert). Confirmation probes not built (persistence is the confirmation) |
 | P4.3 D1–D4 incl. rename scoring | ✅ | real-traffic fixtures + e2e |
 | P4.4 D11–D14, D16, D17 | ✅ | D11/D12/D13/D17 verified in engine; D14/D16 unit-level |
 | P4.5 severity + impact | ✅ | confidence × impact × exposure; unread field → info (verified) |
@@ -148,12 +148,12 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 |---|---|---|
 | P5.1 contracts | ✅ | alias-spec, fix-request, validation-result |
 | P5.2 `applyAliases` + G1–G4 | ✅ | fast-check, 10,000 runs each, + hostile inputs (cycles, getters, proxies, 200k arrays, frozen). Branch coverage not measured |
-| P5.3 setup PR (codemod + `aliases.test.ts`) | ❌ | Fallback in the plan: Adarsh wires `applyAliases` by hand (A5.3) |
+| P5.3 setup PR (codemod + `aliases.test.ts`) | ✅ / ⏳ | Deterministic ts-morph codemod wraps fetch `.json()` and axios responses (`withAliases` / `withAliasesResponse`), adds `seismo/aliases.{json,ts,test.ts}`, idempotent, output re-parsed and re-scanned in tests; one-commit PR via the git data API (`POST /internal/setup`). Not run on a real repo yet (app not installed) |
 | P5.4 planner C1–C6 | ✅ | every conflict case blocks (tests) |
 | P5.5 PR bot | ✅ / ⏳ | one-file change only, `seismo/*` branch, labels, body with checks + usages + revert; idempotent. Proven with a fake GitHub client, **not on a real repo yet** |
-| P5.6 check run + CI tracking (C7/C8) | ❌ | `validation.ci` stays `pending` |
+| P5.6 check run + CI tracking (C7/C8) | ✅ / ⏳ | "Seismo safety checks" check run with C1–C6 on the PR head commit; `check_suite.completed` on `seismo/alias-*` → C7/C8 + CI state on the event. The existing app must tick the **Check suite** event in its settings (new registrations subscribe automatically) |
 | P5.9 merge → resolved → green | ✅ / ⏳ | verified in engine + e2e; the webhook path from GitHub not exercised live |
-| P5.10 suggestion PR for units | ❌ | Should |
+| P5.10 suggestion PR for units | ✅ | Only when a human clicks "Open PR" on a D5 review card: one `scale` rule (÷ factor), branch `seismo/scale-*`, label `needs-review`, never merged by Seismo. Applied by a separate `applyTransforms` (T1 identity, T2 only the named number changes by the exact factor, T3 never throws; property-tested). Shop test: ₹49,900 → ₹499 only with the rule |
 | P5.11 cleanup PR | ❌ | Later |
 
 ### P6 · Meaning changes, AI, alerts
@@ -171,11 +171,24 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P6.12 webhook drift | ✅ | `seismo.observeWebhook()` / `seismo.webhook()` in the SDK, tested; the fake payments provider does not send webhooks yet |
 | P6.13 notification settings API | ✅ | GET/PUT validated, persisted in Postgres (`settings` table), test-send |
 
-### P7 · Radar: ❌ not started
-The fake providers already publish `/changelog` (RSS) and `openapi.json` for it.
+### P7 · Radar
+| ID | Status | Evidence / missing |
+|---|---|---|
+| P7.1 contract + registry | ✅ | `RadarItem` (change type, date, verbatim quote, matched files, severity, suggestion, extractor, linked drift event), `AnnouncedChange`; registry = the four fake providers. Real public feeds not added (URLs need verifying) |
+| P7.2 fetchers | ✅ | RSS + Atom parser, OpenAPI structural diff (orders `maxLimit 500 → 100` verified), polling every 15 min / 1 min in demo mode. HTML snapshot diff not built |
+| P7.3 changelog parser | ✅ | Rules extractor (limit, rename, units, removal, deprecation, enum, type, pagination; several date formats) and AI extractor (NIM); **every AI change must quote the source verbatim or it is dropped** (tested with an invented change). Live NIM extracted the limit change with a verbatim quote |
+| P7.4 matcher | ✅ | Change → call sites and field reads in the code map → `matchedFiles`, severity capped at warning (announced, not happening), template suggestion. DoD verified: announcement on the orders changelog → item naming `lib/api/orders.ts:4` **before** the flip |
+| P7.6 alerts | ✅ | New items go through the same dispatcher (info → dashboard only); `Sunset`/`Deprecation` headers (D13) appear on the radar with their date |
 
-### P8 · Launch: ❌ not started
-Production, public app, demo reset (a services-only `npm run demo:reset` exists), reliability, rehearsals, `v1.0`.
+### P8 · Launch
+| ID | Status | Evidence / missing |
+|---|---|---|
+| P8.2 production environment | 🟡 | `Dockerfile` (one image, all processes) + `docker compose --profile full`; compiled builds verified to start with plain `node` (backend `/ready` OK against Postgres). Docker build itself not yet run (Colima VM download pending). No host chosen (S5) |
+| P8.3 public GitHub App | ❌ | Needs the production URL |
+| P8.4 install-from-scratch test | ❌ | Needs the app installed |
+| P8.5 demo reset | ✅ / ⏳ | `npm run demo:reset [-- --warm]`: providers → v1, Seismo data cleared, demo repo PRs closed / `seismo/*` branches deleted / rules emptied (**only the repo in `DEMO_REPO`**, tested), AI cache warm |
+| P8.6 reliability | 🟡 | `/health`, `/ready` (checks the stores), container health checks, events/keys/settings persisted. No Sentry, no uptime ping |
+| P8.8 rehearsals, P8.10 release | ❌ | Need the dashboard and the live install |
 
 ---
 
@@ -201,9 +214,9 @@ Checked on GitHub: `origin/adarzhpathade` contains **no `dashboard/`** (the merg
 
 ## 6. Known limitations (honest list)
 
-1. **State in memory:** drift events and SDK keys are lost when the backend restarts (fingerprints, code maps and settings are in Postgres). Seen live: after a restart, the post-drift traffic becomes "history" and the rename is no longer detected. Persisting events (and excluding post-drift windows from baselines) is the next engine task.
+1. **State:** drift events, SDK keys, settings, fingerprints and code maps are in Postgres. Still in memory: the alert log, radar items and the AI cache (file cache optional), so a restart can resend a radar alert.
 2. **Single project:** all ingested data is read as project `dev`; multi-project scoping and key ownership checks are missing.
-3. **`/v1/me`** returns the signed-in login but placeholder installations.
+3. **`/v1/me`** matches installations by account login only (organisation membership is not checked).
 4. **`applyAliases` without an endpoint applies every rule to every response.** Still additive and safe (G1–G4), but the setup PR / manual wiring must pass the endpoint (`applyAliases(body, rules, 'GET /users/{id}')`).
 5. **SDK + Next.js:** Next.js patches `fetch` too; call `seismo.init()` once in server start-up (instrumentation file) so our wrapper sees the calls. The `node:http` path still relies on the interceptor library: init before the first outbound request.
 6. **Scanner coverage** is proven on one fixture shop; real repos will have unresolved calls (they are reported, not hidden).
@@ -218,6 +231,6 @@ Checked on GitHub: `origin/adarzhpathade` contains **no `dashboard/`** (the merg
 
 | From | What |
 |---|---|
-| NetPranav | **Install `seismo-app` on `seismo-demo-shop`** (https://github.com/apps/seismo-app/installations/new); add `TWILIO_TO=whatsapp:+91…` (and join the sandbox); optional `SLACK_WEBHOOK_URL`, `RESEND_API_KEY`, `ALERT_EMAIL_TO`; choose a host (S5); merge the `netpranav` → `main` PR |
+| NetPranav | In the GitHub App settings tick the **Check suite** event (for C7/C8). **Install `seismo-app` on `seismo-demo-shop`** (https://github.com/apps/seismo-app/installations/new); add `TWILIO_TO=whatsapp:+91…` (and join the sandbox); optional `SLACK_WEBHOOK_URL`, `RESEND_API_KEY`, `ALERT_EMAIL_TO`; choose a host (S5); merge the `netpranav` → `main` PR |
 | Adarsh | Switch to `adarzhpathade`; A0 shell + mock layer; **create `seismo-demo-shop` (A1.1)** |
-| Then (NetPranav's Claude) | Live scan + live alias PR + real WhatsApp on the shop; persist drift events; then P7 (radar) and P8 (deploy, public app, demo reset) |
+| Then (NetPranav's Claude) | Live: setup PR check, scan, alias PR, CI → C7/C8, real WhatsApp; Docker image build; deploy to the chosen host; public app (P8.3) |

@@ -80,7 +80,17 @@ bash scripts/team-status.sh               # team briefing
 bash scripts/team-publish-status.sh       # publish .team/status/<handle>.md
 bash scripts/check-md-links.sh            # docs link check (also in CI)
 ```
-Planned (P0, see `docs/roadmap/setup-and-deploy.md` §2): `npm install` · `npm run setup` · `npm run gh:register` · `npm run dev` · `npm run test` · `npm run e2e` · `npm run demo:traffic` · `npm run demo:reset`. CI (`.github/workflows/ci.yml`) runs lint/typecheck/test/build for every workspace folder that has a `package.json`. Update this section when they're real.
+Engine (all real now):
+```bash
+npm install && npm run setup        # .env from .env.example, database, migrations
+npm run gh:register                 # create your dev GitHub App (manifest flow)
+npm run dev                         # backend + worker + fake providers (+ GitHub App when WEBHOOK_PROXY_URL is set)
+npm test                            # every workspace via Turbo (unit, property, e2e)
+npm run demo:traffic -- --rps 5     # traffic against the fake providers
+npm run demo:reset -- --warm        # providers v1, Seismo data cleared, DEMO_REPO reset, AI cache warm
+docker compose --profile full up --build   # everything in containers (offline backup)
+```
+CI (`.github/workflows/ci.yml`) runs ESLint and Turbo typecheck/test/build for the engine workspaces, and the dashboard's own scripts.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
