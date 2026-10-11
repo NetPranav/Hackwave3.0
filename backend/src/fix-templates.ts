@@ -24,6 +24,12 @@ export function factorFromTitle(title: string): number {
   return m ? (m[1] ? 1 / Number(m[2]) : Number(m[2])) : NaN;
 }
 
+/** "In-Transit", "in transit", "IN_TRANSIT" are one value spelled differently; "lost" and "in_transit" are not. */
+export function sameValueSpelling(a: string, b: string): boolean {
+  const norm = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return norm(a) === norm(b) && norm(a).length > 0;
+}
+
 export function templateFor(e: DriftEvent): Template {
   if (!e.field) return { why: 'This change has no single field to fix: it needs a code change.' };
   const base = { id: `f-${e.id.slice(-6)}`, endpoint: e.endpoint, path: pathFor(e.field), field: leaf(e.field), driftEvent: e.id, addedAt: today() };
@@ -47,6 +53,10 @@ export function templateFor(e: DriftEvent): Template {
       const j = e.explanation?.judgement;
       if (!added.length) return { why: 'The new value is not known.' };
       if (!j || j.confidence < 0.5 || !known.includes(j.choice)) return { why: `Which known ${base.field} does "${added[0]}" mean? The AI judge has no confident answer, so a person has to decide (add a case in the code).` };
+      // Only a spelling/format variant of a known value may be mapped (In-Transit -> in_transit). A value with a new
+      // MEANING must never be folded into an old one, however sure the AI is (found by the pipeline run: the judge
+      // proposed "lost" -> "in_transit", which would show a lost parcel as on its way).
+      if (!sameValueSpelling(added[0]!, j.choice)) return { why: `"${added[0]}" is a new ${base.field} with its own meaning (the AI judge guessed "${j.choice}", but mapping a new meaning onto an old value would hide it). Add a case for it in the code.` };
       return { rule: { ...base, kind: 'map', map: { [added[0]!]: j.choice } }, why: `Treat "${added[0]}" as "${j.choice}" (AI judge, ${Math.round(j.confidence * 100)}% sure: ${j.reason}). Please confirm.` };
     }
     default:

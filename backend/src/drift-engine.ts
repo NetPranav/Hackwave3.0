@@ -118,6 +118,7 @@ export class DriftEngine {
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
     this.investigating.clear();
+    this.learned.clear();
     this.quarantine.clear();
     await this.store.remove(ids).catch(() => undefined);
   }
@@ -278,6 +279,18 @@ export class DriftEngine {
       t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: renamed to ${f.rename.to})` };
       seen.add(k);
       changed.push(t.event);
+    }
+    // Same for a unit change (D5): while the window is half old, half new, D6 "value distribution changed" fires first on
+    // the same field (found by the pipeline run: two extra D6 events per unit change). D5 explains it.
+    for (const f of findings) {
+      if (f.detector !== 'D5' || !f.field) continue;
+      for (const [k, t] of this.events) {
+        if (t.event.detector !== 'D6' || t.event.field !== f.field || t.event.service !== f.service || t.event.endpoint !== `${f.method} ${f.endpoint}`) continue;
+        if (seen.has(k) || ['resolved', 'expected', 'snoozed'].includes(t.event.state)) continue;
+        t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: unit change)` };
+        seen.add(k);
+        changed.push(t.event);
+      }
     }
     // The provider went back to normal: a confirmed change that is no longer found for RECOVER_RUNS passes in a row,
     // while its endpoint has enough traffic to judge, is closed as resolved (and its baseline unfreezes).

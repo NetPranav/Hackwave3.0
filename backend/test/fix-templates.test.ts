@@ -17,12 +17,17 @@ describe('fix templates (v2): fixed data rules per change type, never AI code', 
     const existing = [{ kind: 'alias' as const, endpoint: 'GET /users/{id}', path: '$', target: 'name', source: 'display_name' }];
     expect(stressTest(t.rule!, existing).passed).toBe(true);
   });
-  it('new enum value: a map rule ONLY with a confident judge choice that is a known value', () => {
+  it('new enum value: a map rule ONLY for a spelling variant of a known value, with a confident judge choice', () => {
     const base = { detector: 'D7', field: 'data[].status', endpoint: 'GET /shipments/{id}', before: { values: ['in_transit', 'delivered'] }, after: { added: [{ value: 'partially_shipped', share: 0.3 }] } };
     expect(templateFor(ev(base)).rule).toBeUndefined();                                                          // no judge: a person decides
     const judged = templateFor(ev({ ...base, explanation: { title: 't', summary: 'ssssssssss', impact: 'i i', recommendation: 'r r', risk: 'low', channels: { whatsapp: 'wwwwwwwwww', slack: 'ssssssssss', emailSubject: 'e e', emailBody: 'eeeeeeeeee' }, confidence: 1, model: 'm', latencyMs: 1, source: 'ai', judgement: { choice: 'in_transit', confidence: 0.8, reason: 'still moving' } } }));
-    expect(judged.rule).toMatchObject({ kind: 'map', field: 'status', path: '$.data[*]', map: { partially_shipped: 'in_transit' } });
-    expect(stressTest(judged.rule!).passed).toBe(true);
+    // a new MEANING is never folded into an old value, however sure the judge is (found live: "lost" -> "in_transit")
+    expect(judged.rule).toBeUndefined();
+    expect(judged.why).toContain('its own meaning');
+    // only a spelling/format variant of a known value is mapped
+    const variant = templateFor(ev({ ...base, after: { added: [{ value: 'In-Transit', share: 0.3 }] }, explanation: { title: 't', summary: 'ssssssssss', impact: 'i i', recommendation: 'r r', risk: 'low', channels: { whatsapp: 'wwwwwwwwww', slack: 'ssssssssss', emailSubject: 'e e', emailBody: 'eeeeeeeeee' }, confidence: 1, model: 'm', latencyMs: 1, source: 'ai', judgement: { choice: 'in_transit', confidence: 0.8, reason: 'same value' } } }));
+    expect(variant.rule).toMatchObject({ kind: 'map', field: 'status', path: '$.data[*]', map: { 'In-Transit': 'in_transit' } });
+    expect(stressTest(variant.rule!).passed).toBe(true);
     const invented = templateFor(ev({ ...base, explanation: { ...(judged as never), title: 't', summary: 'ssssssssss', impact: 'i i', recommendation: 'r r', risk: 'low', channels: { whatsapp: 'wwwwwwwwww', slack: 'ssssssssss', emailSubject: 'e e', emailBody: 'eeeeeeeeee' }, confidence: 1, model: 'm', latencyMs: 1, source: 'ai', judgement: { choice: 'teleported', confidence: 0.99, reason: 'x' } } }));
     expect(invented.rule).toBeUndefined();                                                                        // the judge may not invent values
   });

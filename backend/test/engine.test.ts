@@ -326,3 +326,23 @@ describe('learning progress (found live: a change made while Seismo was still le
     expect(e.readiness()[0]).toMatchObject({ samples: 60, ready: true });
   });
 });
+
+describe('unit change explains the earlier "value distribution changed" (found by the pipeline run: 2 extra D6 events)', () => {
+  it('an open D6 on the same field is closed as explained once D5 sees the unit change', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/payments/pay_1', 20, { service: 'payments', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'payments-paise');
+    for (const fp of await capture(s, '/payments/pay_1', 40, { service: 'payments', at: NOW - 20_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    // as in the live run: D6 fired while the window was still half old, half new
+    const d6 = { id: 'drift-d6', service: 'payments', endpoint: 'GET /payments/{id}', field: 'amount', detector: 'D6', title: 'Value distribution changed: amount', severity: 'warning' as const, state: 'suspected' as const, confidence: 0.7, detectedAt: new Date(NOW - 10_000).toISOString(), before: null, after: null, usages: [] };
+    (e as unknown as { events: Map<string, unknown> }).events.set('payments|GET|/payments/{id}|D6|amount', { event: d6, runs: 2, lastSeen: NOW - 5000 });
+    const changed = await e.run(NOW);
+    expect(e.list().some((x) => x.detector === 'D5')).toBe(true);
+    const closed = e.list().find((x) => x.id === 'drift-d6')!;
+    expect(closed.state).toBe('resolved');
+    expect(closed.title).toBe('Value distribution changed: amount (explained: unit change)');
+    expect(changed.map((c) => c.id)).toContain('drift-d6');
+  });
+});

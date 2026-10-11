@@ -10,7 +10,7 @@
 // Needs: npm run dev (backend :4000, providers :4100, dashboard :3000) + the shop (npm run dev:live, :3100) + traffic
 // (npm run demo:traffic -- --shop --rps 2). Run:  node --env-file=.env scripts/verify/pipeline.mjs [--only rename,scale] [--skip-reset]
 import { createHmac } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -50,6 +50,7 @@ const SCENARIOS = [
   { id: 'cap', panel: { service: 'orders', kind: 'cap', field: 'data', input: '2' }, sample: 'orders',
     expect: { detector: 'D9', field: 'data', fix: 'none (code change, review)' }, check: null },
 ].filter((s) => !ONLY || ONLY.includes(s.id));
+const ORDER = ['rename', 'scale', 'type', 'value', 'remove', 'cap'];
 
 // ---------------------------------------------------------------------------------------------------------------
 // plumbing
@@ -159,6 +160,8 @@ async function localReset() {
 async function learning(maxMs = 10 * 60_000) {
   const start = t(), readyAt = {};
   log('learning: waiting until every endpoint has a baseline');
+  // a detection pass that started before the reset can still report the old numbers: start counting after 2 fresh passes
+  await sleep(12_000);
   while (t() - start < maxMs) {
     const rows = await api('/v1/readiness').catch(() => []);
     for (const r of rows) if (r.ready && !readyAt[r.endpoint]) { readyAt[r.endpoint] = t() - start; log(`  ready: ${r.endpoint} after ${secs(readyAt[r.endpoint])} (${r.samples}/${r.needed} samples)`); }
@@ -205,7 +208,8 @@ async function runScenario(s, dash, shop) {
     await sleep(2000);
   }
   r.event = ev ? { id: ev.id, detector: ev.detector, field: ev.field, title: ev.title, state: ev.state, severity: ev.severity, usages: ev.usages.length } : null;
-  r.falseAlarms = [...extra.values()].filter((x) => !(s.id === 'rename' && /D1|D2/.test(x) && x.includes(s.panel.field)));
+  // events closed as explained by the main finding (D1/D2 by a rename, D6 by a unit change) are one story, not false alarms
+  r.falseAlarms = [...extra.values()].filter((x) => !x.includes('(explained:') && !(s.id === 'rename' && /D1|D2/.test(x) && x.includes(s.panel.field)));
   // the rule Seismo proposes (alias: on the event; transforms: in the review queue), checked against reality
   const reviewItem = ev ? (await api('/v1/review')).find((i) => i.drift.id === ev.id) : undefined;
   r.review = reviewItem ? { suggestion: reviewItem.suggestion?.slice(0, 160), reason: reviewItem.reason } : undefined;
@@ -249,10 +253,11 @@ async function screens(ctx) {
     const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch((e) => ({ status: () => `ERR ${e.message.slice(0, 60)}` }));
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
     const text = await page.locator('body').innerText().catch(() => '');
-    const overlay = await page.locator('nextjs-portal').count().catch(() => 0);
+    // Next.js's real error dialog (inside its shadow root; Playwright's css pierces it), not the "N" dev badge
+    const overlay = await page.locator('[data-nextjs-dialog], [data-nextjs-error-overlay]').count().catch(() => 0);
     const name = url.replace(/^https?:\/\/localhost:/, '').replace(/[/:]/g, '_') || 'root';
     await page.screenshot({ path: join(SHOTS, `page${name}.png`), fullPage: false }).catch(() => undefined);
-    out.push({ url, status: res?.status?.(), ms: t() - t0, chars: text.length, errorOverlay: overlay > 0 && /Unhandled|Error/.test(text), consoleErrors: errors.slice(0, 3) });
+    out.push({ url, status: res?.status?.(), ms: t() - t0, chars: text.length, errorOverlay: overlay > 0, consoleErrors: errors.slice(0, 3) });
     await page.close();
   }
   return out;
@@ -277,7 +282,7 @@ function report(run) {
   L.push('| Change (panel) | Expected | Flagged | First seen | Confirmed | On dashboard | PR | Shop healed | Resolved after undo | Fix check (oracle) | False alarms |', '|---|---|---|---|---|---|---|---|---|---|---|');
   for (const r of run.results) {
     const flagged = r.event ? `${r.event.detector} · ${r.event.title} · ${r.event.state}` : '**not flagged**';
-    L.push(`| ${r.change} | ${r.expected.detector} · ${r.expected.fix} | ${flagged} | ${secs(r.t.firstSeen)} | ${secs(r.t.confirmed)} | ${secs(r.t.dashboard)} | ${r.prUrl ? `[${secs(r.t.pr)}](${r.prUrl})` : '—'} | ${secs(r.t.healed)}${r.shopShowsName === undefined ? '' : r.shopShowsName ? ' (checkout shows the name)' : ' (checkout still broken)'} | ${secs(r.t.resolvedAfterUndo)} | **${r.oracle.verdict}**: ${r.oracle.detail} | ${r.falseAlarms.length ? r.falseAlarms.join('; ') : '0'} |`);
+    L.push(`| ${r.change}${r.rerun ? ' (re-run)' : ''} | ${r.expected.detector} · ${r.expected.fix} | ${flagged} | ${secs(r.t.firstSeen)} | ${secs(r.t.confirmed)} | ${secs(r.t.dashboard)} | ${r.prUrl ? `[${secs(r.t.pr)}](${r.prUrl})` : '—'} | ${secs(r.t.healed)}${r.shopShowsName === undefined ? '' : r.shopShowsName ? ' (checkout shows the name)' : ' (checkout still broken)'} | ${secs(r.t.resolvedAfterUndo)} | **${r.oracle.verdict}**: ${r.oracle.detail} | ${r.falseAlarms.length ? r.falseAlarms.join('; ') : '0'} |`);
   }
   const flagged = run.results.filter((r) => r.event && r.event.detector === r.expected.detector).length;
   const passed = run.results.filter((r) => r.oracle.verdict === 'PASS').length, failed = run.results.filter((r) => r.oracle.verdict === 'FAIL').length;
@@ -303,11 +308,17 @@ async function main() {
   if (dash.url().includes('/login')) throw new Error('dashboard sign-in failed (session cookie not accepted)');
   await shop.goto(SHOP, { waitUntil: 'domcontentloaded', timeout: 120_000 });
 
-  const run = { date: new Date().toISOString(), browser: executablePath.split('/').pop(), learning: {}, results: [], screens: [] };
+  const file = join(OUT, `pipeline-run-${DATE}.json`);
+  // --only re-runs some scenarios and merges them into today's earlier run (same learning numbers, other rows kept)
+  const prev = ONLY && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+  const run = { date: new Date().toISOString(), browser: executablePath.split('/').pop(), learning: prev?.learning ?? {}, results: prev?.results ?? [], screens: [] };
   if (!SKIP_RESET) { log('reset (providers + Seismo data; the GitHub repo is untouched)'); await localReset(); }
-  run.learning = await learning();
+  const learned = await learning();
+  if (!SKIP_RESET || !prev) run.learning = learned;
   for (const s of SCENARIOS) {
-    run.results.push(await runScenario(s, dash, shop));
+    const r = await runScenario(s, dash, shop);
+    r.rerun = !!prev;
+    run.results = [...run.results.filter((x) => x.id !== s.id), r].sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
     writeFileSync(join(OUT, `pipeline-run-${DATE}.json`), JSON.stringify(run, null, 2));
   }
   log('checking every screen');
