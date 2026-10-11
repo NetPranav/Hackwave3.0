@@ -10,14 +10,16 @@ services:
 
   services:
     profiles: [full]
+    image: seismo:latest
     build: .
     command: node services/dist/server.js
     environment: { PORT: '4100', DEMO_ADMIN_TOKEN: '${DEMO_ADMIN_TOKEN:-dev-admin}' }
-    ports: ['4100:4100']
+    ports: ['${SERVICES_PORT:-4100}:4100']
     healthcheck: { test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4100/health || exit 1'], interval: 10s }
 
   backend:
     profiles: [full]
+    image: seismo:latest
     build: .
     env_file: [.env]
     environment:
@@ -25,16 +27,17 @@ services:
       DATABASE_URL: postgres://seismo:seismo@db:5432/seismo
       SERVICES_URL: http://services:4100
       GITHUB_APP_URL: http://github-app:3001
-    ports: ['4000:4000']
+    ports: ['${BACKEND_PORT:-4000}:4000']
     depends_on: { db: { condition: service_healthy }, services: { condition: service_started } }
 
   github-app:
     profiles: [full]
+    image: seismo:latest
     build: .
     command: node github-app/dist/server.js
     env_file: [.env]
-    environment: { GITHUB_APP_PORT: '3001', BACKEND_URL: http://backend:4000 }
-    ports: ['3001:3001']
+    environment: { GITHUB_APP_PORT: '3001', GITHUB_APP_HOST: 0.0.0.0, BACKEND_URL: http://backend:4000 }
+    ports: ['${GITHUB_APP_HOST_PORT:-3001}:3001']
 
 volumes:
   pgdata:

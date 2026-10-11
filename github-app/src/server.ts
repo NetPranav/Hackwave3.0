@@ -9,6 +9,7 @@ const server = new Server({
     secret: process.env.WEBHOOK_SECRET,
   }),
   port: Number(process.env.GITHUB_APP_PORT ?? 3001),
+  host: process.env.GITHUB_APP_HOST ?? 'localhost',     // containers set 0.0.0.0
   webhookPath: '/api/github/webhooks',
 });
 await server.load(app);

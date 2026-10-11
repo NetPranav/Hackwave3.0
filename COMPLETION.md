@@ -183,7 +183,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 ### P8 · Launch
 | ID | Status | Evidence / missing |
 |---|---|---|
-| P8.2 production environment | 🟡 | `Dockerfile` (one image, all processes) + `docker compose --profile full`; compiled builds verified to start with plain `node` (backend `/ready` OK against Postgres). Docker build itself not yet run (Colima VM download pending). No host chosen (S5) |
+| P8.2 production environment | 🟡 | `Dockerfile` (one image, all processes, 1.15 GB) **built**; `docker-compose --profile full up` verified: Postgres healthy, migrations applied in the container, backend `/ready` OK, providers healthy, GitHub App reached the real GitHub API. Host ports configurable (`BACKEND_PORT`, …). No host chosen (S5) |
 | P8.3 public GitHub App | ❌ | Needs the production URL |
 | P8.4 install-from-scratch test | ❌ | Needs the app installed |
 | P8.5 demo reset | ✅ / ⏳ | `npm run demo:reset [-- --warm]`: providers → v1, Seismo data cleared, demo repo PRs closed / `seismo/*` branches deleted / rules emptied (**only the repo in `DEMO_REPO`**, tested), AI cache warm |
