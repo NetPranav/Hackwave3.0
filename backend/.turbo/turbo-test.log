@@ -1,0 +1,17 @@
+
+> @seismo/backend@0.0.1 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/pranav/Project Folder/CDGI Hackwave/backend
+
+ ✓ test/detectors.test.ts (7 tests) 608ms
+ ✓ test/planner.test.ts (9 tests) 616ms
+ ✓ src/app.test.ts (8 tests) 69ms
+ ✓ test/engine.test.ts (6 tests) 230ms
+
+ Test Files  4 passed (4)
+      Tests  30 passed (30)
+   Start at  09:43:43
+   Duration  2.34s (transform 373ms, setup 0ms, collect 3.59s, tests 1.52s, environment 1ms, prepare 365ms)
+

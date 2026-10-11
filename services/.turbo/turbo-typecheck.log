@@ -1,0 +1,4 @@
+
+> @seismo/services@0.0.1 typecheck
+> tsc -p tsconfig.json --noEmit
+

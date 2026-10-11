@@ -1,0 +1,20 @@
+
+> @seismo/sdk@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/pranav/Project Folder/CDGI Hackwave/sdk-node
+
+ ✓ test/sdk.test.ts (8 tests) 923ms
+   ✓ SDK (P3.2/P3.3) privacy > captures shapes, keeps the app response intact, and sends no record value 527ms
+ ✓ test/runtime.property.test.ts (9 tests) 4646ms
+   ✓ applyAliases guarantees > G1 identity: rules whose source never occurs return the SAME reference 1498ms
+   ✓ applyAliases guarantees > G1 identity: old-shape responses (target already present) are untouched 1794ms
+   ✓ applyAliases guarantees > G2 additive only: nothing is removed or changed, extra keys are only rule targets 836ms
+   ✓ applyAliases guarantees > G4 never throws on hostile inputs 508ms
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  09:43:39
+   Duration  5.84s (transform 472ms, setup 0ms, collect 994ms, tests 5.57s, environment 0ms, prepare 482ms)
+
