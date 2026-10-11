@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/* Colour tokens. Source of truth: DESIGN.md. Never use Tailwind's default colour scale. */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Landing */
+  --color-page-bg: #f0f0f0;
+  --color-section: #ffffff;
+  --color-graph-stroke: #dcdcdc;
+  --color-btn-primary: #1c1b1a;
+  --color-box-outline: #cccccc;
+  --color-accent: #ff6e3e;
+  --color-text-primary: #1a1918;
+
+  /* Dashboard, light */
+  --color-dash-bg: #f8f8f8;
+  --color-dash-section: #ffffff;
+  --color-dash-graph: #d9d9d9;
+  --color-dash-btn-primary: #1a1918;
+  --color-dash-btn-secondary: #f0f0f0;
+
+  /* Dashboard, dark */
+  --color-dark-dash-bg: #252321;
+  --color-dark-dash-section: #252321;
+  --color-dark-border: #484642;
+  --color-dark-graph: #5c5956;
+  --color-dark-btn-secondary: #5c5956;
+  --color-dark-btn-primary: #948e86;
+
+  /* Status (semantic). Use text-ok dark:text-ok-bright, same for warn. */
+  --color-ok: #2e7d32;
+  --color-ok-bright: #4ade80;
+  --color-warn: #b26a00;
+  --color-warn-bright: #ffb74d;
+  --color-bad: #991b1b;
+  --color-bad-bright: #ff8a80;
+
+  /* Recessed surfaces (code, diffs, chips) */
+  --color-inset: #f3f3f0;
+  --color-dark-inset: #161514;
+
+  /* Fonts (variables are set by next/font/local in layout.tsx) */
+  --font-aeonik: var(--font-aeonik-regular);
+  --font-aeonik-light: var(--font-aeonik-light-face);
+  --font-aeonik-mono: var(--font-aeonik-mono-face);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --rs-track-theme: #ededeb;
+  --rs-thumb-theme: #ffffff;
+  --rs-ink-theme: #6c6b67;
+  --rs-ink-active-theme: #1a1918;
+}
+
+:root.dark,
+.dark {
+  --rs-track-theme: #151413;
+  --rs-thumb-theme: #383531;
+  --rs-ink-theme: #9e9b94;
+  --rs-ink-active-theme: #ffffff;
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+body {
+  @apply bg-page-bg font-aeonik text-text-primary;
+}
+
+/* Graph: dashes drifting along a ribbon, in the direction a change travels. */
+@keyframes seismo-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+.seismo-flow {
+  animation: seismo-flow 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seismo-flow {
+    animation: none;
+  }
+}
+
+/* Graph: a thin ring that drifts outward from broken items and fades. */
+@keyframes seismo-ping {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+.seismo-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: seismo-ping 2.8s ease-out infinite;
+}
