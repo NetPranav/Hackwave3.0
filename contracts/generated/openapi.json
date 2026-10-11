@@ -2382,9 +2382,81 @@
         }
       }
     },
+    "/v1/projects": {
+      "get": {
+        "summary": "Projects the signed-in user owns (one per deployment in the MVP)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "owner": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/projects/{id}/keys": {
+      "get": {
+        "summary": "SDK key ids of a project (owner only; keys themselves are never returned)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "revoked": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "createdAt",
+                      "revoked"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
-        "summary": "Create an SDK key",
+        "summary": "Create an SDK key (owner only; the key is shown once)",
         "x-auth": "user",
         "responses": {
           "200": {
@@ -2414,9 +2486,38 @@
         }
       }
     },
+    "/v1/projects/{id}/keys/{keyId}": {
+      "delete": {
+        "summary": "Revoke an SDK key (owner only; 404 for a key of another project)",
+        "x-auth": "user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ingest": {
       "post": {
-        "summary": "SDK fingerprint ingest",
+        "summary": "SDK fingerprint ingest (429 + Retry-After above INGEST_RATE_PER_MIN per project)",
         "x-auth": "sdk-key",
         "requestBody": {
           "content": {

@@ -22,7 +22,7 @@ export function memoryEvents(): EventStore {
 }
 
 /** Postgres: the drift_events table (indexed columns for queries, the full record in payload). */
-export function pgEvents(projectId = 'dev', url = process.env.DATABASE_URL): EventStore {
+export function pgEvents(projectId = process.env.SEISMO_PROJECT ?? 'dev', url = process.env.DATABASE_URL): EventStore {
   const { db } = connect(url);
   return {
     async load() {

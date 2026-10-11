@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { pgEvents } from '../src/event-store.js';
 import { pgKeys, SdkKeys } from '../src/ingest-store.js';
 import { pgSettings, DEFAULT_SETTINGS } from '../src/settings-store.js';
+import { pgOwners } from '../src/projects.js';
 
 describe.runIf(!!process.env.DATABASE_URL)('Postgres stores', () => {
   const project = `test-${Date.now()}`;
@@ -34,5 +35,19 @@ describe.runIf(!!process.env.DATABASE_URL)('Postgres stores', () => {
     expect(await s.get()).toEqual(DEFAULT_SETTINGS);
     await s.put({ ...DEFAULT_SETTINGS, minSeverity: 'breaking' });
     expect((await pgSettings(project).get()).minSeverity).toBe('breaking');
+  });
+  it('project owner is claimed once and survives a restart; legacy "unknown" rows are taken over', async () => {
+    const id = `${project}-own`;
+    expect(await pgOwners().claim(id, 'alice')).toBe('alice');
+    expect(await pgOwners().claim(id, 'mallory')).toBe('alice');
+    expect(await pgOwners().get(id)).toBe('alice');
+    const legacy = `${project}-legacy`;
+    const k = new SdkKeys('');
+    await k.attach(pgKeys());
+    k.create(legacy);                                   // written without an owner -> "unknown"
+    await new Promise((r) => setTimeout(r, 300));
+    expect(await pgOwners().get(legacy)).toBe('unknown');
+    expect(await pgOwners().claim(legacy, 'bob')).toBe('bob');
+    expect(await pgOwners().get(id)).toBe('alice');      // other projects untouched
   });
 });

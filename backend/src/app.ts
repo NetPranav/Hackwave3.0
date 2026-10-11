@@ -19,6 +19,7 @@ import { Dispatcher } from './alerts/dispatcher.js';
 import { memorySettings, type SettingsStore } from './settings-store.js';
 import { compare, simulate } from './compare.js';
 import { Radar, demoSources } from './radar/radar.js';
+import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -26,6 +27,7 @@ export interface AppOptions {
   ai?: AiService; dispatcher?: Dispatcher; settings?: SettingsStore; radar?: Radar;
   /** GitHub App installations (account logins) for /v1/me; undefined = not connected. */
   installations?: () => Promise<{ id: number; account: string }[]>;
+  projects?: Projects; ingestLimiter?: RateLimiter;
   /** How long an alert waits for the AI text before sending the template (the dashboard gets the AI text when it arrives). */
   alertAiWaitMs?: number;
 }
@@ -40,6 +42,8 @@ export function buildApp(opts: AppOptions = {}) {
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
+  const projects = opts.projects ?? new Projects();
+  const ingestLimiter = opts.ingestLimiter ?? new RateLimiter();
   const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all(), undefined, opts.fixer ?? httpFixDispatcher());
   const sseClients = new Set<(event: string, data: unknown) => void>();
   const broadcast = (event: string, data: unknown) => { for (const send of sseClients) { try { send(event, data); } catch { /* closed client */ } } };
@@ -122,7 +126,7 @@ export function buildApp(opts: AppOptions = {}) {
     return { token: await signUserToken(req.user!, '60s', 'sse') };
   });
   app.get('/v1/overview', async () => {
-    const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
+    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
     const maps = await store.all();
     if (!fps.length && !maps.length && mocks) return mockOverview();
     const st = buildStatus(fps);
@@ -184,7 +188,7 @@ export function buildApp(opts: AppOptions = {}) {
     return maps.length || !mocks ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
   });
   app.get('/v1/status', async () => {
-    const fps = await ingestStore.since('dev', Date.now() - 10 * 60_000);
+    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
     if (!fps.length) return { services: mocks ? mockStatus() : [] };
     const services = [...new Set(fps.map((f) => f.service))];
     const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
@@ -210,7 +214,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.post('/internal/demo/reset', async (req, reply) => {
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
     await engine.clear();
-    await ingestStore.clear('dev');
+    await ingestStore.clear(PROJECT_ID());
     dispatcher.clear();
     radar.clear();
     broadcast('demo.reset', {});
@@ -261,7 +265,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.get('/v1/compare', async (req, reply) => {
     const { service, endpoint } = req.query as { service?: string; endpoint?: string };
     if (!service || !endpoint) return reply.code(400).send({ error: 'bad_request', message: 'service and endpoint (e.g. "GET /users/{id}") are required' });
-    return compare(await ingestStore.since('dev', Date.now() - 24 * 3600_000), service, endpoint);
+    return compare(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000), service, endpoint);
   });
   app.post('/v1/simulate', async (req, reply) => {
     const parsed = SimulateRequest.safeParse(req.body);
@@ -277,9 +281,12 @@ export function buildApp(opts: AppOptions = {}) {
     return { warmed: out };
   });
 
-  app.post('/v1/ingest', async (req, reply) => {
+  // One fingerprint is a few KB; 512 KB is far above any real batch and stops oversized bodies early.
+  app.post('/v1/ingest', { bodyLimit: 512 * 1024 }, async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
     if (!projectId) return reply.code(401).send({ error: 'bad_key' });
+    const wait = ingestLimiter.take(projectId);
+    if (wait) return reply.code(429).header('retry-after', String(wait)).send({ error: 'rate_limited', retryAfterSeconds: wait });
     const parsed = Fingerprint.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_fingerprint', message: parsed.error.message });
     await ingestStore.add(projectId, parsed.data);
@@ -287,9 +294,19 @@ export function buildApp(opts: AppOptions = {}) {
     return { ok: true };
   });
 
-  app.post('/v1/projects/:id/keys', async (req) => keys.create((req.params as { id: string }).id));
-  app.delete('/v1/projects/:id/keys/:keyId', async (req) => { keys.revoke((req.params as { keyId: string }).keyId); return { ok: true }; });
-  app.get('/v1/baselines', async () => buildBaselines(await ingestStore.since('dev', Date.now() - 24 * 3600_000)));
+  // P3.4: only the project's owner manages its keys; another project id is 404, someone else's project is 403.
+  const guard = async (req: { params: unknown; user?: string }, reply: { code: (c: number) => { send: (b: unknown) => unknown } }) => {
+    const r = await projects.access((req.params as { id: string }).id, req.user ?? 'demo-user');
+    return r === 'ok' ? undefined : reply.code(r === 'not_found' ? 404 : 403).send({ error: r });
+  };
+  app.get('/v1/projects', async (req) => projects.list(req.user ?? 'demo-user'));
+  app.get('/v1/projects/:id/keys', { preHandler: guard }, async (req) => keys.list((req.params as { id: string }).id));
+  app.post('/v1/projects/:id/keys', { preHandler: guard }, async (req) => keys.create((req.params as { id: string }).id, req.user));
+  app.delete('/v1/projects/:id/keys/:keyId', { preHandler: guard }, async (req, reply) => {
+    const p = req.params as { id: string; keyId: string };
+    return keys.revoke(p.keyId, p.id) ? { ok: true } : reply.code(404).send({ error: 'not_found' });
+  });
+  app.get('/v1/baselines', async () => buildBaselines(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000)));
 
   // SSE stub (P0.4). Real events arrive with P2/P4.
   app.get('/v1/events', async (req, reply) => {

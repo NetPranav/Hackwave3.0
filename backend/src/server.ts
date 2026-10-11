@@ -7,6 +7,7 @@ import { DriftEngine } from './drift-engine.js';
 import { httpFixDispatcher, httpInstallations } from './fix-dispatcher.js';
 import { memoryStore } from './codemap-store.js';
 import { memoryIngest, pgKeys, SdkKeys } from './ingest-store.js';
+import { Projects, pgOwners } from './projects.js';
 
 const port = Number(process.env.PORT ?? 4000);
 const pg = !!process.env.DATABASE_URL;
@@ -16,7 +17,7 @@ const engine = new DriftEngine(ingest, () => store.all(), undefined, httpFixDisp
 await engine.init();   // remembered events are visible before the first detection pass
 const keys = new SdkKeys();
 if (pg) await keys.attach(pgKeys());
-const app = buildApp({ store, ingest, engine, keys, settings: pg ? pgSettings() : undefined, installations: httpInstallations() });
+const app = buildApp({ store, ingest, engine, keys, settings: pg ? pgSettings() : undefined, installations: httpInstallations(), ...(pg ? { projects: new Projects(pgOwners()) } : {}) });
 await app.listen({ port, host: '0.0.0.0' });
 // Detection pass every 5 s (P4.2). Errors must never kill the API.
 setInterval(() => { (app as unknown as { detectNow: () => Promise<unknown> }).detectNow().catch((e: unknown) => app.log.error(e)); }, 5000).unref();

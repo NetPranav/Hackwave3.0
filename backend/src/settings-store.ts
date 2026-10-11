@@ -21,7 +21,7 @@ export function memorySettings(initial: NotificationSettings = DEFAULT_SETTINGS)
   return { get: async () => cur, put: async (s) => (cur = NotificationSettings.parse(s)) };
 }
 
-export function pgSettings(projectId = 'dev', url = process.env.DATABASE_URL): SettingsStore {
+export function pgSettings(projectId = process.env.SEISMO_PROJECT ?? 'dev', url = process.env.DATABASE_URL): SettingsStore {
   const { db } = connect(url);
   return {
     async get() {

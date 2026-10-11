@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Graph, Overview } from '@seismo/contracts';
 import { buildApp } from './app.js';
+import { signUserToken } from './auth.js';
+import { RateLimiter } from './projects.js';
 
 describe('backend skeleton', () => {
   const app = buildApp();
@@ -52,12 +54,12 @@ describe('graph from code maps (P2.5)', () => {
 });
 
 import { gzipSync } from 'node:zlib';
+const fp = (n: number, status = '200') => ({
+  v: 1, service: 'payments', method: 'POST', endpoint: '/payments', windowStart: new Date().toISOString(), windowSeconds: 5, count: n,
+  statusCounts: { [status]: n }, latencyMs: { p50: 40, p95: 90 }, headers: { sunset: 'Wed, 30 Dec 2026 00:00:00 GMT' }, reqQueryKeys: [], shapeHash: 'x',
+  fields: { amount: { n, types: { integer: n }, nulls: 0, mag: { '2': n } } },
+});
 describe('ingest, baselines, status (P3.4-P3.6)', () => {
-  const fp = (n: number, status = '200') => ({
-    v: 1, service: 'payments', method: 'POST', endpoint: '/payments', windowStart: new Date().toISOString(), windowSeconds: 5, count: n,
-    statusCounts: { [status]: n }, latencyMs: { p50: 40, p95: 90 }, headers: { sunset: 'Wed, 30 Dec 2026 00:00:00 GMT' }, reqQueryKeys: [], shapeHash: 'x',
-    fields: { amount: { n, types: { integer: n }, nulls: 0, mag: { '2': n } } },
-  });
   it('accepts gzip from the SDK, rejects bad keys, builds status + baseline', async () => {
     const a = buildApp();
     const body = gzipSync(JSON.stringify(fp(120)));
@@ -75,12 +77,57 @@ describe('ingest, baselines, status (P3.4-P3.6)', () => {
     expect(base.ready).toBe(true);
     expect(base.fields.amount.presence).toBe(1);
   });
-  it('creates and revokes SDK keys', async () => {
+  it('creates, lists and revokes SDK keys of the deployment project', async () => {
     const a = buildApp();
-    const { id, key } = (await a.inject({ method: 'POST', url: '/v1/projects/p1/keys' })).json();
+    const { id, key } = (await a.inject({ method: 'POST', url: '/v1/projects/dev/keys' })).json();
     const post = () => a.inject({ method: 'POST', url: '/v1/ingest', headers: { 'x-seismo-key': key, 'content-type': 'application/json' }, payload: JSON.stringify(fp(1)) });
     expect((await post()).statusCode).toBe(200);
-    await a.inject({ method: 'DELETE', url: `/v1/projects/p1/keys/${id}` });
+    const listed = (await a.inject('/v1/projects/dev/keys')).json() as { id: string; revoked: boolean }[];
+    expect(listed.find((k) => k.id === id)).toMatchObject({ revoked: false });
+    expect(JSON.stringify(listed)).not.toContain(key);                                   // the key itself is never listed
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/other/keys' })).statusCode).toBe(404);
+    expect((await a.inject({ method: 'DELETE', url: '/v1/projects/dev/keys/env' })).statusCode).toBe(404);   // env keys are not revocable here
+    expect((await a.inject({ method: 'DELETE', url: `/v1/projects/dev/keys/${id}` })).statusCode).toBe(200);
     expect((await post()).statusCode).toBe(401);
+  });
+
+});
+
+describe('project ownership and ingest rate limit (P3.4)', () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; });
+  const tok = async (login: string) => ({ authorization: `Bearer ${await signUserToken(login)}` });
+  it('the first signed-in user owns the project; others get 403 and see no projects', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    const a = buildApp();
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/dev/keys', headers: await tok('alice') })).statusCode).toBe(200);
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/dev/keys', headers: await tok('mallory') })).statusCode).toBe(403);
+    expect((await a.inject({ url: '/v1/projects/dev/keys', headers: await tok('mallory') })).statusCode).toBe(403);
+    expect((await a.inject({ url: '/v1/projects', headers: await tok('mallory') })).json()).toEqual([]);
+    expect((await a.inject({ url: '/v1/projects', headers: await tok('alice') })).json()).toEqual([{ id: 'dev', owner: 'alice' }]);
+  });
+  it('SEISMO_PROJECT_OWNERS fixes the owners', async () => {
+    process.env.AUTH_SECRET = 'test-secret-test-secret-test-secret';
+    process.env.SEISMO_PROJECT_OWNERS = 'NetPranav, adarzhpathade';
+    const a = buildApp();
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/dev/keys', headers: await tok('stranger') })).statusCode).toBe(403);
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/dev/keys', headers: await tok('adarzhpathade') })).statusCode).toBe(200);
+    expect((await a.inject({ method: 'POST', url: '/v1/projects/dev/keys', headers: await tok('netpranav') })).statusCode).toBe(200);
+  });
+  it('ingest is rate limited per project with 429 + Retry-After; refills over time', async () => {
+    let now = 0;
+    const a = buildApp({ ingestLimiter: new RateLimiter(3, () => now) });
+    const post = () => a.inject({ method: 'POST', url: '/v1/ingest', headers: { 'x-seismo-key': 'dev-key', 'content-type': 'application/json' }, payload: JSON.stringify(fp(1)) });
+    for (let i = 0; i < 3; i++) expect((await post()).statusCode).toBe(200);
+    const r = await post();
+    expect(r.statusCode).toBe(429);
+    expect(Number(r.headers['retry-after'])).toBeGreaterThanOrEqual(1);
+    now += 20_000;                                                                     // 20 s = one token at 3/min
+    expect((await post()).statusCode).toBe(200);
+  });
+  it('rejects bodies above 512 KB before parsing', async () => {
+    const a = buildApp();
+    const r = await a.inject({ method: 'POST', url: '/v1/ingest', headers: { 'x-seismo-key': 'dev-key', 'content-type': 'application/json' }, payload: 'x'.repeat(600 * 1024) });
+    expect(r.statusCode).toBe(413);
   });
 });

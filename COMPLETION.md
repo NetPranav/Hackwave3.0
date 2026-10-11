@@ -126,7 +126,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P3.1 contracts | ✅ | fingerprint v1 (status class split) |
 | P3.2 SDK capture, sampling, queue, batching, gzip, retry-once-then-drop | ✅ | 20 SDK tests; overhead measured (p50 +0.04 ms, p99 ≈ +0.6 ms; budget < 1 ms) |
 | P3.3 fingerprinter | ✅ | format classes, magnitude, salted hashes, batch sketches |
-| P3.4 projects + keys + ingest | 🟡 | Keys created/revoked, stored as hashes in Postgres and reloaded on restart (pg test). **Gaps:** all data still read as project `dev`; no ownership check on `/v1/projects/{id}/keys`; no ingest rate limit |
+| P3.4 projects + keys + ingest | ✅ | Keys created/listed/revoked, stored as hashes in Postgres and reloaded on restart (pg test). One deployment watches one project (`SEISMO_PROJECT`, default `dev`). **Ownership:** only the owner manages keys (`SEISMO_PROJECT_OWNERS`, else the first signed-in user claims it, persisted); another project id → 404, someone else's → 403; a key of another project cannot be revoked. **Ingest:** per-project token bucket (`INGEST_RATE_PER_MIN`, default 1200) → 429 + `Retry-After` (the SDK drops the batch, fail-open); bodies over 512 KB → 413. Tests: `backend/src/app.test.ts`, `test/pg.test.ts`. Several projects per deployment is post-hackathon |
 | P3.5 baselines | ✅ | presence, types, formats, enums, magnitude, lengths, shapes; `ready` flag computed (engine uses its own 50-sample minimum) |
 | P3.6 status + overview + provider status | ✅ / 🟡 | Real numbers + drift colours; Statuspage poller written for GitHub only, not shown live |
 | P3.7 SDK in the shop | ✅ | Done directly in the shop (lead's request): `instrumentation.ts` + `withAliases`; verified live inside Next.js |
@@ -140,7 +140,7 @@ Legend: ✅ done and verified by tests (+ live where stated) · 🟡 partly done
 | P4.3 D1–D4 incl. rename scoring | ✅ | real-traffic fixtures + e2e |
 | P4.4 D11–D14, D16, D17 | ✅ | D11/D12/D13/D17 verified in engine; D14/D16 unit-level |
 | P4.5 severity + impact | ✅ | confidence × impact × exposure; unread field → info (verified) |
-| P4.6 notifications: dashboard SSE + **GitHub issue** | 🟡 | SSE events emitted. **GitHub issue per breaking event not built** |
+| P4.6 notifications: dashboard SSE + **GitHub issue** | ✅ | SSE events emitted. One GitHub issue per drift event, found again by a hidden marker and updated on each state change (opened → fix pending → resolved): `alerts/dispatcher.ts` + `github-app/src/issues.ts`, tested in `p6.test.ts`/e2e. Live issue needs the app installed |
 | P4.9 soak | ✅ | e2e soak: 0 events |
 
 ### P5 · Fix it safely

@@ -1,3 +1,4 @@
+import { PROJECT_ID } from './projects.js';
 import type { AliasRule, CodeMap, DriftEvent, DriftState, ScaleRule, SeismoRule } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
@@ -126,7 +127,7 @@ export class DriftEngine {
   /** One detection pass. Returns the events that were created or changed in this pass. */
   async run(now = Date.now()): Promise<DriftEvent[]> {
     await this.init();
-    const all = await this.ingest.since('dev', now - this.opts.baselineMs);
+    const all = await this.ingest.since(PROJECT_ID(), now - this.opts.baselineMs);
     const cut = now - this.opts.windowMs;
     // Baseline freeze: while a confirmed change is open on an endpoint, traffic from after it started (detection time minus
     // one window) never becomes "history" for that endpoint. Otherwise a restart, or simply time passing, would teach the

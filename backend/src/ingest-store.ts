@@ -36,17 +36,17 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
 
 /** Optional write-through persistence for SDK keys (only hashes are stored). */
 export interface KeyPersistence {
-  load(): Promise<{ id: string; projectId: string; keyHash: string; revoked: boolean }[]>;
-  insert(k: { id: string; projectId: string; keyHash: string }): Promise<void>;
+  load(): Promise<{ id: string; projectId: string; keyHash: string; revoked: boolean; createdAt?: string }[]>;
+  insert(k: { id: string; projectId: string; keyHash: string; owner?: string }): Promise<void>;
   revoke(id: string): Promise<void>;
 }
 
 export function pgKeys(url = process.env.DATABASE_URL): KeyPersistence {
   const { db } = connect(url);
   return {
-    async load() { return (await db.select().from(sdkKeys)).map((r) => ({ id: r.id, projectId: r.projectId, keyHash: r.keyHash, revoked: r.keyHash.startsWith('revoked:') })); },
+    async load() { return (await db.select().from(sdkKeys)).map((r) => ({ id: r.id, projectId: r.projectId, keyHash: r.keyHash, revoked: r.keyHash.startsWith('revoked:'), createdAt: r.createdAt.toISOString() })); },
     async insert(k) {
-      await db.insert(projects).values({ id: k.projectId, owner: 'unknown' }).onConflictDoNothing();
+      await db.insert(projects).values({ id: k.projectId, owner: k.owner ?? 'unknown' }).onConflictDoNothing();
       await db.insert(sdkKeys).values(k);
     },
     // a revoked key keeps its row (audit) but its hash can never match again
@@ -54,29 +54,41 @@ export function pgKeys(url = process.env.DATABASE_URL): KeyPersistence {
   };
 }
 
-/** SDK keys: shown once, stored as sha256. Env keys (SEISMO_SDK_KEYS) map to project "dev". */
+type KeyInfo = { id: string; projectId: string; revoked: boolean; createdAt: string };
+
+/** SDK keys: shown once, stored as sha256. Env keys (SEISMO_SDK_KEYS) map to the deployment's project (SEISMO_PROJECT, default "dev"). */
 export class SdkKeys {
-  private hashes = new Map<string, { id: string; projectId: string; revoked: boolean }>();
+  private hashes = new Map<string, KeyInfo>();
   private persistence?: KeyPersistence;
   /** Load persisted keys and write new ones through. */
   async attach(p: KeyPersistence) {
     this.persistence = p;
-    for (const k of await p.load()) this.hashes.set(k.keyHash, { id: k.id, projectId: k.projectId, revoked: k.revoked });
+    for (const k of await p.load()) this.hashes.set(k.keyHash, { id: k.id, projectId: k.projectId, revoked: k.revoked, createdAt: k.createdAt ?? new Date(0).toISOString() });
   }
   private sha = (k: string) => createHash('sha256').update(k).digest('hex');
   constructor(envKeys = process.env.SEISMO_SDK_KEYS ?? 'dev-key') {
-    for (const k of envKeys.split(',').filter(Boolean)) this.hashes.set(this.sha(k), { id: 'env', projectId: 'dev', revoked: false });
+    for (const k of envKeys.split(',').filter(Boolean)) this.hashes.set(this.sha(k), { id: 'env', projectId: process.env.SEISMO_PROJECT ?? 'dev', revoked: false, createdAt: new Date(0).toISOString() });
   }
-  create(projectId: string) {
+  create(projectId: string, owner?: string) {
     const key = `sk_${randomBytes(24).toString('hex')}`;
     const id = randomBytes(4).toString('hex');
-    this.hashes.set(this.sha(key), { id, projectId, revoked: false });
-    void this.persistence?.insert({ id, projectId, keyHash: this.sha(key) }).catch(() => undefined);
+    this.hashes.set(this.sha(key), { id, projectId, revoked: false, createdAt: new Date().toISOString() });
+    void this.persistence?.insert({ id, projectId, keyHash: this.sha(key), ...(owner ? { owner } : {}) }).catch(() => undefined);
     return { id, key };
   }
-  revoke(id: string) {
-    for (const v of this.hashes.values()) if (v.id === id) v.revoked = true;
+  /** Revoke a key of this project. Returns false when the key does not exist or belongs to another project. */
+  revoke(id: string, projectId?: string): boolean {
+    const mine = [...this.hashes.values()].filter((v) => v.id === id && id !== 'env' && (projectId === undefined || v.projectId === projectId));
+    if (!mine.length) return false;
+    for (const v of mine) v.revoked = true;
     void this.persistence?.revoke(id).catch(() => undefined);
+    return true;
+  }
+  /** Key ids of a project (never the keys themselves). Env keys are listed as id "env". */
+  list(projectId: string) {
+    const seen = new Map<string, { id: string; createdAt: string; revoked: boolean }>();
+    for (const v of this.hashes.values()) if (v.projectId === projectId && !seen.has(v.id)) seen.set(v.id, { id: v.id, createdAt: v.createdAt, revoked: v.revoked });
+    return [...seen.values()];
   }
   verify(key: string): string | null {
     const v = this.hashes.get(this.sha(key));

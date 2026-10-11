@@ -6,7 +6,7 @@ import { DriftEvent, ReviewItem, ReviewAction, RadarItem, NotificationSettings, 
 import { Fingerprint } from './fingerprint.js';
 import { Scenario, ServiceVersions, RolloutRequest } from './fake-services.js';
 
-export interface Route { method: 'get' | 'post' | 'put'; path: string; summary: string; request?: z.ZodType; response: z.ZodType; auth: 'user' | 'sdk-key' | 'admin-token' }
+export interface Route { method: 'get' | 'post' | 'put' | 'delete'; path: string; summary: string; request?: z.ZodType; response: z.ZodType; auth: 'user' | 'sdk-key' | 'admin-token' }
 
 const Ok = z.object({ ok: z.literal(true) });
 export const ROUTES: Route[] = [
@@ -26,8 +26,11 @@ export const ROUTES: Route[] = [
   { method: 'get', path: '/v1/settings/notifications', summary: 'Notification settings', response: NotificationSettings, auth: 'user' },
   { method: 'put', path: '/v1/settings/notifications', summary: 'Update notification settings', request: NotificationSettings, response: NotificationSettings, auth: 'user' },
   { method: 'post', path: '/v1/notifications/test', summary: 'Send a test notification', response: Ok, auth: 'user' },
-  { method: 'post', path: '/v1/projects/{id}/keys', summary: 'Create an SDK key', response: z.object({ id: z.string(), key: z.string() }), auth: 'user' },
-  { method: 'post', path: '/v1/ingest', summary: 'SDK fingerprint ingest', request: Fingerprint, response: Ok, auth: 'sdk-key' },
+  { method: 'get', path: '/v1/projects', summary: 'Projects the signed-in user owns (one per deployment in the MVP)', response: z.array(z.object({ id: z.string(), owner: z.string() })), auth: 'user' },
+  { method: 'get', path: '/v1/projects/{id}/keys', summary: 'SDK key ids of a project (owner only; keys themselves are never returned)', response: z.array(z.object({ id: z.string(), createdAt: z.string(), revoked: z.boolean() })), auth: 'user' },
+  { method: 'post', path: '/v1/projects/{id}/keys', summary: 'Create an SDK key (owner only; the key is shown once)', response: z.object({ id: z.string(), key: z.string() }), auth: 'user' },
+  { method: 'delete', path: '/v1/projects/{id}/keys/{keyId}', summary: 'Revoke an SDK key (owner only; 404 for a key of another project)', response: Ok, auth: 'user' },
+  { method: 'post', path: '/v1/ingest', summary: 'SDK fingerprint ingest (429 + Retry-After above INGEST_RATE_PER_MIN per project)', request: Fingerprint, response: Ok, auth: 'sdk-key' },
   { method: 'get', path: '/admin/scenarios', summary: 'Demo scenarios', response: z.array(Scenario), auth: 'admin-token' },
   { method: 'post', path: '/admin/scenarios/{id}', summary: 'Flip a scenario to v2', response: ServiceVersions, auth: 'admin-token' },
   { method: 'post', path: '/admin/rollout/{id}', summary: 'Gradual rollout percent', request: RolloutRequest, response: ServiceVersions, auth: 'admin-token' },
