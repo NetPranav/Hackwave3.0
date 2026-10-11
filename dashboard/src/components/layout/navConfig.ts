@@ -149,6 +149,17 @@ export const NAV_MENUS: NavMenuDef[] = [
             external: true,
           },
           {
+            title: "Demo Control",
+            desc: "Make a fake provider change and watch Seismo catch it (demo mode).",
+            href: "/app/demo",
+            isActive: starts("/app/demo"),
+          },
+          {
+            title: "Set up",
+            desc: "Install the GitHub App, map your repos, open the setup PR.",
+            href: "/onboarding",
+          },
+          {
             title: "Demo Shop",
             desc: "The sample shop where the demo changes happen.",
             href: "https://github.com/NetPranav/seismo-demo-shop",
@@ -172,4 +183,5 @@ export const BREADCRUMBS: { match: (pathname: string) => boolean; label: string 
   { match: starts("/app/fixes"), label: "SAFE FIXES" },
   { match: starts("/app/review"), label: "REVIEW QUEUE" },
   { match: starts("/app/settings"), label: "NOTIFICATION SETTINGS" },
+  { match: starts("/app/demo"), label: "DEMO CONTROL" },
 ];

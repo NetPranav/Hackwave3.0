@@ -17,6 +17,6 @@ PORT=${SERVICES_PORT:-4100} npm run dev -w services &
 [ -n "${WEBHOOK_PROXY_URL:-}" ] && [ -d github-app ] && [ -f github-app/package.json ] && npm run dev -w github-app &
 if [ -f dashboard/package.json ] && [ "${NO_DASHBOARD:-0}" != 1 ]; then
   [ -d dashboard/node_modules ] || (cd dashboard && npm install --no-audit --no-fund)
-  (cd dashboard && SEISMO_API_URL="${SEISMO_API_URL:-http://localhost:$backend_port}" npx next dev -p "${DASHBOARD_PORT:-3000}") &
+  (cd dashboard && SEISMO_API_URL="${SEISMO_API_URL:-http://localhost:$backend_port}" SERVICES_URL="${SERVICES_URL:-http://localhost:${SERVICES_PORT:-4100}}" DEMO_MODE="${DEMO_MODE:-true}" npx next dev -p "${DASHBOARD_PORT:-3000}") &
 fi
 wait

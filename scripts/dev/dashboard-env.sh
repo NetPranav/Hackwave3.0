@@ -14,6 +14,7 @@ out=dashboard/.env.local
   echo "SEISMO_API_URL=${SEISMO_API_URL:-http://localhost:${PORT:-4000}}"
   echo "SERVICES_URL=${SERVICES_URL:-http://localhost:${SERVICES_PORT:-4100}}"
   echo "DEMO_ADMIN_TOKEN=${DEMO_ADMIN_TOKEN:-}"
+  echo "INTERNAL_TOKEN=${INTERNAL_TOKEN:-dev-internal}"
   echo "DEMO_MODE=${DEMO_MODE:-true}"
   echo "NEXT_PUBLIC_USE_MOCKS=${NEXT_PUBLIC_USE_MOCKS:-0}"
 } > "$out"
