@@ -14,7 +14,7 @@ export interface GithubIssueSink {
 export interface DispatcherOptions {
   settings: () => Promise<NotificationSettings>;
   fetchImpl?: typeof fetch;
-  twilio?: { accountSid?: string; authToken?: string; from?: string; baseUrl?: string };
+  twilio?: { accountSid?: string; authToken?: string; from?: string; contentSid?: string; baseUrl?: string };
   resend?: { apiKey?: string; from?: string; baseUrl?: string };
   github?: GithubIssueSink;
   dashboardUrl?: string;
@@ -29,7 +29,7 @@ export class Dispatcher {
   private f: typeof fetch;
   constructor(private o: DispatcherOptions) {
     this.f = o.fetchImpl ?? ((...a) => fetch(...a));
-    this.o.twilio = { accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_WHATSAPP_FROM, baseUrl: 'https://api.twilio.com', ...o.twilio };
+    this.o.twilio = { accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_WHATSAPP_FROM, contentSid: process.env.TWILIO_WHATSAPP_CONTENT_SID || undefined, baseUrl: 'https://api.twilio.com', ...o.twilio };
     this.o.resend = { apiKey: process.env.RESEND_API_KEY, from: process.env.RESEND_FROM ?? 'Seismo <onboarding@resend.dev>', baseUrl: 'https://api.resend.com', ...o.resend };
   }
 
@@ -98,9 +98,17 @@ export class Dispatcher {
     const r = await this.f(`${t.baseUrl}/2010-04-01/Accounts/${t.accountSid}/Messages.json`, {
       method: 'POST', signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Basic ${Buffer.from(`${t.accountSid}:${t.authToken}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ From: t.from, To: toAddr, Body: body }).toString(),
+      // Trial Twilio accounts may only send Twilio's pre-approved templates (no free text): with
+      // TWILIO_WHATSAPP_CONTENT_SID set, every alert sends that template instead of the text (a ping to open Seismo).
+      body: new URLSearchParams(t.contentSid ? { From: t.from, To: toAddr, ContentSid: t.contentSid } : { From: t.from, To: toAddr, Body: body }).toString(),
     });
-    if (!r.ok) throw new Error(`Twilio ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) {
+      const text = (await r.text()).slice(0, 300);
+      const code = Number(/"code":\s*(\d+)/.exec(text)?.[1]);
+      // found live: every alert failed with 21654 on a trial account; say what to do instead of a raw error
+      if (code === 21654 || code === 21655) throw new Error(`Twilio ${code}: this Twilio account can only send pre-approved WhatsApp templates (trial accounts cannot send free text). Upgrade the Twilio account (then the WhatsApp Sandbox sends full alerts), or set TWILIO_WHATSAPP_CONTENT_SID to a template from Console -> Messaging -> Try it out -> Send a WhatsApp message.`);
+      throw new Error(`Twilio ${r.status}: ${text.slice(0, 200)}`);
+    }
   }
 
   private async email(to: string, subject: string, text: string) {
