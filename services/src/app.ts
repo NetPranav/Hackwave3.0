@@ -93,7 +93,8 @@ export function buildServices() {
         const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
         return reply.type('application/rss+xml').send(`<?xml version="1.0"?><rss version="2.0"><channel><title>${p} changelog</title>${items.map((a) => `<item><title>${esc(a.title)}</title><description>${esc(a.body)}</description><pubDate>${new Date(a.at).toUTCString()}</pubDate></item>`).join('')}</channel></rss>`);
       }
-      return reply.type('text/html').send(`<h1>${p} changelog</h1>${items.map((a) => `<article><h2>${a.title}</h2><time>${a.at}</time><p>${a.body}</p></article>`).join('')}`);
+      const h = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return reply.type('text/html').send(`<h1>${p} changelog</h1>${items.map((a) => `<article><h2>${h(a.title)}</h2><time>${a.at}</time><p>${h(a.body)}</p></article>`).join('')}`);
     });
   }
 

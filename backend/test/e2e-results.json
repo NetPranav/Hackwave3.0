@@ -21,13 +21,13 @@
     ],
     "prsOpened": 1,
     "prRule": {
-      "id": "a-b1xust",
+      "id": "a--dx796",
       "kind": "alias",
       "endpoint": "GET /users/{id}",
       "path": "$",
       "target": "name",
       "source": "display_name",
-      "driftEvent": "drift-b1xust",
+      "driftEvent": "drift-dx796",
       "addedAt": "2026-10-11"
     },
     "reviewQueue": [],
@@ -398,9 +398,9 @@
     "graphAllGreen": true
   },
   "sdk overhead (ms)": {
-    "p50Off": 0.126,
-    "p50On": 0.174,
-    "p99Off": 0.467,
-    "p99On": 1.047
+    "p50Off": 0.134,
+    "p50On": 0.156,
+    "p99Off": 0.493,
+    "p99On": 0.577
   }
 }

@@ -18,10 +18,12 @@ import { suggestionFor } from './ai/templates.js';
 import { Dispatcher } from './alerts/dispatcher.js';
 import { memorySettings, type SettingsStore } from './settings-store.js';
 import { compare, simulate } from './compare.js';
+import { Radar, demoSources } from './radar/radar.js';
+import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
   store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher; mocks?: boolean;
-  ai?: AiService; dispatcher?: Dispatcher; settings?: SettingsStore;
+  ai?: AiService; dispatcher?: Dispatcher; settings?: SettingsStore; radar?: Radar;
   /** How long an alert waits for the AI text before sending the template (the dashboard gets the AI text when it arrives). */
   alertAiWaitMs?: number;
 }
@@ -43,6 +45,18 @@ export function buildApp(opts: AppOptions = {}) {
   const ai = opts.ai ?? new AiService({ cacheFile: process.env.AI_CACHE_FILE });
   const dispatcher = opts.dispatcher ?? new Dispatcher({ settings: () => settingsStore.get(), github: httpIssueSink(), dashboardUrl: process.env.DASHBOARD_URL, onNotification: (n) => broadcast('notification', n) });
   const alertWait = opts.alertAiWaitMs ?? Number(process.env.ALERT_AI_WAIT_MS ?? 8000);
+  const radar = opts.radar ?? new Radar({ sources: demoSources(), maps: () => store.all(), ai: { client: ai.client, model: process.env.NIM_MODEL_EXPLAIN ?? 'nvidia/nemotron-3-super-120b-a12b', enabled: () => true } });
+  /** New radar items go to the same dispatcher (P7.6); announced changes are never "breaking". */
+  async function alertRadar(items: RadarItem[]) {
+    for (const i of items) {
+      try {
+        broadcast('radar.created', i);
+        if (i.severity === 'info') continue;
+        const pseudo: DriftEvent = { id: i.id, service: i.service, endpoint: i.endpoint ?? i.service, ...(i.field ? { field: i.field } : {}), detector: 'RADAR', title: `Announced: ${i.title}`.slice(0, 120), severity: i.severity, state: 'suspected', confidence: 0.8, detectedAt: i.detectedAt ?? new Date().toISOString(), before: null, after: null, usages: i.matchedFiles.map((f) => { const [file, line] = f.split(':'); return { file: file!, line: Number(line), kind: 'call' }; }) };
+        await dispatcher.dispatch(pseudo, ai.template({ ...pseudo, title: pseudo.title }), await repoFor(i.service));
+      } catch (err) { app.log.error({ err, item: i.id }, 'radar alert failed'); }
+    }
+  }
   const repoFor = async (service: string) => (await store.all()).flatMap((m) => m.callSites).find((c) => c.service === service && !c.unresolved)?.repo;
 
   /**
@@ -165,7 +179,17 @@ export function buildApp(opts: AppOptions = {}) {
     await afterDetect(changed);
     return { changed: changed.length };
   });
-  app.get('/v1/radar', async () => (mocks ? mockRadar() : []));   // radar arrives in P7
+  app.get('/v1/radar', async () => {
+    radar.fromHeaders(engine.list());
+    const items = radar.list(engine.list());
+    return items.length || !mocks ? items : mockRadar();
+  });
+  app.post('/internal/radar/poll', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const fresh = [...(await radar.poll()), ...radar.fromHeaders(engine.list())];
+    await alertRadar(fresh);
+    return { created: fresh.length, items: fresh };
+  });
   // Review queue (P6.6): every non-alias event, with the deterministic suggestion and the AI explanation if present.
   app.get('/v1/review', async () => {
     const q = engine.reviewQueue();
@@ -242,6 +266,7 @@ export function buildApp(opts: AppOptions = {}) {
   (app as unknown as { engine: DriftEngine }).engine = engine;
   (app as unknown as { dispatcher: Dispatcher; ai: AiService }).dispatcher = dispatcher;
   (app as unknown as { dispatcher: Dispatcher; ai: AiService }).ai = ai;
-  app.decorate('detectNow', async () => { const changed = await engine.run(); await afterDetect(changed); return changed; });
+  app.decorate('detectNow', async () => { const changed = await engine.run(); await afterDetect(changed); await alertRadar(radar.fromHeaders(engine.list())); return changed; });
+  app.decorate('pollRadar', async () => { const fresh = await radar.poll(); await alertRadar(fresh); return fresh; });
   return app;
 }

@@ -78,9 +78,36 @@ export const NotificationSettings = z.object({
 });
 export type NotificationSettings = z.infer<typeof NotificationSettings>;
 
+export const ChangeType = z.enum(['rename', 'removal', 'type', 'units', 'limit', 'pagination', 'deprecation', 'enum', 'other']);
+export type ChangeType = z.infer<typeof ChangeType>;
+
+/** One announced change, extracted from a changelog / spec. `quote` must be a verbatim substring of the source. */
+export const AnnouncedChange = z.object({
+  endpoint: z.string().max(200).optional(),
+  field: z.string().max(120).optional(),
+  changeType: ChangeType,
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  summary: z.string().min(5).max(300),
+  quote: z.string().min(5).max(500),
+});
+export type AnnouncedChange = z.infer<typeof AnnouncedChange>;
+export const AnnouncedChanges = z.object({ changes: z.array(AnnouncedChange).max(20) });
+
 export const RadarItem = z.object({
-  id: z.string(), service: z.string(), title: z.string(), kind: z.enum(['deprecation', 'sunset', 'changelog', 'breaking']),
-  date: z.string().optional(), source: z.string(), matchedFiles: z.array(z.string()),
+  id: z.string(), service: z.string(), title: z.string(),
+  kind: z.enum(['deprecation', 'sunset', 'changelog', 'breaking', 'spec']),
+  changeType: ChangeType.default('other'),
+  date: z.string().optional(),                 // effective date (YYYY-MM-DD) or header date
+  source: z.string(),                          // "changelog (RSS)", "OpenAPI diff", "Sunset header"
+  sourceUrl: z.string().optional(),
+  quote: z.string().optional(),                // verbatim from the source
+  endpoint: z.string().optional(), field: z.string().optional(),
+  matchedFiles: z.array(z.string()),           // file:line of code that will be affected
+  severity: Severity.default('info'),
+  suggestion: z.string().default(''),          // deterministic template text
+  extractedBy: z.enum(['ai', 'rules', 'header', 'spec']).default('rules'),
+  driftEventId: z.string().optional(),         // set when traffic later shows the change
+  detectedAt: z.string().optional(),
 });
 export type RadarItem = z.infer<typeof RadarItem>;
 

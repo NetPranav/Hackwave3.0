@@ -17,7 +17,23 @@
         "deprecation",
         "sunset",
         "changelog",
-        "breaking"
+        "breaking",
+        "spec"
+      ]
+    },
+    "changeType": {
+      "default": "other",
+      "type": "string",
+      "enum": [
+        "rename",
+        "removal",
+        "type",
+        "units",
+        "limit",
+        "pagination",
+        "deprecation",
+        "enum",
+        "other"
       ]
     },
     "date": {
@@ -26,11 +42,52 @@
     "source": {
       "type": "string"
     },
+    "sourceUrl": {
+      "type": "string"
+    },
+    "quote": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
     "matchedFiles": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "severity": {
+      "default": "info",
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "breaking"
+      ]
+    },
+    "suggestion": {
+      "default": "",
+      "type": "string"
+    },
+    "extractedBy": {
+      "default": "rules",
+      "type": "string",
+      "enum": [
+        "ai",
+        "rules",
+        "header",
+        "spec"
+      ]
+    },
+    "driftEventId": {
+      "type": "string"
+    },
+    "detectedAt": {
+      "type": "string"
     }
   },
   "required": [
@@ -38,8 +95,12 @@
     "service",
     "title",
     "kind",
+    "changeType",
     "source",
-    "matchedFiles"
+    "matchedFiles",
+    "severity",
+    "suggestion",
+    "extractedBy"
   ],
   "additionalProperties": false
 }

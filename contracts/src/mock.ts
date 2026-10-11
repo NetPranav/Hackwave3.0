@@ -45,7 +45,7 @@ export const mockDrift = (): DriftEvent[] => [
 ];
 
 export const mockReview = (): ReviewItem[] => [{ id: 'rev-1', drift: { ...mockDrift()[0]!, id: 'drift-2', detector: 'D9', title: 'Amount unit changed ×100', service: 'payments', field: 'amount', fix: undefined }, suggestion: 'Review: money field', reason: 'Money is never auto-fixed.', status: 'open' }];
-export const mockRadar = (): RadarItem[] => [{ id: 'rad-1', service: 'payments', title: 'v1 charges API sunset', kind: 'sunset', date: '2026-12-01', source: 'Sunset header', matchedFiles: ['src/pay.ts'] }];
+export const mockRadar = (): RadarItem[] => [{ id: 'rad-1', service: 'payments', title: 'v1 charges API sunset', kind: 'sunset', date: '2026-12-01', source: 'Sunset header', matchedFiles: ['src/pay.ts'], changeType: 'deprecation', severity: 'warning', suggestion: 'Plan the migration before the date.', extractedBy: 'header' }];
 export const mockNotificationSettings = (): NotificationSettings => ({
   whatsapp: { enabled: true, to: '+10000000000' }, slack: { enabled: false }, discord: { enabled: false }, email: { enabled: false }, github: { enabled: true }, minSeverity: 'warning', aiEnabled: true,
 });
