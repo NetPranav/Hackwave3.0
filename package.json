@@ -20,7 +20,9 @@
     "dev": "bash scripts/dev/dev.sh",
     "gh:register": "node --env-file=.env scripts/dev/register-github-app.mjs",
     "db:migrate": "npm run db:migrate -w backend",
-    "e2e": "turbo run test"
+    "e2e": "turbo run test",
+    "demo:traffic": "node --env-file=.env scripts/dev/demo-traffic.mjs",
+    "demo:reset": "node --env-file=.env scripts/dev/demo-reset.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
