@@ -19,6 +19,8 @@ export interface InitOptions {
   neverInspect?: string[];
   /** Hosts to watch; default all except private ranges and the Seismo endpoint. */
   allowHosts?: string[];
+  /** URL prefixes never recorded (e.g. a provider's admin or health routes). */
+  ignore?: string[];
   /** Map URL prefixes to service names, e.g. { 'http://localhost:4100/users': 'users' }. Default: the host. */
   services?: Record<string, string>;
   salt?: string;                  // default: random per process (set it to keep hashes comparable across restarts)
@@ -131,6 +133,7 @@ export class Seismo {
   private shouldSample(rawUrl: string) {
     const u = new URL(rawUrl);
     if (this.o.endpoint && rawUrl.startsWith(this.o.endpoint)) return false;
+    if (this.o.ignore?.some((p) => p && rawUrl.startsWith(p))) return false;
     if (this.o.allowHosts) { if (!this.o.allowHosts.includes(u.host)) return false; }
     else if (PRIVATE.test(u.hostname) && !this.o.services) return false;
     return Math.random() < this.o.sampleRate;

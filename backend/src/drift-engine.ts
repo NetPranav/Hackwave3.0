@@ -18,6 +18,9 @@ export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24
 
 type Tracked = Omit<StoredEvent, 'key'>;
 
+/** Passes (5 s apart) without a confirmed change before it counts as gone: the provider went back to normal. */
+const RECOVER_RUNS = 3;
+
 const OPEN_CONFIRMED = (t: Tracked, confirmRuns: number) => t.runs >= confirmRuns && ['breaking', 'suspected', 'fix_pending'].includes(t.event.state);
 
 /** Opens fix PRs on the customer's repo (the GitHub App). Optional: without it, renames stay "breaking" with a suggested rule. */
@@ -210,6 +213,20 @@ export class DriftEngine {
       const t = this.events.get(k);
       if (!t || seen.has(k) || ['resolved', 'expected', 'snoozed'].includes(t.event.state)) continue;
       t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: renamed to ${f.rename.to})` };
+      seen.add(k);
+      changed.push(t.event);
+    }
+    // The provider went back to normal: a confirmed change that is no longer found for RECOVER_RUNS passes in a row,
+    // while its endpoint has enough traffic to judge, is closed as resolved (and its baseline unfreezes).
+    // No traffic means no evidence either way, so the count only moves when the endpoint was actually observed.
+    const minSamples = { ...DEFAULT_CTX, ...this.opts.ctx }.minSamples;
+    const observed = new Set(wins.filter((w) => w.samples >= minSamples).map((w) => `${w.service}|${w.method} ${w.endpoint}`));
+    for (const [k, t] of this.events) {
+      if (seen.has(k)) { t.misses = 0; continue; }
+      if (!OPEN_CONFIRMED(t, this.opts.confirmRuns) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
+      t.misses = (t.misses ?? 0) + 1;
+      if (t.misses < RECOVER_RUNS) { seen.add(k); continue; }
+      t.event = { ...t.event, state: 'resolved' };
       seen.add(k);
       changed.push(t.event);
     }

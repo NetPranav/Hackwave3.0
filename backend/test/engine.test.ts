@@ -46,6 +46,30 @@ describe('drift engine (P4.2/P4.5)', () => {
     expect(closed.title).toBe('Field removed: name (explained: renamed to display_name)');
     expect(changed.map((c) => c.id)).toContain('drift-d1');   // so the dashboard and the GitHub issue are updated
   });
+  it('when the provider goes back to normal, the confirmed change resolves after 3 passes with traffic (not without traffic)', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');
+    // no traffic at all for 10 minutes: nothing is known, nothing resolves
+    const quiet = NOW + 10 * 60_000;
+    for (let i = 0; i < 4; i++) await e.run(quiet + i * 5000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');
+    // the provider reverts and traffic flows again
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 20 * 60_000;
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: back - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    await e.run(back); await e.run(back + 1000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');      // 2 passes: not yet
+    const changed = await e.run(back + 2000);
+    const d3 = e.list().find((x) => x.detector === 'D3')!;
+    expect(d3.state).toBe('resolved');
+    expect(changed.map((c) => c.id)).toContain(d3.id);                                // dashboard, issue and alerts hear about it
+  });
   it('a field read in a branch/arithmetic is breaking once confirmed', async () => {
     const e = await scenario([codeMap([{ field: 'name', usage: 'arithmetic' }])], async (s) => void (await toggle(s, 'users-rename')));
     await e.run(NOW); await e.run(NOW + 5000);

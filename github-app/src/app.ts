@@ -174,6 +174,8 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions, sc
       const { owner, name, kit } = await octokitFor(b.repo);
       const base = (await kit.rest.repos.get({ owner, repo: name })).data.default_branch;
       const plan = await withCheckout(kit as never, owner, name, base, (dir) => planSetup(dir, b.repo));
+      // already wired (every API read wrapped, seismo/ files present): not an error, there is simply no PR to open
+      if (!plan.files.length) return send(res, 200, { url: `https://github.com/${b.repo}/blob/${base}/seismo/aliases.json`, number: 0, created: false, wrapped: 0, skipped: plan.skipped, alreadySetUp: true });
       const pr = await openSetupPr(kit as unknown as OctokitGit, owner, name, plan);
       return send(res, 200, { ...pr, wrapped: plan.wrapped.length, skipped: plan.skipped });
     } catch (e) { return send(res, 500, { error: String(e) }); }

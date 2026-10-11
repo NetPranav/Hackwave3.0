@@ -36,7 +36,19 @@ async function handle(req: Request, ctx: { params: Promise<{ path: string[] }> }
       headers: { "x-internal-token": process.env.INTERNAL_TOKEN ?? "dev-internal", "content-type": "application/json" },
       body: "{}",
     });
-    return Response.json({ services: services.status, seismo: seismo.status }, { status: services.ok && seismo.ok ? 200 : 502 });
+    // ...and the demo repo (DEMO_REPO only, enforced again by the GitHub App): open Seismo PRs closed, aliases.json emptied,
+    // so the next rename breaks the shop again and gets a fresh fix PR.
+    let repo: number | "skipped" = "skipped";
+    if (process.env.DEMO_REPO && process.env.GITHUB_APP_URL) {
+      const r = await call(`${process.env.GITHUB_APP_URL}/internal/demo-reset`, {
+        method: "POST",
+        headers: { "x-internal-token": process.env.INTERNAL_TOKEN ?? "dev-internal", "content-type": "application/json" },
+        body: JSON.stringify({ repo: process.env.DEMO_REPO }),
+      });
+      repo = r.status;
+    }
+    const ok = services.ok && seismo.ok && (repo === "skipped" || repo === 200);
+    return Response.json({ services: services.status, seismo: seismo.status, repo }, { status: ok ? 200 : 502 });
   }
   return Response.json({ error: "not_found" }, { status: 404 });
 }

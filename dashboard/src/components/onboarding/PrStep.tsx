@@ -18,11 +18,15 @@ export default function PrStep({ onNext, onSkip }: PrStepProps) {
   const o = useOnboarding();
   const [pr, setPr] = useState<{ number: number; url: string; title: string } | null>(null);
   const [state, setState] = useState<"idle" | "opening" | "failed" | "none">("idle");
+  const [rulesUrl, setRulesUrl] = useState("");
   const open = async () => {
     setState("opening");
     try {
       const r = await o.openSetupPr();
-      if (!r.number) return setState("none");
+      if (!r.number) {
+        setRulesUrl(r.url);
+        return setState("none");
+      }
       setPr(r);
       setState("idle");
     } catch {
@@ -35,16 +39,23 @@ export default function PrStep({ onNext, onSkip }: PrStepProps) {
         <p className="font-aeonik-mono text-[11px] uppercase tracking-[0.2em] text-text-primary/50">Setup pull request</p>
         <p className="mt-2 font-aeonik-light text-sm text-text-primary/60">
           {state === "none"
-            ? "Nothing to set up: this repo already wraps its API reads."
+            ? "Already set up: every API read goes through withAliases() and seismo/aliases.json exists (the setup PR was merged earlier). Fix PRs add their rules there."
             : state === "failed"
               ? "Could not open the pull request. Check that the GitHub App is running."
               : "Seismo reads the repo and opens one pull request that wraps your API reads with withAliases() and adds seismo/aliases.json. It does not change how your app behaves."}
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-4">
           {state === "none" ? (
-            <button type="button" onClick={onNext} className={PRIMARY}>
-              Continue
-            </button>
+            <>
+              <button type="button" onClick={onNext} className={PRIMARY}>
+                Continue
+              </button>
+              {rulesUrl && (
+                <a href={rulesUrl} target="_blank" rel="noopener noreferrer" className={QUIET}>
+                  See seismo/aliases.json ↗
+                </a>
+              )}
+            </>
           ) : (
             <button type="button" onClick={open} disabled={state === "opening"} className={PRIMARY}>
               {state === "opening" ? "Preparing… (up to a minute)" : "Open the pull request"}

@@ -228,3 +228,18 @@ describe('SDK keeps seeing fetch when a framework replaces it (Next.js dev hot r
     }
   });
 });
+
+describe('ignore option', () => {
+  it('never records URLs under an ignored prefix', async () => {
+    received.length = 0;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, services: { [apiUrl]: 'payments' }, ignore: [`${apiUrl}/admin`], flushMs: 60_000 });
+    try {
+      await (await fetch(`${apiUrl}/admin/scenarios`)).json();
+      await (await fetch(`${apiUrl}/payments/pay_1`)).json();
+      await new Promise((r) => setTimeout(r, 100));
+      await s.flush();
+      const fps = received.map((r) => Fingerprint.parse(r));
+      expect(fps.map((f) => f.endpoint)).toEqual(['/payments/{id}']);
+    } finally { s.stop(); }
+  });
+});

@@ -49,10 +49,10 @@ export function useOnboarding() {
   }, [live, fullRepo, inst]);
 
   const openSetupPr = useCallback(async () => {
-    if (!live) return { number: SETUP_PR.number, url: SETUP_PR.url, title: SETUP_PR.title, created: true };
+    if (!live) return { number: SETUP_PR.number, url: SETUP_PR.url, title: SETUP_PR.title, created: true, alreadySetUp: false };
     if (!fullRepo) throw new Error("no repository");
-    const r = await api<{ url: string; number: number; created: boolean; wrapped: number }>(`/v1/repos/${fullRepo}/setup-pr`, { method: "POST", body: {} });
-    return { number: r.number, url: r.url, title: r.wrapped ? `Seismo setup: ${r.wrapped} API reads wrapped + seismo/aliases.json` : "Seismo setup", created: r.created };
+    const r = await api<{ url: string; number: number; created: boolean; wrapped: number; alreadySetUp?: boolean }>(`/v1/repos/${fullRepo}/setup-pr`, { method: "POST", body: {} });
+    return { number: r.number, url: r.url, alreadySetUp: !!r.alreadySetUp, title: r.wrapped ? `Seismo setup: ${r.wrapped} API reads wrapped + seismo/aliases.json` : "Seismo setup", created: r.created };
   }, [live, fullRepo]);
 
   const createKey = useCallback(async () => {
