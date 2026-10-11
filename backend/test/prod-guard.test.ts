@@ -35,6 +35,15 @@ describe('one public service: forwarding (v3-P0.5)', () => {
       const raw = '{"action":"closed",  "spacing":"kept exactly"}';
       await fetch(`${base}/api/github/webhooks`, { method: 'POST', body: raw, headers: { 'content-type': 'application/json', 'x-hub-signature-256': 'sha256=abc' } });
       expect(seen).toEqual([{ url: '/users/u_1', body: '', sig: undefined }, { url: '/api/github/webhooks', body: raw, sig: 'sha256=abc' }]);
+      // unprefixed provider paths (what the hosted shop calls, so the SDK records GET /users/{id}); backend routes stay
+      seen.length = 0;
+      await fetch(`${base}/users/u_1`);
+      await fetch(`${base}/payments`, { method: 'POST', body: '{"order_id":"o","rupees":1}', headers: { 'content-type': 'application/json' } });
+      await fetch(`${base}/orders?limit=5`);
+      await fetch(`${base}/admin/custom`);
+      expect(seen.map((s) => s.url)).toEqual(['/users/u_1', '/payments', '/orders?limit=5', '/admin/custom']);
+      expect((await fetch(`${base}/health`)).status).toBe(200);
+      expect(seen).toHaveLength(4);                                   // /health is the backend's own
     } finally {
       await a.close(); upstream.close();
       delete process.env.PROVIDERS_INTERNAL_URL; delete process.env.GITHUB_APP_INTERNAL_URL;

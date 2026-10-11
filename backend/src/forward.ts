@@ -12,6 +12,10 @@ export function forwardRules(env: NodeJS.ProcessEnv = process.env): ForwardRule[
   return [
     { prefix: '/api/github/', target: env.GITHUB_APP_INTERNAL_URL, strip: false },
     { prefix: '/providers/', target: env.PROVIDERS_INTERNAL_URL, strip: true },
+    // ...and the providers' own paths, unprefixed: the SDK records the URL path as the endpoint, so the hosted shop must
+    // call https://<engine>/users/u_1 (not /providers/users/u_1) for its endpoints to match the code map. None of these
+    // collide with the backend's routes (/health, /ready, /internal, /v1).
+    ...['/users', '/payments', '/shipments', '/shipping/', '/orders', '/admin/'].map((prefix) => ({ prefix, target: env.PROVIDERS_INTERNAL_URL, strip: false })),
   ];
 }
 
