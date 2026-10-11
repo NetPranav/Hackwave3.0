@@ -24,6 +24,7 @@ import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
 import { codemapView, enrichEvent } from './codemap-view.js';
 import { templateFor } from './fix-templates.js';
 import { forwardRules, tryForward } from './forward.js';
+import { shopLocator } from './demo-shop.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -349,6 +350,16 @@ export function buildApp(opts: AppOptions = {}) {
     return projectId === PROJECT_ID() ? engine.readiness() : [];
   });
   app.get('/v1/readiness', async () => engine.readiness());
+  // Where the demo shop runs now (the hosted one if it answers, else the local one): links in the dashboard use this.
+  const shop = shopLocator({ repo: async () => process.env.DEMO_REPO ?? (await store.all()).find((m) => m.callSites.length)?.repo });
+  app.get('/v1/demo/shop', async (req) => shop.locate((req.query as { refresh?: string }).refresh === '1'));
+  app.post('/internal/demo/shop', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const url = String((req.body as { url?: unknown })?.url ?? '');
+    if (!/^https?:\/\/[^\s]+$/.test(url)) return reply.code(400).send({ error: 'bad_url' });
+    shop.register(url);
+    return shop.locate(true);
+  });
   app.get('/v1/activity', async () => activityLog.slice(0, 100));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {

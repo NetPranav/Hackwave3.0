@@ -29,6 +29,8 @@ export interface TimelineDriftEvent {
   impactedWorkflows: string[];
   impactedFilesCount: number;
   fixPrNumber?: number;
+  /** the PR the engine opened (live data); mock data has only the number */
+  prUrl?: string;
   /** v3-P2: responses this rename rule has healed live in the app (auto-heal on) */
   healedHits?: number;
   fixType?: "alias" | "review";

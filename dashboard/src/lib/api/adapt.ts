@@ -179,7 +179,7 @@ export function toTimeline(events: DriftEvent[], reviewIds: Set<string>, radar: 
       confidence: Math.round(e.confidence * 100),
       impactedWorkflows: workflowsOf(e.usages),
       impactedFilesCount: new Set(e.usages.map((u) => u.file)).size,
-      ...(pr ? { fixPrNumber: pr } : {}),
+      ...(pr ? { fixPrNumber: pr, prUrl: e.fix!.validation!.prUrl } : {}),
       ...(e.heal?.live ? { healedHits: e.heal.hits } : {}),
       ...(e.fix ? { fixType: e.fix.rung === "alias" ? ("alias" as const) : ("review" as const) } : {}),
       ...(shortDiff(e) ? { diffSnippet: shortDiff(e) } : {}),
@@ -433,7 +433,7 @@ export function toDriftDetail(e: DriftEvent, cmp: CompareApi | undefined, review
       target: rule?.kind === "alias" ? rule.target : e.field ?? "",
     },
     checks: toChecks(e.fix?.validation?.checks),
-    ...(prNumber(e.fix?.validation?.prUrl) ? { fixPrNumber: prNumber(e.fix?.validation?.prUrl) } : {}),
+    ...(prNumber(e.fix?.validation?.prUrl) ? { fixPrNumber: prNumber(e.fix?.validation?.prUrl), prUrl: e.fix?.validation?.prUrl } : {}),
   };
 }
 

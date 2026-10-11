@@ -67,7 +67,11 @@ export default function ActivityFeed() {
       />
       {items.length === 0 ? (
         <p className="px-5 py-6 font-aeonik-light text-sm text-text-primary/60 dark:text-white/60">
-          Nothing yet. Open the shop (http://localhost:3100) and place an order: every API call it makes shows up here within a few seconds.
+          Nothing yet.{" "}
+          <a href="/api/shop" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-accent">
+            Open the shop
+          </a>{" "}
+          (the hosted one when it is up, else the local one) and place an order: every API call it makes shows up here within a few seconds.
         </p>
       ) : (
         <ul className="divide-y divide-box-outline/50 dark:divide-dark-border/50">

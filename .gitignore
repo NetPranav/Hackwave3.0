@@ -42,3 +42,6 @@ venv/
 
 # Turborepo local cache + logs
 .turbo/
+
+# hosted demo shop: its SDK key + salt (npm run demo:online)
+.seismo-online.json

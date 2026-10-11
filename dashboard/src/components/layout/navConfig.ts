@@ -168,9 +168,9 @@ export const NAV_MENUS: NavMenuDef[] = [
           },
           {
             title: "Demo Shop",
-            desc: "The sample shop where the demo changes happen.",
-            href: "https://github.com/NetPranav/seismo-demo-shop",
-            tag: { label: "GITHUB ↗", tone: "muted" },
+            desc: "The sample shop where the demo changes happen: the hosted one when it is up, else the local one.",
+            href: "/api/shop",
+            tag: { label: "OPEN ↗", tone: "muted" },
             external: true,
           },
         ],

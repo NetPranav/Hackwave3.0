@@ -48,6 +48,7 @@ export interface DriftDetailData {
     passed: boolean;
   }[];
   fixPrNumber?: number;
+  prUrl?: string;
 }
 
 export const DRIFT_DETAILS_MAP: Record<string, DriftDetailData> = {

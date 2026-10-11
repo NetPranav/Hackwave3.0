@@ -307,3 +307,25 @@ describe('delivery guarantees and live rules (v3-P2/P3.1)', () => {
     } finally { s.stop(); seismoApi.close(); (await import('../src/runtime.js')).setLiveAliasRules([]); }
   });
 });
+
+describe('serverless (Vercel): the function freezes after the response, timers never fire', () => {
+  it('hands capture + one flush per request to the platform waitUntil, so fingerprints still arrive', async () => {
+    const CTX = Symbol.for('@vercel/request-context');
+    const kept: Promise<unknown>[] = [];
+    (globalThis as Record<symbol, unknown>)[CTX] = { get: () => ({ waitUntil: (p: Promise<unknown>) => kept.push(p) }) };
+    const before = received.length;
+    // flushMs of an hour: only the serverless path can send anything in this test
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, flushMs: 3_600_000, liveRules: false, services: { [apiUrl]: 'vercel-test' } });
+    try {
+      // one "request" that makes three provider calls one after another (like a checkout)
+      for (let i = 0; i < 3; i++) await (await fetch(`${apiUrl}/payments/pay_${i}`)).json();
+      expect(kept.length).toBeGreaterThan(0);
+      while (kept.length) await kept.shift();          // what the platform does after the response
+      const mine = received.slice(before).filter((f) => f['service'] === 'vercel-test');
+      expect(mine.reduce((n, f) => n + (f['count'] as number), 0)).toBe(3);   // all three calls, not only the first
+    } finally {
+      s.stop();
+      delete (globalThis as Record<symbol, unknown>)[CTX];
+    }
+  });
+});

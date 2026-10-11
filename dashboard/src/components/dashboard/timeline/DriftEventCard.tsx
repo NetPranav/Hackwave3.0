@@ -1,5 +1,6 @@
 "use client";
 
+import { prHref } from "@/lib/links";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,7 @@ interface DriftEventCardProps {
 }
 
 function EventFooter({ event, expanded, onToggleDiff }: DriftEventCardProps) {
-  const prUrl = `https://github.com/NetPranav/seismo-demo-shop/pull/${event.fixPrNumber}`;
+  const prUrl = prHref(event.fixPrNumber, event.prUrl);
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-box-outline/30 pt-3 font-aeonik-mono text-xs dark:border-dark-border/30">
       <div className="flex flex-wrap items-center gap-1.5">

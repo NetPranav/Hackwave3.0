@@ -146,7 +146,41 @@ export class Seismo {
     if (!this.shouldSample(url)) return;
     const clone = response.clone();
     const meta = { url, method, status: response.status, headers: response.headers };
-    setImmediate(() => { void this.capture(meta, clone, latency); });
+    const work = new Promise<void>((done) => setImmediate(() => { void this.capture(meta, clone, latency).finally(done); }));
+    this.keepAliveOnServerless(work);
+  }
+
+  /**
+   * Serverless (Vercel, and anything exposing the same request context): the function is frozen right after the response,
+   * so timers never fire and nothing would be sent. There, the capture plus one flush are handed to the platform's
+   * waitUntil, once per request. Elsewhere this does nothing. Never throws, never delays the response.
+   */
+  private pendingCaptures = 0;
+  private idleTimer?: ReturnType<typeof setTimeout>;
+  private flushed?: { promise: Promise<void>; resolve: () => void };
+  private keepAliveOnServerless(work: Promise<void>) {
+    try {
+      const ctx = (globalThis as Record<symbol, { get?: () => { waitUntil?: (p: Promise<unknown>) => void } | undefined } | undefined>)[Symbol.for('@vercel/request-context')]?.get?.();
+      if (!ctx?.waitUntil) return;
+      ctx.waitUntil(work);
+      // one flush once the request's calls are done (150 ms with nothing in flight), kept alive with waitUntil
+      if (!this.flushed) {
+        let resolve!: () => void;
+        const promise = new Promise<void>((r) => { resolve = r; });
+        this.flushed = { promise, resolve };
+        ctx.waitUntil(promise);
+      }
+      clearTimeout(this.idleTimer);
+      this.pendingCaptures++;
+      void work.finally(() => {
+        if (--this.pendingCaptures > 0) return;
+        this.idleTimer = setTimeout(() => {
+          const done = this.flushed;
+          this.flushed = undefined;
+          void this.flush().finally(() => done?.resolve());
+        }, 150);
+      });
+    } catch (e) { this.fail(e); }
   }
 
   private fail(e: unknown) { this.errors++; try { this.o?.onError?.(e); } catch { /* ignore */ } }
