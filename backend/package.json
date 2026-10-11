@@ -6,8 +6,26 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "worker": "tsx src/worker.ts"
   },
-  "dependencies": { "@seismo/contracts": "*", "fastify": "^5.0.0", "@fastify/cors": "^10.0.0", "pino": "^9.0.0", "zod": "^4.0.0" },
-  "devDependencies": { "tsx": "^4.19.0", "@types/node": "^22.0.0" }
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@seismo/contracts": "*",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.0.0",
+    "jose": "^6.2.12",
+    "pg": "^8.23.1",
+    "pg-boss": "^12.37.1",
+    "pino": "^9.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.19.0"
+  }
 }

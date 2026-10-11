@@ -1,0 +1,1 @@
+{"name":"spikes-s23","private":true,"type":"module","dependencies":{"@mswjs/interceptors":"^0.45.7","axios":"^1.20.0","probot":"^14.3.2"}}

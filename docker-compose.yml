@@ -1,0 +1,9 @@
+# Local Postgres for Seismo (P0.3). `docker compose up -d db`
+services:
+  db:
+    image: postgres:17
+    environment: { POSTGRES_USER: seismo, POSTGRES_PASSWORD: seismo, POSTGRES_DB: seismo }
+    ports: ['5433:5432']
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

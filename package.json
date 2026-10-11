@@ -3,13 +3,24 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "workspaces": ["contracts", "sdk-node", "backend", "github-app", "services"],
+  "workspaces": [
+    "contracts",
+    "sdk-node",
+    "backend",
+    "github-app",
+    "services"
+  ],
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "setup": "bash scripts/dev/setup.sh",
+    "dev": "bash scripts/dev/dev.sh",
+    "gh:register": "node --env-file=.env scripts/dev/register-github-app.mjs",
+    "db:migrate": "npm run db:migrate -w backend",
+    "e2e": "turbo run test"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -20,5 +31,7 @@
     "typescript-eslint": "^8.0.0",
     "vitest": "^2.1.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
