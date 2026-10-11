@@ -1,4 +1,0 @@
-
-> @seismo/github-app@0.0.1 build
-> tsc -p tsconfig.json
-

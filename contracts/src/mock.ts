@@ -39,12 +39,12 @@ export const mockDrift = (): DriftEvent[] => [
     id: 'drift-1', service: 'users', endpoint: 'GET /users/{id}', field: 'email', detector: 'D1', title: 'Field renamed: email → emailAddress',
     severity: 'breaking', state: 'fix_pending', confidence: 0.94, detectedAt: NOW, before: { email: 'a@b.c' }, after: { emailAddress: 'a@b.c' },
     usages: [{ file: 'src/checkout.ts', line: 42, kind: 'read' }],
-    explanation: { summary: 'The email field was renamed.', impact: 'Checkout reads user.email.', suggestion: 'Add an alias rule.', confidence: 0.94, model: 'template', latencyMs: 0, source: 'template' },
+    explanation: { title: 'email renamed to emailAddress', summary: 'The users API now sends emailAddress instead of email.', impact: 'Checkout reads user.email.', recommendation: 'Merge the alias PR.', risk: 'medium', channels: { whatsapp: 'Seismo: users API renamed email -> emailAddress. Fix PR open.', slack: 'users API renamed email -> emailAddress. Fix PR open.', emailSubject: 'users API: email renamed', emailBody: 'The users API now sends emailAddress instead of email.' }, confidence: 0.94, model: 'template', latencyMs: 0, source: 'template' },
     fix: { rung: 'alias', rule: { kind: 'alias', path: '$', endpoint: 'GET /users/{id}', source: 'emailAddress', target: 'email' } },
   },
 ];
 
-export const mockReview = (): ReviewItem[] => [{ id: 'rev-1', drift: { ...mockDrift()[0]!, id: 'drift-2', detector: 'D9', title: 'Amount unit changed ×100', service: 'payments', field: 'amount', fix: undefined }, suggestion: 'Review: money field', status: 'open' }];
+export const mockReview = (): ReviewItem[] => [{ id: 'rev-1', drift: { ...mockDrift()[0]!, id: 'drift-2', detector: 'D9', title: 'Amount unit changed ×100', service: 'payments', field: 'amount', fix: undefined }, suggestion: 'Review: money field', reason: 'Money is never auto-fixed.', status: 'open' }];
 export const mockRadar = (): RadarItem[] => [{ id: 'rad-1', service: 'payments', title: 'v1 charges API sunset', kind: 'sunset', date: '2026-12-01', source: 'Sunset header', matchedFiles: ['src/pay.ts'] }];
 export const mockNotificationSettings = (): NotificationSettings => ({
   whatsapp: { enabled: true, to: '+10000000000' }, slack: { enabled: false }, discord: { enabled: false }, email: { enabled: false }, github: { enabled: true }, minSeverity: 'warning', aiEnabled: true,

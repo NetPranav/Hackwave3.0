@@ -20,9 +20,30 @@ export const FixRequest = z.object({ driftId: z.string(), repo: z.string(), rung
 export const ValidationResult = z.object({ driftId: z.string(), checks: z.array(CheckResult), ci: z.enum(['pending', 'green', 'red']), prUrl: z.string().url().optional() });
 export const AliasSpec = z.object({ version: z.literal(1).default(1), rules: z.array(AliasRule) });
 
-export const AiExplanation = z.object({
-  summary: z.string(), impact: z.string(), suggestion: z.string(), confidence: z.number().min(0).max(1),
+/** What the model must return (validated with zod). Anything else is rejected and retried, then replaced by a template. */
+export const AiExplanationBody = z.object({
+  title: z.string().min(3).max(120),
+  summary: z.string().min(10).max(600),
+  impact: z.string().min(3).max(400),
+  recommendation: z.string().min(3).max(400),
+  risk: z.enum(['low', 'medium', 'high']),
+  channels: z.object({
+    whatsapp: z.string().min(10).max(300),
+    slack: z.string().min(10).max(1500),
+    emailSubject: z.string().min(3).max(140),
+    emailBody: z.string().min(10).max(3000),
+  }),
+});
+export type AiExplanationBody = z.infer<typeof AiExplanationBody>;
+
+/** Semantic judge (enum meaning, ambiguous rename, unit sanity). Advice only: never decides or acts. */
+export const AiJudgement = z.object({ choice: z.string().min(1).max(80), confidence: z.number().min(0).max(1), reason: z.string().min(3).max(200) });
+export type AiJudgement = z.infer<typeof AiJudgement>;
+
+export const AiExplanation = AiExplanationBody.extend({
+  confidence: z.number().min(0).max(1),
   model: z.string(), latencyMs: z.number(), source: z.enum(['ai', 'template']),
+  judgement: AiJudgement.optional(),
 });
 export type AiExplanation = z.infer<typeof AiExplanation>;
 
@@ -37,17 +58,22 @@ export const DriftEvent = z.object({
 });
 export type DriftEvent = z.infer<typeof DriftEvent>;
 
-export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
+/** suggestion: deterministic text from the template catalog (never AI). reason: why this is not an automatic PR. */
+export const ReviewItem = z.object({ id: z.string(), drift: DriftEvent, suggestion: z.string(), reason: z.string().optional(), status: z.enum(['open', 'expected', 'snoozed', 'pr_opened']) });
 export type ReviewItem = z.infer<typeof ReviewItem>;
 export const ReviewAction = z.object({ id: z.string(), action: z.enum(['expected', 'snooze', 'open_pr']) });
 
-export const Notification = z.object({ id: z.string(), driftId: z.string(), channel: z.enum(['dashboard', 'github', 'whatsapp', 'slack', 'discord', 'email']), sentAt: z.string().datetime(), ok: z.boolean() });
+export const Channel = z.enum(['dashboard', 'github', 'whatsapp', 'slack', 'discord', 'email']);
+export type Channel = z.infer<typeof Channel>;
+export const Notification = z.object({ id: z.string(), driftId: z.string(), channel: Channel, title: z.string(), sentAt: z.string().datetime(), ok: z.boolean(), error: z.string().optional(), read: z.boolean().default(false) });
+export type Notification = z.infer<typeof Notification>;
+const ChannelThreshold = { minSeverity: Severity.optional() };
 export const NotificationSettings = z.object({
-  whatsapp: z.object({ enabled: z.boolean(), to: z.string().optional() }),
-  slack: z.object({ enabled: z.boolean(), webhookUrl: z.string().optional() }),
-  discord: z.object({ enabled: z.boolean(), webhookUrl: z.string().optional() }),
-  email: z.object({ enabled: z.boolean(), to: z.string().optional() }),
-  github: z.object({ enabled: z.boolean() }),
+  whatsapp: z.object({ enabled: z.boolean(), to: z.string().optional(), ...ChannelThreshold }),
+  slack: z.object({ enabled: z.boolean(), webhookUrl: z.string().optional(), ...ChannelThreshold }),
+  discord: z.object({ enabled: z.boolean(), webhookUrl: z.string().optional(), ...ChannelThreshold }),
+  email: z.object({ enabled: z.boolean(), to: z.string().optional(), ...ChannelThreshold }),
+  github: z.object({ enabled: z.boolean(), ...ChannelThreshold }),
   minSeverity: Severity, aiEnabled: z.boolean(),
 });
 export type NotificationSettings = z.infer<typeof NotificationSettings>;
@@ -58,6 +84,21 @@ export const RadarItem = z.object({
 });
 export type RadarItem = z.infer<typeof RadarItem>;
 
-export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.unknown() });
-export const SimulateRequest = z.object({ service: z.string(), endpoint: z.string(), scenario: z.string() });
-export const SimulateResult = z.object({ affected: z.array(Usage), severity: Severity, fixRung: FixRung.optional() });
+/** Baseline vs current synthetic examples built from fingerprint statistics (never real values). */
+export const FieldDiff = z.object({ path: z.string(), change: z.enum(['added', 'removed', 'type', 'magnitude', 'enum', 'length']), before: z.unknown().optional(), after: z.unknown().optional() });
+export const Compare = z.object({ service: z.string(), endpoint: z.string(), v1: z.unknown(), v2: z.unknown(), diff: z.array(FieldDiff) });
+export type Compare = z.infer<typeof Compare>;
+export const SimulateRequest = z.object({
+  service: z.string(), endpoint: z.string(),
+  scenario: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('rename'), field: z.string(), to: z.string() }),
+    z.object({ kind: z.literal('remove'), field: z.string() }),
+    z.object({ kind: z.literal('type'), field: z.string(), to: z.enum(['string', 'number', 'boolean', 'null']) }),
+    z.object({ kind: z.literal('units'), field: z.string(), factor: z.number() }),
+    z.object({ kind: z.literal('enum'), field: z.string(), value: z.string() }),
+    z.object({ kind: z.literal('limit'), field: z.string(), max: z.number().int() }),
+  ]),
+});
+export type SimulateRequest = z.infer<typeof SimulateRequest>;
+export const SimulateResult = z.object({ detector: z.string(), affected: z.array(Usage), severity: Severity, fixRung: FixRung, workflows: z.array(z.string()), explanation: z.string() });
+export type SimulateResult = z.infer<typeof SimulateResult>;

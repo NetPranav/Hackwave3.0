@@ -12,6 +12,10 @@ export interface FieldBaseline {
   lenP50?: number;
   numP50?: number;
   arrayLenMax?: number;
+  /** Share of array observations whose length equals arrayLenMax (truncation signal, D9). */
+  arrayAtMaxShare?: number;
+  /** Union of salted item-id hashes seen (pagination overlap, D10). */
+  idHashes?: string[];
 }
 export interface EndpointBaseline {
   service: string; endpoint: string; method: string; statusClass: string;
@@ -23,6 +27,9 @@ export interface EndpointBaseline {
   statusCounts: Record<string, number>;
   shapes: string[];                 // distinct shape hashes seen
   headers: { sunset?: string; deprecation?: string; rateLimitLimit?: string };
+  /** Largest `limit`/`per_page` the app asked for (a request parameter, not response data). */
+  reqLimit?: number;
+  reqQueryKeys: string[];
 }
 
 const add = (into: Record<string, number>, from?: Record<string, number>) => { for (const [k, v] of Object.entries(from ?? {})) into[k] = (into[k] ?? 0) + v; };
@@ -50,6 +57,14 @@ export function buildBaselines(fps: Fingerprint[], now = Date.now(), allClasses 
       if (f.len) { b.lenP50 = ((b.lenP50 ?? 0) * (lenW[path] ?? 0) + f.len.p50 * f.n) / ((lenW[path] ?? 0) + f.n); lenW[path] = (lenW[path] ?? 0) + f.n; }
       if (f.num) { b.numP50 = ((b.numP50 ?? 0) * (numW[path] ?? 0) + f.num.p50 * f.n) / ((numW[path] ?? 0) + f.n); numW[path] = (numW[path] ?? 0) + f.n; }
       if (f.arrayLen) b.arrayLenMax = Math.max(b.arrayLenMax ?? 0, f.arrayLen.max);
+      if (f.idHashes?.length) b.idHashes = [...new Set([...(b.idHashes ?? []), ...f.idHashes])].slice(0, 500);
+    }
+    // truncation share: observations exactly at the overall max, over all observations of that array
+    for (const [path, b] of Object.entries(fields)) {
+      if (b.arrayLenMax === undefined) continue;
+      let at = 0, n = 0;
+      for (const fp of g) { const f = Object.hasOwn(fp.fields, path) ? fp.fields[path] : undefined; if (!f?.arrayLen) continue; n += f.n; if (f.arrayLen.max === b.arrayLenMax) at += f.arrayLen.atMax; }
+      b.arrayAtMaxShare = n ? Math.min(1, at / n) : 0;
     }
     for (const b of Object.values(fields)) { b.presence = Math.min(1, b.n / samples); b.nullRate = b.n ? b.nullRate / b.n : 0; }
     const statusCounts: Record<string, number> = {};
@@ -61,6 +76,8 @@ export function buildBaselines(fps: Fingerprint[], now = Date.now(), allClasses 
       ready: samples >= 200 || now - first >= 24 * 3600_000, fields,
       latencyP95: Math.max(...g.map((f) => f.latencyMs.p95)), statusCounts,
       shapes: [...new Set(g.map((f) => f.shapeHash))],
+      reqQueryKeys: [...new Set(g.flatMap((f) => f.reqQueryKeys))],
+      ...(g.some((f) => f.reqLimit !== undefined) ? { reqLimit: Math.max(...g.map((f) => f.reqLimit ?? 0)) } : {}),
       headers: { ...(hdr('sunset') ? { sunset: hdr('sunset')! } : {}), ...(hdr('deprecation') ? { deprecation: hdr('deprecation')! } : {}), ...(last.headers.rateLimitLimit ? { rateLimitLimit: last.headers.rateLimitLimit } : {}) },
     };
   });

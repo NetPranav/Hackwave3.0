@@ -19,6 +19,9 @@
         "email"
       ]
     },
+    "title": {
+      "type": "string"
+    },
     "sentAt": {
       "type": "string",
       "format": "date-time",
@@ -26,14 +29,23 @@
     },
     "ok": {
       "type": "boolean"
+    },
+    "error": {
+      "type": "string"
+    },
+    "read": {
+      "default": false,
+      "type": "boolean"
     }
   },
   "required": [
     "id",
     "driftId",
     "channel",
+    "title",
     "sentAt",
-    "ok"
+    "ok",
+    "read"
   ],
   "additionalProperties": false
 }

@@ -5,7 +5,7 @@ export type Fmt = 'email' | 'uuid' | 'prefixed_id' | 'iso_date' | 'epoch_s' | 'e
 const RE = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  prefixed: /^[a-z]{1,8}_[A-Za-z0-9]{2,}$/,
+  prefixed: /^[a-z]{1,8}_[A-Za-z0-9]+$/,
   iso: /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/,
   url: /^https?:\/\/\S+$/,
   phone: /^\+?[\d\s().-]{8,16}$/,

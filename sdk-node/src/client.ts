@@ -154,6 +154,28 @@ export class Seismo {
     } catch (e) { this.fail(e); }
   }
 
+  /**
+   * Webhook drift (P6.12): fingerprint an INBOUND provider webhook body (shape only, same privacy rules).
+   * Call it from the webhook route: `seismo.observeWebhook('payments', 'payment.captured', req.body)`. Never throws.
+   */
+  observeWebhook(provider: string, event: string, body: unknown, status = 200) {
+    try {
+      if (Math.random() >= (this.o?.sampleRate ?? 0)) return;
+      const key = `webhook:${provider}|POST|/webhooks/${event}|2xx`;
+      let w = this.windows.get(key);
+      if (!w) { w = { service: `webhook:${provider}`, method: 'POST', endpoint: `/webhooks/${event}`, statusClass: '2xx', start: Date.now(), count: 0, statuses: {}, latencies: [], headers: {}, queryKeys: new Set(), accs: new Map() }; this.windows.set(key, w); }
+      w.count++;
+      w.statuses[String(status)] = (w.statuses[String(status)] ?? 0) + 1;
+      w.latencies.push(0);
+      observe(body, w.accs, this.cfg);
+    } catch (e) { this.fail(e); }
+  }
+
+  /** Wrap a webhook handler `(body, ...rest)`: observes the body, then calls the handler unchanged. */
+  webhook<A extends unknown[], R>(provider: string, event: string, handler: (body: unknown, ...rest: A) => R): (body: unknown, ...rest: A) => R {
+    return (body, ...rest) => { this.observeWebhook(provider, event, body); return handler(body, ...rest); };
+  }
+
   /** Close the windows and send them. Retry once, then drop. Never throws. */
   async flush() {
     try {

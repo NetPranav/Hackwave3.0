@@ -10,7 +10,35 @@
     },
     "v1": {},
     "v2": {},
-    "diff": {}
+    "diff": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "type",
+              "magnitude",
+              "enum",
+              "length"
+            ]
+          },
+          "before": {},
+          "after": {}
+        },
+        "required": [
+          "path",
+          "change"
+        ],
+        "additionalProperties": false
+      }
+    }
   },
   "required": [
     "service",

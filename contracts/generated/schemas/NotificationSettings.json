@@ -10,6 +10,14 @@
         },
         "to": {
           "type": "string"
+        },
+        "minSeverity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "breaking"
+          ]
         }
       },
       "required": [
@@ -25,6 +33,14 @@
         },
         "webhookUrl": {
           "type": "string"
+        },
+        "minSeverity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "breaking"
+          ]
         }
       },
       "required": [
@@ -40,6 +56,14 @@
         },
         "webhookUrl": {
           "type": "string"
+        },
+        "minSeverity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "breaking"
+          ]
         }
       },
       "required": [
@@ -55,6 +79,14 @@
         },
         "to": {
           "type": "string"
+        },
+        "minSeverity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "breaking"
+          ]
         }
       },
       "required": [
@@ -67,6 +99,14 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "minSeverity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "breaking"
+          ]
         }
       },
       "required": [

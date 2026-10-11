@@ -1,5 +1,6 @@
 import type { AliasRule } from '@seismo/contracts';
 import type { FixDispatcher } from './drift-engine.js';
+import type { GithubIssueSink } from './alerts/dispatcher.js';
 
 /** Talks to the GitHub App service (which holds the installation tokens). */
 export function httpFixDispatcher(baseUrl = process.env.GITHUB_APP_URL, token = process.env.INTERNAL_TOKEN ?? 'dev-internal'): FixDispatcher | undefined {
@@ -12,5 +13,17 @@ export function httpFixDispatcher(baseUrl = process.env.GITHUB_APP_URL, token = 
   return {
     async existingRules(repo) { return ((await call('rules', { repo })).rules as AliasRule[]) ?? []; },
     async openPr(i) { const r = await call('fix', i); return { url: String(r['url']), number: Number(r['number']) }; },
+  };
+}
+
+/** GitHub issues go through the GitHub App service too (it holds the installation tokens). */
+export function httpIssueSink(baseUrl = process.env.GITHUB_APP_URL, token = process.env.INTERNAL_TOKEN ?? 'dev-internal'): GithubIssueSink | undefined {
+  if (!baseUrl) return undefined;
+  return {
+    async upsertIssue(i) {
+      const r = await fetch(`${baseUrl}/internal/issue`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': token }, body: JSON.stringify(i), signal: AbortSignal.timeout(30000) });
+      if (!r.ok) throw new Error(`github-app issue: ${r.status} ${await r.text()}`);
+      return { url: String(((await r.json()) as { url?: string }).url ?? '') };
+    },
   };
 }

@@ -176,3 +176,28 @@ describe('capture coverage (regression: keep-alive sockets opened before init)',
     expect(globalThis.fetch).toBe(original);
   });
 });
+
+describe('short prefixed ids', () => {
+  it('o_1 / u_7 are ids, in_transit is an enum candidate', () => {
+    expect(formatOf('o_1')).toBe('prefixed_id');
+    expect(formatOf('u_7')).toBe('prefixed_id');
+    expect(formatOf('in_transit')).toBe('enum_candidate');
+  });
+});
+
+describe('webhook drift (P6.12)', () => {
+  it('inbound webhook bodies are fingerprinted as service webhook:<provider>, values never sent', async () => {
+    received.length = 0; rawBodies.length = 0;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, enumAllowList: ['event'] });
+    let handled = 0;
+    const onCaptured = s.webhook('payments', 'payment.captured', (body: unknown) => { handled++; return (body as { amount: number }).amount; });
+    for (let i = 0; i < 6; i++) expect(onCaptured({ event: 'payment.captured', payment_id: `pay_${i}`, amount: 49900 + i * 1000, customer_email: 'priya@example.com' })).toBe(49900 + i * 1000);
+    await s.flush();
+    s.stop();
+    expect(handled).toBe(6);
+    const fp = received.find((r) => (r as { service: string }).service === 'webhook:payments') as { endpoint: string; fields: Record<string, unknown> };
+    expect(fp.endpoint).toBe('/webhooks/payment.captured');
+    expect(Object.keys(fp.fields).sort()).toEqual(['amount', 'customer_email', 'event', 'payment_id']);
+    expect(rawBodies.join('')).not.toMatch(/priya@example.com|pay_3|49900/);
+  });
+});

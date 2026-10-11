@@ -1,6 +1,6 @@
 import type { AliasRule, CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
-import { runDetectors, runStatusMixDetectors, type Finding } from './detectors/index.js';
+import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
 import { pathFor, planAlias, type CheckResult } from './planner.js';
 import { score, usagesFor } from './severity.js';
@@ -10,6 +10,7 @@ export interface EngineOptions {
   baselineMs: number;        // history before the window
   minBaselineSamples: number;
   confirmRuns: number;       // consecutive runs a finding must persist before it is confirmed
+  ctx?: Partial<Ctx>;        // detector thresholds (tests and demos use smaller sample sizes)
 }
 export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24 * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
 
@@ -46,6 +47,14 @@ export class DriftEngine {
     return undefined;
   }
 
+  /** Attach data produced outside detection (AI explanation). */
+  attach(id: string, patch: Partial<DriftEvent>) {
+    for (const t of this.events.values()) if (t.event.id === id) t.event = { ...t.event, ...patch };
+  }
+
+  /** Repo whose code uses this service (for issues and PRs). */
+  get(id: string) { for (const t of this.events.values()) if (t.event.id === id) return t.event; return undefined; }
+
   setState(id: string, state: DriftState) {
     for (const t of this.events.values()) if (t.event.id === id) t.event = { ...t.event, state };
   }
@@ -63,12 +72,12 @@ export class DriftEngine {
     const ctxOf = new Map<Finding, { base: ReturnType<typeof buildBaselines>[number]; win: ReturnType<typeof buildBaselines>[number] }>();
     for (const w of wins) {
       const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === w.statusClass);
-      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w)) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
+      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
     const basesAll = buildBaselines(baseFps, now, true);
     for (const w of buildBaselines(winFps, now, true)) {
       const b = basesAll.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint);
-      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runStatusMixDetectors(b, w)) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
+      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runStatusMixDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
 
     const changed: DriftEvent[] = [];
@@ -88,6 +97,7 @@ export class DriftEngine {
         ...(f.field ? { field: f.field } : {}), detector: f.detector, title: f.title, severity: s.label, state, confidence: f.confidence,
         detectedAt: prev?.event.detectedAt ?? new Date(now).toISOString(), before: f.evidence.before, after: f.evidence.after,
         usages: usages.map((u) => ({ file: u.file, line: u.line, kind: u.money ? `${u.kind}+money` : u.kind })),
+        ...(prev?.event.explanation ? { explanation: prev.event.explanation } : {}),
         ...(f.rung === 'alias' && f.rename ? { fix: { rung: 'alias' as const, rule: { kind: 'alias' as const, endpoint: `${f.method} ${f.endpoint}`, path: pathFor(f.rename.from), source: f.rename.to.slice(f.rename.to.lastIndexOf('.') + 1), target: f.rename.from.slice(f.rename.from.lastIndexOf('.') + 1) } } } : {}),
       };
       let tracked: Tracked = { event, runs, lastSeen: now, dispatched: prev?.dispatched, reviewReason: prev?.reviewReason };

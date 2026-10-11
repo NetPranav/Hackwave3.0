@@ -9,11 +9,16 @@ type FieldRead = CodeMap['fieldReads'][number];
 type Usage = FieldRead['usage'];
 
 export interface ScanOptions { repo: string; commit: string }
-interface Config { services?: Record<string, string>; ignore?: string[] }
+interface Config { services?: Record<string, string>; ignore?: string[]; passThrough?: string[] }
 
 const MONEY = /amount|price|total|fee|tax|cost|rupees|paise|balance/i;
 const HTTP = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'request']);
+/** Methods called ON a value: the read is the value itself (`amount.toFixed(2)` reads `amount`). */
+const VALUE_METHODS = new Set(['toLocaleString', 'toFixed', 'toString', 'toLowerCase', 'toUpperCase', 'trim', 'includes', 'startsWith', 'endsWith', 'split', 'replace', 'padStart', 'valueOf']);
+const SAME_ARRAY = new Set(['slice', 'sort', 'reverse', 'toSorted', 'toReversed', 'concat', 'flat']);
 const ITER = new Set(['map', 'forEach', 'filter', 'find', 'some', 'every', 'flatMap', 'reduce']);
+/** Functions that return their first argument unchanged in meaning (Seismo's alias wrappers + project config). */
+const PASS_THROUGH = new Set(['applyAliases', 'withAliases']);
 const DB_CALL = /(^|\.)(db|prisma|sql|knex|redis|repo|repository|collection|model)\b|\.(insert|save|create|update|upsert|query|execute|set)$/i;
 
 /** Scan a checked-out repo directory into a CodeMap (docs/roadmap/P2). Pure: no network, no LLM. */
@@ -22,6 +27,7 @@ export function scanDirectory(dir: string, opts: ScanOptions): CodeMap {
   const project = new Project({ compilerOptions: { allowJs: true, jsx: 4 }, skipAddingFilesFromTsConfig: true, skipFileDependencyResolution: true });
   project.addSourceFilesAtPaths([join(dir, '**/*.{ts,tsx,js,jsx,mjs}'), '!' + join(dir, '**/node_modules/**'), '!' + join(dir, '**/.next/**'), '!' + join(dir, '**/dist/**'), '!' + join(dir, '**/*.test.*')]);
 
+  const passThrough = new Set([...PASS_THROUGH, ...(config.passThrough ?? [])]);
   const callSites: CallSite[] = [];
   const fieldReads: FieldRead[] = [];
   const seen = new Set<string>();
@@ -67,7 +73,13 @@ export function scanDirectory(dir: string, opts: ScanOptions): CodeMap {
         }
         return;
       }
+      // orders.slice(0, 20) / .sort() return the same items: keep following the array
+      if (SAME_ARRAY.has(name) && Node.isCallExpression(parent.getParent()) && (parent.getParent() as CallExpression).getExpression() === parent) {
+        readFrom(cs, parent.getParent()!, prefix, depth, visited);
+        return;
+      }
       if (name === 'length' || name === 'then') return;
+      if (prefix && VALUE_METHODS.has(name) && Node.isCallExpression(parent.getParent())) { addRead(cs, prefix, parent.getParent()!); return; }
       readFrom(cs, parent, path, depth, visited);
       return;
     }
@@ -97,10 +109,16 @@ export function scanDirectory(dir: string, opts: ScanOptions): CodeMap {
       followCallers(cs, fn, prefix, depth + 1, visited);
       return;
     }
+    // applyAliases(data, ...) / withAliases(data, ...) -> the result IS the data
+    if (Node.isCallExpression(parent) && parent.getArguments()[0] === node && passThrough.has(parent.getExpression().getText().split('.').pop()!)) {
+      readFrom(cs, parent, prefix, depth, visited);
+      return;
+    }
     // helper(data)  -> follow into the callee's parameter (one level)
     if (Node.isCallExpression(parent) && parent.getArguments().includes(node as never) && depth < 2) {
       const idx = parent.getArguments().indexOf(node as never);
-      const decl = parent.getExpression().getSymbol()?.getDeclarations()[0];
+      const sym = parent.getExpression().getSymbol();
+      const decl = (sym?.isAlias() ? sym.getAliasedSymbol() : sym)?.getDeclarations()[0];   // follow imports to the real function
       const fn = decl && (Node.isFunctionDeclaration(decl) ? decl : Node.isVariableDeclaration(decl) ? decl.getInitializer() : undefined);
       if (fn && (Node.isFunctionDeclaration(fn) || Node.isArrowFunction(fn) || Node.isFunctionExpression(fn))) {
         const p = fn.getParameters()[idx]?.getNameNode();

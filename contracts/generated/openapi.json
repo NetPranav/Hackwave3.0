@@ -682,14 +682,65 @@
                       "explanation": {
                         "type": "object",
                         "properties": {
+                          "title": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 120
+                          },
                           "summary": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 10,
+                            "maxLength": 600
                           },
                           "impact": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 400
                           },
-                          "suggestion": {
-                            "type": "string"
+                          "recommendation": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 400
+                          },
+                          "risk": {
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
+                          },
+                          "channels": {
+                            "type": "object",
+                            "properties": {
+                              "whatsapp": {
+                                "type": "string",
+                                "minLength": 10,
+                                "maxLength": 300
+                              },
+                              "slack": {
+                                "type": "string",
+                                "minLength": 10,
+                                "maxLength": 1500
+                              },
+                              "emailSubject": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 140
+                              },
+                              "emailBody": {
+                                "type": "string",
+                                "minLength": 10,
+                                "maxLength": 3000
+                              }
+                            },
+                            "required": [
+                              "whatsapp",
+                              "slack",
+                              "emailSubject",
+                              "emailBody"
+                            ],
+                            "additionalProperties": false
                           },
                           "confidence": {
                             "type": "number",
@@ -708,12 +759,41 @@
                               "ai",
                               "template"
                             ]
+                          },
+                          "judgement": {
+                            "type": "object",
+                            "properties": {
+                              "choice": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "choice",
+                              "confidence",
+                              "reason"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
+                          "title",
                           "summary",
                           "impact",
-                          "suggestion",
+                          "recommendation",
+                          "risk",
+                          "channels",
                           "confidence",
                           "model",
                           "latencyMs",
@@ -1026,14 +1106,65 @@
                           "explanation": {
                             "type": "object",
                             "properties": {
+                              "title": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 120
+                              },
                               "summary": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 10,
+                                "maxLength": 600
                               },
                               "impact": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 400
                               },
-                              "suggestion": {
-                                "type": "string"
+                              "recommendation": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 400
+                              },
+                              "risk": {
+                                "type": "string",
+                                "enum": [
+                                  "low",
+                                  "medium",
+                                  "high"
+                                ]
+                              },
+                              "channels": {
+                                "type": "object",
+                                "properties": {
+                                  "whatsapp": {
+                                    "type": "string",
+                                    "minLength": 10,
+                                    "maxLength": 300
+                                  },
+                                  "slack": {
+                                    "type": "string",
+                                    "minLength": 10,
+                                    "maxLength": 1500
+                                  },
+                                  "emailSubject": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 140
+                                  },
+                                  "emailBody": {
+                                    "type": "string",
+                                    "minLength": 10,
+                                    "maxLength": 3000
+                                  }
+                                },
+                                "required": [
+                                  "whatsapp",
+                                  "slack",
+                                  "emailSubject",
+                                  "emailBody"
+                                ],
+                                "additionalProperties": false
                               },
                               "confidence": {
                                 "type": "number",
@@ -1052,12 +1183,41 @@
                                   "ai",
                                   "template"
                                 ]
+                              },
+                              "judgement": {
+                                "type": "object",
+                                "properties": {
+                                  "choice": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 80
+                                  },
+                                  "confidence": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  },
+                                  "reason": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 200
+                                  }
+                                },
+                                "required": [
+                                  "choice",
+                                  "confidence",
+                                  "reason"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
+                              "title",
                               "summary",
                               "impact",
-                              "suggestion",
+                              "recommendation",
+                              "risk",
+                              "channels",
                               "confidence",
                               "model",
                               "latencyMs",
@@ -1200,6 +1360,9 @@
                       "suggestion": {
                         "type": "string"
                       },
+                      "reason": {
+                        "type": "string"
+                      },
                       "status": {
                         "type": "string",
                         "enum": [
@@ -1301,7 +1464,35 @@
                     },
                     "v1": {},
                     "v2": {},
-                    "diff": {}
+                    "diff": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "change": {
+                            "type": "string",
+                            "enum": [
+                              "added",
+                              "removed",
+                              "type",
+                              "magnitude",
+                              "enum",
+                              "length"
+                            ]
+                          },
+                          "before": {},
+                          "after": {}
+                        },
+                        "required": [
+                          "path",
+                          "change"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
                   },
                   "required": [
                     "service",
@@ -1336,7 +1527,138 @@
                     "type": "string"
                   },
                   "scenario": {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "rename"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "remove"
+                          },
+                          "field": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "type"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string",
+                            "enum": [
+                              "string",
+                              "number",
+                              "boolean",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "units"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "factor": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field",
+                          "factor"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "enum"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "limit"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "max": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "field",
+                          "max"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -1358,6 +1680,9 @@
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "type": "object",
                   "properties": {
+                    "detector": {
+                      "type": "string"
+                    },
                     "affected": {
                       "type": "array",
                       "items": {
@@ -1401,11 +1726,24 @@
                         "transform",
                         "behaviour"
                       ]
+                    },
+                    "workflows": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "explanation": {
+                      "type": "string"
                     }
                   },
                   "required": [
+                    "detector",
                     "affected",
-                    "severity"
+                    "severity",
+                    "fixRung",
+                    "workflows",
+                    "explanation"
                   ],
                   "additionalProperties": false
                 }
@@ -1436,6 +1774,14 @@
                         },
                         "to": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1451,6 +1797,14 @@
                         },
                         "webhookUrl": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1466,6 +1820,14 @@
                         },
                         "webhookUrl": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1481,6 +1843,14 @@
                         },
                         "to": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1493,6 +1863,14 @@
                       "properties": {
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1546,6 +1924,14 @@
                       },
                       "to": {
                         "type": "string"
+                      },
+                      "minSeverity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "breaking"
+                        ]
                       }
                     },
                     "required": [
@@ -1561,6 +1947,14 @@
                       },
                       "webhookUrl": {
                         "type": "string"
+                      },
+                      "minSeverity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "breaking"
+                        ]
                       }
                     },
                     "required": [
@@ -1576,6 +1970,14 @@
                       },
                       "webhookUrl": {
                         "type": "string"
+                      },
+                      "minSeverity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "breaking"
+                        ]
                       }
                     },
                     "required": [
@@ -1591,6 +1993,14 @@
                       },
                       "to": {
                         "type": "string"
+                      },
+                      "minSeverity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "breaking"
+                        ]
                       }
                     },
                     "required": [
@@ -1603,6 +2013,14 @@
                     "properties": {
                       "enabled": {
                         "type": "boolean"
+                      },
+                      "minSeverity": {
+                        "type": "string",
+                        "enum": [
+                          "info",
+                          "warning",
+                          "breaking"
+                        ]
                       }
                     },
                     "required": [
@@ -1653,6 +2071,14 @@
                         },
                         "to": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1668,6 +2094,14 @@
                         },
                         "webhookUrl": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1683,6 +2117,14 @@
                         },
                         "webhookUrl": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1698,6 +2140,14 @@
                         },
                         "to": {
                           "type": "string"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [
@@ -1710,6 +2160,14 @@
                       "properties": {
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "minSeverity": {
+                          "type": "string",
+                          "enum": [
+                            "info",
+                            "warning",
+                            "breaking"
+                          ]
                         }
                       },
                       "required": [

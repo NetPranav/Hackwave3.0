@@ -2,8 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { requireUser, signUserToken, userFrom } from './auth.js';
 import {
-  mockDrift, mockGraph, mockMe, mockNotificationSettings, mockOverview, mockRadar, mockReview, mockStatus,
-  CodeMap, Fingerprint, NotificationSettings,
+  mockDrift, mockGraph, mockMe, mockOverview, mockRadar, mockReview, mockStatus,
+  CodeMap, Fingerprint, NotificationSettings, ReviewAction, SimulateRequest, type DriftEvent,
 } from '@seismo/contracts';
 import { buildGraph, coverage, impact, statesFromEvents } from './graph.js';
 import { memoryStore, type CodeMapStore } from './codemap-store.js';
@@ -12,23 +12,65 @@ import { buildBaselines } from './baseline.js';
 import { buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
 import { DriftEngine, type FixDispatcher } from './drift-engine.js';
-import { httpFixDispatcher } from './fix-dispatcher.js';
+import { httpFixDispatcher, httpIssueSink } from './fix-dispatcher.js';
+import { AiService } from './ai/service.js';
+import { suggestionFor } from './ai/templates.js';
+import { Dispatcher } from './alerts/dispatcher.js';
+import { memorySettings, type SettingsStore } from './settings-store.js';
+import { compare, simulate } from './compare.js';
+
+export interface AppOptions {
+  store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher; mocks?: boolean;
+  ai?: AiService; dispatcher?: Dispatcher; settings?: SettingsStore;
+  /** How long an alert waits for the AI text before sending the template (the dashboard gets the AI text when it arrives). */
+  alertAiWaitMs?: number;
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Real data everywhere. Contract-shaped mock data is returned ONLY when SEISMO_MOCKS=1 (dashboard development without an engine);
  * otherwise an empty system answers with empty results, never with invented drift.
  */
-export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher; mocks?: boolean } = {}) {
+export function buildApp(opts: AppOptions = {}) {
   const mocks = opts.mocks ?? process.env.SEISMO_MOCKS === '1';
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
   const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all(), undefined, opts.fixer ?? httpFixDispatcher());
   const sseClients = new Set<(event: string, data: unknown) => void>();
+  const broadcast = (event: string, data: unknown) => { for (const send of sseClients) { try { send(event, data); } catch { /* closed client */ } } };
+  const settingsStore = opts.settings ?? memorySettings();
+  const ai = opts.ai ?? new AiService({ cacheFile: process.env.AI_CACHE_FILE });
+  const dispatcher = opts.dispatcher ?? new Dispatcher({ settings: () => settingsStore.get(), github: httpIssueSink(), dashboardUrl: process.env.DASHBOARD_URL, onNotification: (n) => broadcast('notification', n) });
+  const alertWait = opts.alertAiWaitMs ?? Number(process.env.ALERT_AI_WAIT_MS ?? 8000);
+  const repoFor = async (service: string) => (await store.all()).flatMap((m) => m.callSites).find((c) => c.service === service && !c.unresolved)?.repo;
+
+  /**
+   * After every detection pass (P6): SSE, template explanation at once, AI explanation (waited for up to `alertWait`),
+   * alerts on every channel, then the full AI text + enum judgement attached when it arrives. Never throws.
+   */
+  async function afterDetect(changed: DriftEvent[]) {
+    for (const e of changed) {
+      try {
+        broadcast(e.state === 'suspected' || e.state === 'normal' ? 'drift.created' : 'drift.updated', e);
+        if (e.severity === 'info' && e.state !== 'resolved') continue;
+        const s = await settingsStore.get();
+        const tpl = ai.template(e);
+        if (!engine.get(e.id)?.explanation) engine.attach(e.id, { explanation: tpl });
+        const aiP = s.aiEnabled ? ai.explain(e) : Promise.resolve(tpl);
+        const judgeP = s.aiEnabled ? ai.judgeEnum(e) : Promise.resolve(undefined);
+        const x = await Promise.race([aiP, sleep(alertWait).then(() => tpl)]);
+        await dispatcher.dispatch(engine.get(e.id) ?? e, x, await repoFor(e.service));
+        void Promise.all([aiP, judgeP]).then(([full, judgement]) => {
+          engine.attach(e.id, { explanation: { ...full, ...(judgement ? { judgement } : {}) } });
+          const ev = engine.get(e.id);
+          if (ev) broadcast('drift.updated', ev);
+        }).catch(() => undefined);
+      } catch (err) { app.log.error({ err, event: e.id }, 'post-detection pipeline failed'); }
+    }
+  }
   const app = Fastify({ logger: process.env.NODE_ENV === 'test' ? false : { level: 'info' } });
   app.register(cors, { origin: true });
-
-  let notif = mockNotificationSettings();
 
   // SDK batches arrive gzipped.
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body: Buffer, done) => {
@@ -82,7 +124,7 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
     const { ruleId, merged } = req.body as { ruleId: string; merged: boolean };
     const ev = engine.resolveByRule(ruleId, !!merged);
-    if (ev) for (const send of sseClients) send('drift.updated', ev);
+    if (ev) await afterDetect([ev]);            // closes the GitHub issue, updates the dashboard
     return { ok: !!ev };
   });
   // The GitHub App posts finished scans here (service-to-service, shared secret).
@@ -120,18 +162,58 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
   app.post('/internal/detect', async (req, reply) => {
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
     const changed = await engine.run();
-    for (const e of changed) for (const send of sseClients) send(e.state === 'suspected' || e.state === 'normal' ? 'drift.created' : 'drift.updated', e);
+    await afterDetect(changed);
     return { changed: changed.length };
   });
   app.get('/v1/radar', async () => (mocks ? mockRadar() : []));   // radar arrives in P7
+  // Review queue (P6.6): every non-alias event, with the deterministic suggestion and the AI explanation if present.
   app.get('/v1/review', async () => {
     const q = engine.reviewQueue();
-    return q.length ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: reason, status: 'open' as const })) : mocks ? mockReview() : [];
+    return q.length || !mocks ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: suggestionFor(event), reason, status: 'open' as const })) : mockReview();
   });
-  app.post('/v1/review', async () => ({ ok: true }));
-  app.get('/v1/settings/notifications', async () => notif);
-  app.put('/v1/settings/notifications', async (req) => { notif = NotificationSettings.parse(req.body); return notif; });
-  app.post('/v1/notifications/test', async () => ({ ok: true }));
+  app.post('/v1/review', async (req, reply) => {
+    const parsed = ReviewAction.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_request', message: parsed.error.message });
+    const id = parsed.data.id.replace(/^rev-/, '');
+    if (!engine.get(id)) return reply.code(404).send({ error: 'unknown_event' });
+    if (parsed.data.action === 'open_pr') return reply.code(501).send({ error: 'not_available', message: 'Suggestion PRs for non-alias changes (P5.10) are not built; change the code by hand.' });
+    engine.setState(id, parsed.data.action === 'expected' ? 'expected' : 'snoozed');
+    broadcast('drift.updated', engine.get(id));
+    return { ok: true };
+  });
+  // Notification settings (P6.13) + bell (P6.7)
+  app.get('/v1/settings/notifications', async () => settingsStore.get());
+  app.put('/v1/settings/notifications', async (req, reply) => {
+    const parsed = NotificationSettings.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_settings', message: parsed.error.message });
+    return settingsStore.put(parsed.data);
+  });
+  app.post('/v1/notifications/test', async () => ({ sent: await dispatcher.test() }));
+  app.get('/v1/notifications', async () => dispatcher.log);
+  app.post('/v1/notifications/read', async (req) => {
+    const ids = new Set(((req.body ?? {}) as { ids?: string[] }).ids ?? dispatcher.log.map((n) => n.id));
+    for (const n of dispatcher.log) if (ids.has(n.id)) n.read = true;
+    return { ok: true };
+  });
+  // Compare & Simulate (P6.10)
+  app.get('/v1/compare', async (req, reply) => {
+    const { service, endpoint } = req.query as { service?: string; endpoint?: string };
+    if (!service || !endpoint) return reply.code(400).send({ error: 'bad_request', message: 'service and endpoint (e.g. "GET /users/{id}") are required' });
+    return compare(await ingestStore.since('dev', Date.now() - 24 * 3600_000), service, endpoint);
+  });
+  app.post('/v1/simulate', async (req, reply) => {
+    const parsed = SimulateRequest.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_request', message: parsed.error.message });
+    return simulate(parsed.data, await store.all());
+  });
+  // P6.11: explain the demo scenarios once so the stage demo never waits on the model.
+  app.post('/internal/ai/warm', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const events = ((req.body ?? {}) as { events?: DriftEvent[] }).events ?? engine.list();
+    const out = [];
+    for (const e of events) { const x = await ai.explain(e); out.push({ id: e.id, source: x.source, model: x.model, latencyMs: x.latencyMs }); }
+    return { warmed: out };
+  });
 
   app.post('/v1/ingest', async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
@@ -158,6 +240,8 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     req.raw.on('close', () => { clearInterval(t); sseClients.delete(send); });
   });
   (app as unknown as { engine: DriftEngine }).engine = engine;
-  app.decorate('detectNow', async () => { const changed = await engine.run(); for (const e of changed) for (const send of sseClients) send('drift.updated', e); return changed; });
+  (app as unknown as { dispatcher: Dispatcher; ai: AiService }).dispatcher = dispatcher;
+  (app as unknown as { dispatcher: Dispatcher; ai: AiService }).ai = ai;
+  app.decorate('detectNow', async () => { const changed = await engine.run(); await afterDetect(changed); return changed; });
   return app;
 }

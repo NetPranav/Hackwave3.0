@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 600
+    },
+    "impact": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 400
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 400
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "channels": {
+      "type": "object",
+      "properties": {
+        "whatsapp": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 300
+        },
+        "slack": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1500
+        },
+        "emailSubject": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 140
+        },
+        "emailBody": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 3000
+        }
+      },
+      "required": [
+        "whatsapp",
+        "slack",
+        "emailSubject",
+        "emailBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "title",
+    "summary",
+    "impact",
+    "recommendation",
+    "risk",
+    "channels"
+  ],
+  "additionalProperties": false
+}

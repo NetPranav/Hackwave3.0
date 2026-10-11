@@ -17,6 +17,9 @@ import { buildApp } from '../src/app.js';
 import { memoryStore } from '../src/codemap-store.js';
 import { memoryIngest } from '../src/ingest-store.js';
 import { DriftEngine } from '../src/drift-engine.js';
+import { Dispatcher } from '../src/alerts/dispatcher.js';
+import { memorySettings } from '../src/settings-store.js';
+import http from 'node:http';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const WINDOW_MS = 2500;
@@ -25,6 +28,9 @@ const ADMIN = { 'x-admin-token': 'dev-admin', 'content-type': 'application/json'
 const INTERNAL = { 'x-internal-token': 'dev-internal' };
 
 let svcUrl = '';
+let sinkUrl = '';
+let sink: http.Server;
+const sunk: { path: string; body: string }[] = [];
 let services: ReturnType<typeof buildServices>;
 const codeMap = scanDirectory(fileURLToPath(new URL('../../github-app/test/fixtures/shop', import.meta.url)), { repo: 'demo/shop', commit: 'e2e' });
 const results: Record<string, unknown> = {};
@@ -32,10 +38,15 @@ const results: Record<string, unknown> = {};
 beforeAll(async () => {
   services = buildServices();
   await services.listen({ port: 0, host: '127.0.0.1' });
+  // plays Twilio, Resend, Slack and Discord
+  sink = http.createServer((q, r) => { let b = ''; q.on('data', (c) => (b += c)); q.on('end', () => { sunk.push({ path: q.url ?? '', body: b }); r.end('{}'); }); }).listen(0, '127.0.0.1');
+  await new Promise((r) => sink.once('listening', r));
+  sinkUrl = `http://127.0.0.1:${(sink.address() as AddressInfo).port}`;
   svcUrl = `http://127.0.0.1:${(services.server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
   await services.close();
+  sink.close();
   writeFileSync(new URL('./e2e-results.json', import.meta.url), JSON.stringify(results, null, 2) + '\n');
 });
 
@@ -58,8 +69,11 @@ async function runScenario(scenario: string | null) {
   const store = memoryStore(), ingest = memoryIngest();
   const prs: unknown[] = [];
   const fixer = { existingRules: async () => [], openPr: async (i: unknown) => { prs.push(i); return { url: 'https://github.com/demo/shop/pull/1', number: 1 }; } };
-  const engine = new DriftEngine(ingest, () => store.all(), { windowMs: WINDOW_MS, baselineMs: 3600_000, minBaselineSamples: 30, confirmRuns: 2 }, fixer);
-  const app = buildApp({ store, ingest, engine });
+  const engine = new DriftEngine(ingest, () => store.all(), { windowMs: WINDOW_MS, baselineMs: 3600_000, minBaselineSamples: 30, confirmRuns: 2, ctx: { minEnumSamples: 50 } }, fixer);
+  const settings = memorySettings({ whatsapp: { enabled: true, to: '+919800000000' }, slack: { enabled: true, webhookUrl: `${sinkUrl}/slack` }, discord: { enabled: false }, email: { enabled: true, to: 'lead@example.com' }, github: { enabled: true }, minSeverity: 'warning', aiEnabled: false });
+  const issues: { eventId: string; state: string }[] = [];
+  const dispatcher = new Dispatcher({ settings: () => settings.get(), twilio: { accountSid: 'AC1', authToken: 't', from: 'whatsapp:+14155238886', baseUrl: sinkUrl }, resend: { apiKey: 're', baseUrl: sinkUrl }, github: { upsertIssue: async (i) => { issues.push(i); return { url: 'u' }; } } });
+  const app = buildApp({ store, ingest, engine, settings, dispatcher, alertAiWaitMs: 0 });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const api = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
   const sdk = new Seismo().init({
@@ -87,7 +101,8 @@ async function runScenario(scenario: string | null) {
     const graph = (await (await fetch(`${api}/v1/graph`)).json()) as Graph;
     const status = (await (await fetch(`${api}/v1/status`)).json()) as { services: { service: string; state: string }[] };
     const overview = await (await fetch(`${api}/v1/overview`)).json();
-    return { firstRun, events, prs, review, graph, status, overview, api, engine, sdk };
+    const notifications = dispatcher.log.map((n) => ({ channel: n.channel, driftId: n.driftId, ok: n.ok }));
+    return { firstRun, events, prs, review, graph, status, overview, api, engine, sdk, notifications, issues };
   } finally {
     sdk.stop();
     await app.close();
@@ -98,7 +113,9 @@ const summary = (r: Awaited<ReturnType<typeof runScenario>>) => ({
   events: r.events.map((e) => ({ detector: e.detector, endpoint: e.endpoint, field: e.field, title: e.title, severity: e.severity, state: e.state, usages: e.usages.length })),
   prsOpened: r.prs.length,
   prRule: (r.prs[0] as { rule?: unknown } | undefined)?.rule,
-  reviewQueue: r.review.filter((x) => x.drift.id.startsWith('drift-')).map((x) => ({ detector: x.drift.detector, field: x.drift.field, reason: x.suggestion })),
+  reviewQueue: r.review.filter((x) => x.drift.id.startsWith('drift-')).map((x) => ({ detector: x.drift.detector, field: x.drift.field, suggestion: x.suggestion, explanation: x.drift.explanation?.source })),
+  alerts: r.notifications.map((n) => `${n.channel}${n.ok ? '' : ' (failed)'}`),
+  githubIssues: r.issues.map((i) => i.state),
   redGraphNodes: r.graph.nodes.filter((n) => n.state !== 'normal').map((n) => `${n.id} (${n.state})`),
 });
 
@@ -112,6 +129,7 @@ describe('E2E: every demo scenario through the whole pipeline', () => {
     results['none (soak)'] = summary(r);
     expect(r.events).toEqual([]);
     expect(r.prs).toEqual([]);
+    expect(r.notifications).toEqual([]);                                                          // no alert noise
     expect(r.graph.nodes.every((n) => n.state === 'normal')).toBe(true);
   });
 
@@ -128,6 +146,7 @@ describe('E2E: every demo scenario through the whole pipeline', () => {
     expect(r.graph.nodes.find((n) => n.id === 'f:users:/users/{id}:name')?.state).toBe('fix_pending');
     expect(r.graph.nodes.find((n) => n.id === 'wf:checkout')?.state).not.toBe('normal');       // the path to Checkout is coloured
     expect(r.status.services.find((s) => s.service === 'users')?.state).toBe('fix_pending');
+    expect(r.issues.map((i) => i.state)).toContain('fix_pending');                              // GitHub issue links the PR
   });
 
   it('users-error-shape: D11 error shape change -> review, no PR', async () => {
@@ -152,21 +171,42 @@ describe('E2E: every demo scenario through the whole pipeline', () => {
     expect(r.prs).toHaveLength(0);
   });
 
-  it('orders-cursor: page/total vanish, next_cursor appears -> reported, never an alias PR', async () => {
+  it('orders-cursor: D10 pagination change -> reported, never an alias PR', async () => {
     const r = await runScenario('orders-cursor');
     results['orders-cursor'] = summary(r);
+    expect(r.events.find((e) => e.detector === 'D10')?.title).toContain('next_cursor');
     expect(r.prs).toHaveLength(0);
   });
 
-  // The three meaning changes belong to P6 (D5 unit, D7 enum, D9 truncation). Today they must at least
-  // never produce an automatic PR; what IS detected is recorded honestly in e2e-results.json.
-  for (const s of ['payments-paise', 'shipping-enum', 'orders-limit-cap']) {
-    it(`${s}: no automatic PR (meaning detector arrives in P6)`, async () => {
-      const r = await runScenario(s);
-      results[s] = summary(r);
-      expect(r.prs).toHaveLength(0);
-    });
-  }
+  it('payments-paise: D5 unit change ×100 on a money field -> breaking review, WhatsApp + email + Slack + GitHub issue, NO PR', async () => {
+    const r = await runScenario('payments-paise');
+    results['payments-paise'] = summary(r);
+    const d5 = r.events.filter((e) => e.detector === 'D5' && e.field === 'amount');
+    expect(d5.length).toBeGreaterThan(0);
+    expect(d5.every((e) => e.title === 'Unit change: amount ×100' && e.severity === 'breaking')).toBe(true);
+    expect(r.prs).toHaveLength(0);
+    expect(r.review.find((x) => x.drift.detector === 'D5')!.suggestion).toContain('divide amount by 100');
+    expect(r.notifications.map((n) => n.channel)).toEqual(expect.arrayContaining(['whatsapp', 'email', 'slack', 'github', 'dashboard']));
+    expect(r.events.find((e) => e.detector === 'D5')!.explanation?.source).toBe('template');      // AI off in this run: template
+  });
+
+  it('shipping-enum: D7 new status value partially_shipped -> review, no PR', async () => {
+    const r = await runScenario('shipping-enum');
+    results['shipping-enum'] = summary(r);
+    const d7 = r.events.find((e) => e.detector === 'D7')!;
+    expect(d7.title).toBe('New status value: partially_shipped');
+    expect(d7.usages.length).toBeGreaterThan(0);                // the checkout branch reads status
+    expect(r.prs).toHaveLength(0);
+  });
+
+  it('orders-limit-cap: D9 silent truncation "asked 500, got exactly 100" -> review with the paginate template, no PR', async () => {
+    const r = await runScenario('orders-limit-cap');
+    results['orders-limit-cap'] = summary(r);
+    const d9 = r.events.find((e) => e.detector === 'D9')!;
+    expect(d9.title).toBe('Silent truncation: asked 500, got exactly 100 in 100% of calls');
+    expect(r.review.find((x) => x.drift.detector === 'D9')!.suggestion).toContain('Request pages until');
+    expect(r.prs).toHaveLength(0);
+  });
 
   it('fix merged -> event resolved -> graph and status turn green again', async () => {
     const r = await runScenario('users-rename');

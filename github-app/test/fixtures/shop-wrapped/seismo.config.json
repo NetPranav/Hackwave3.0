@@ -1,0 +1,9 @@
+{
+  "services": {
+    "USERS_API_URL": "users",
+    "PAYMENTS_API_URL": "payments",
+    "SHIPPING_API_URL": "shipping",
+    "ORDERS_API_URL": "orders"
+  },
+  "enumAllowList": ["status", "currency"]
+}

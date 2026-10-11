@@ -2,6 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "detector": {
+      "type": "string"
+    },
     "affected": {
       "type": "array",
       "items": {
@@ -45,11 +48,24 @@
         "transform",
         "behaviour"
       ]
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "explanation": {
+      "type": "string"
     }
   },
   "required": [
+    "detector",
     "affected",
-    "severity"
+    "severity",
+    "fixRung",
+    "workflows",
+    "explanation"
   ],
   "additionalProperties": false
 }

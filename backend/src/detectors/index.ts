@@ -1,5 +1,6 @@
 import { distance } from 'fastest-levenshtein';
 import type { EndpointBaseline, FieldBaseline } from '../baseline.js';
+import { runMeaningDetectors } from './meaning.js';
 
 export interface Finding {
   detector: string;                 // D1..D17
@@ -14,8 +15,9 @@ export interface Finding {
   exposure: number;
 }
 
-export interface Ctx { minSamples: number }
-export const DEFAULT_CTX: Ctx = { minSamples: 20 };
+/** minSamples: window size before shape detectors speak; minEnumSamples: baseline size before a field counts as an enum (D7/D8). */
+export interface Ctx { minSamples: number; minEnumSamples: number }
+export const DEFAULT_CTX: Ctx = { minSamples: 20, minEnumSamples: 200 };
 type Detector = (base: EndpointBaseline, win: EndpointBaseline, ctx: Ctx) => Finding[];
 
 const where = (b: EndpointBaseline) => ({ service: b.service, method: b.method, endpoint: b.endpoint });
@@ -185,7 +187,7 @@ export function runDetectors(base: EndpointBaseline, win: EndpointBaseline, ctx:
   const rest = [d1Missing, d2New, d4Type, d11ErrorShape, d13Deprecation, d14EmptySuccess, d16DualField]
     .flatMap((d) => d(base, win, ctx))
     .filter((f) => !(f.field && renamed.has(f.field) && (f.detector === 'D1' || f.detector === 'D2')));
-  return [...renames, ...rest];
+  return [...renames, ...rest, ...runMeaningDetectors(base, win, ctx)];
 }
 
 /** D12 (rate-limit header / 429 share) and D17 (404/410 share) on all-class profiles of one endpoint. */

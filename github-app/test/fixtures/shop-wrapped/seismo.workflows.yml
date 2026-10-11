@@ -1,0 +1,7 @@
+checkout:
+  - app/checkout/**
+  - lib/api/payments.ts
+invoice:
+  - app/invoice/**
+orders:
+  - app/orders/**
