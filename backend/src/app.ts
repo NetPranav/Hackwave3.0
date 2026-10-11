@@ -9,7 +9,7 @@ import { buildGraph, coverage, impact, statesFromEvents } from './graph.js';
 import { memoryStore, type CodeMapStore } from './codemap-store.js';
 import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
 import { buildBaselines } from './baseline.js';
-import { buildMetrics, buildStatus, providerStatus } from './status.js';
+import { buildLiveMetrics, buildMetrics, buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
 import { DriftEngine, type FixDispatcher } from './drift-engine.js';
 import { httpFixDispatcher, httpIssueSink, type GithubAppClient } from './fix-dispatcher.js';
@@ -151,7 +151,7 @@ export function buildApp(opts: AppOptions = {}) {
   // open to any signed-in user so the dashboard can say "this project belongs to someone else".
   const OPEN_TO_ANY_USER = ['/v1/me', '/v1/projects'];
   app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events')) return;
+    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events') || req.url.startsWith('/v1/sdk/')) return;
     await requireUser(req, reply);
     if (reply.sent) return;
     const path = req.url.split('?')[0]!;
@@ -278,7 +278,21 @@ export function buildApp(opts: AppOptions = {}) {
     for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
     return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
   });
-  app.get('/v1/metrics', async () => buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list()));
+  app.get('/v1/metrics', async (req) => {
+    // ?range=live: last 32 minutes per minute (what a demo audience sees move); default: 7 days per 6 h
+    if ((req.query as { range?: string }).range === 'live') return buildLiveMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 33 * 60_000), engine.list());
+    return buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list());
+  });
+  // v2 demo: the app itself (holding its SDK key) may ask what Seismo has detected for its project: titles and states
+  // only, no evidence, no code locations. Used by the demo shop's "Demo changes" panel.
+  app.get('/v1/sdk/changes', async (req, reply) => {
+    const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
+    if (!projectId) return reply.code(401).send({ error: 'bad_key' });
+    if (projectId !== PROJECT_ID()) return [];
+    return engine.list()
+      .filter((e) => !['resolved', 'expected', 'snoozed', 'normal'].includes(e.state))
+      .map((e) => ({ id: e.id, service: e.service, endpoint: e.endpoint, detector: e.detector, title: e.title, state: e.state, severity: e.severity, detectedAt: e.detectedAt, prUrl: e.fix?.validation?.prUrl }));
+  });
   app.get('/v1/activity', async () => activityLog.slice(0, 100));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {

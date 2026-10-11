@@ -92,3 +92,29 @@ export function buildMetrics(fps: Fingerprint[], events: { detectedAt: string; s
   }
   return out;
 }
+
+/**
+ * v2: the overview chart's LIVE view: calls, p95 and detected changes per minute for the last 32 minutes, in the same
+ * shape as buildMetrics (8 groups of 4 one-minute buckets; `date` is the ISO start of the group).
+ */
+export function buildLiveMetrics(fps: Fingerprint[], events: { detectedAt: string; severity: string }[], now = Date.now(), minutes = 32) {
+  const M = 60_000;
+  const end = Math.floor(now / M) * M + M;               // the current minute is the last bucket
+  const start = end - minutes * M;
+  const out: { date: string; buckets: { start: string; calls: number | null; p95Ms: number | null; drifts: number | null }[] }[] = [];
+  for (let g = 0; g < minutes / 4; g++) {
+    const groupStart = start + g * 4 * M;
+    const buckets = [0, 1, 2, 3].map((b) => {
+      const from = groupStart + b * M, to = from + M;
+      const inB = fps.filter((f) => { const t = Date.parse(f.windowStart); return t >= from && t < to; });
+      return {
+        start: new Date(from).toISOString(),
+        calls: sum(inB.map((f) => f.count)),
+        p95Ms: inB.length ? Math.round(Math.max(...inB.map((f) => f.latencyMs.p95))) : 0,
+        drifts: events.filter((e) => e.severity !== 'info' && Date.parse(e.detectedAt) >= from && Date.parse(e.detectedAt) < to).length,
+      };
+    });
+    out.push({ date: new Date(groupStart).toISOString(), buckets });
+  }
+  return out;
+}

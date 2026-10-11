@@ -24,7 +24,7 @@ const metricOptions = (changes: number): GlideSelectOption[] => [
 const BARS_PER_DAY = BUCKET_LABELS.length;
 
 function describe(metric: ChartMetric, value: number, note?: string | null): string {
-  if (metric === "volume") return value.toLocaleString("en-US") + " req/min";
+  if (metric === "volume") return value.toLocaleString("en-US") + " calls/min";
   if (metric === "latency") return value + "ms";
   return value + (value === 1 ? " change" : " changes") + (note ? " (" + note + ")" : "");
 }
@@ -38,7 +38,11 @@ interface Hover {
 /** Seven days, four bars a day. Switch the metric in the corner; hover a bar for its value. Today stops at "now". */
 export default function MetricChart() {
   const data = useSeismoData();
-  const { days: CHART_DAYS, max: CHART_MAX, ticks: CHART_TICKS } = data.chart;
+  // LIVE (default when the engine is connected): last 32 minutes per minute, refreshed every 5 s. 7 DAYS: per 6 hours.
+  const [range, setRange] = useState<"live" | "7d">("live");
+  const shown = range === "live" && data.liveChart ? data.liveChart : data.chart;
+  const isLive = range === "live" && !!data.liveChart;
+  const { days: CHART_DAYS, max: CHART_MAX, ticks: CHART_TICKS } = shown;
   const TOTAL_BARS = CHART_DAYS.length * BARS_PER_DAY;
   const METRIC_OPTIONS = metricOptions(overviewStats(data).changes);
   const { isDark } = useTheme();
@@ -71,9 +75,24 @@ export default function MetricChart() {
           glideDuration={220}
           rememberPosition
         />
-        <span className="rounded border border-box-outline/60 px-2 py-0.5 font-aeonik-mono text-[10px] text-text-primary/50 dark:border-dark-border dark:text-white/40">
-          LAST 7 DAYS · UTC
-        </span>
+        <div className="flex items-center gap-1 font-aeonik-mono text-[10px]">
+          {data.liveChart && (
+            <button
+              type="button"
+              onClick={() => setRange("live")}
+              className={cn("rounded border px-2 py-0.5", isLive ? "border-accent text-accent" : "border-box-outline/60 text-text-primary/50 dark:border-dark-border dark:text-white/40")}
+            >
+              {isLive && <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent align-middle" />}LIVE · 32 MIN
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setRange("7d")}
+            className={cn("rounded border px-2 py-0.5", !isLive ? "border-text-primary/40 text-text-primary dark:border-white/40 dark:text-white" : "border-box-outline/60 text-text-primary/50 dark:border-dark-border dark:text-white/40")}
+          >
+            LAST 7 DAYS
+          </button>
+        </div>
       </div>
 
       <div className="relative mt-6 flex h-48 w-full gap-3">
@@ -96,13 +115,14 @@ export default function MetricChart() {
           <div className="relative z-10 flex h-full items-end justify-between px-2">
             {CHART_DAYS.map((day, d) => (
               <div key={day.date} className="flex h-full flex-1 items-end justify-between px-1.5 sm:px-2.5 md:px-3">
-                {BUCKET_LABELS.map((time, b) => {
+                {BUCKET_LABELS.map((slotLabel, b) => {
+                  const time = day.labels?.[b] ?? slotLabel;
                   const value = day[metric][b];
                   const slot = "w-2 sm:w-3 md:w-3.5";
                   if (value === null) return <div key={time} aria-hidden className={slot} />;
 
                   const i = d * BARS_PER_DAY + b;
-                  const key = metric + "-" + i;
+                  const key = range + "-" + metric + "-" + i;
                   const height = Math.min(Math.max((value / CHART_MAX[metric]) * 100, 4), 100);
                   const hovered = hover?.key === key;
                   const edge = i < 3 ? "left-0" : i >= TOTAL_BARS - 6 ? "right-0" : "left-1/2 -translate-x-1/2";
@@ -133,7 +153,7 @@ export default function MetricChart() {
                       <motion.div
                         initial={reduce ? false : { height: "0%" }}
                         animate={{ height: height + "%" }}
-                        transition={{ duration: 0.5, delay: i * 0.015, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ duration: isLive ? 0.35 : 0.5, delay: isLive ? 0 : i * 0.015, ease: [0.16, 1, 0.3, 1] }}
                         style={{ minHeight: "4px" }}
                         className={cn(
                           "w-2 cursor-pointer rounded-t-[2px] transition-colors sm:w-3 md:w-3.5",

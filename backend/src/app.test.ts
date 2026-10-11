@@ -151,6 +151,16 @@ describe('live activity feed (v2)', () => {
   });
 });
 
+describe('/v1/sdk/changes (demo panel in the app)', () => {
+  it('answers with the SDK key only, and only titles/states of open changes', async () => {
+    const a = buildApp();
+    expect((await a.inject('/v1/sdk/changes')).statusCode).toBe(401);
+    const r = await a.inject({ url: '/v1/sdk/changes', headers: { 'x-seismo-key': 'dev-key' } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual([]);
+  });
+});
+
 describe('metrics for the overview chart (v2-P3.1)', () => {
   it('buckets calls, p95 and drift events per 6 h; future buckets are null', async () => {
     const { buildMetrics } = await import('./status.js');
@@ -164,6 +174,17 @@ describe('metrics for the overview chart (v2-P3.1)', () => {
     expect(today.buckets[1]!.p95Ms).toBe(200);
     expect(today.buckets[2]!.drifts).toBe(1);
     expect(m[5]!.buckets[0]!.calls).toBe(3);
+  });
+  it('live range: 32 one-minute buckets in 8 groups, the current minute last', async () => {
+    const { buildLiveMetrics } = await import('./status.js');
+    const now = Date.parse('2026-10-11T13:00:30Z');
+    const f = (iso: string, count: number) => ({ ...fp(count), windowStart: iso, count, latencyMs: { p50: 1, p95: 90 } });
+    const m = buildLiveMetrics([f('2026-10-11T13:00:10Z', 4), f('2026-10-11T12:59:20Z', 2), f('2026-10-11T12:20:00Z', 9)] as never, [{ detectedAt: '2026-10-11T13:00:05Z', severity: 'breaking' }], now);
+    expect(m).toHaveLength(8);
+    const last = m[7]!.buckets;
+    expect(last[3]).toMatchObject({ start: '2026-10-11T13:00:00.000Z', calls: 4, drifts: 1 });
+    expect(last[2]!.calls).toBe(2);
+    expect(m.flatMap((g) => g.buckets).reduce((n, b) => n + (b.calls ?? 0), 0)).toBe(6);   // 12:20 is outside the 32 minutes
   });
 });
 

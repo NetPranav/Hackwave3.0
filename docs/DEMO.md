@@ -8,8 +8,8 @@ detectors run every 5 s, Nemotron explains, alerts and PRs go to GitHub. Nothing
 ```bash
 # terminal 1, this repo: backend :4000, fake providers :4100, GitHub App :3060, dashboard :3000
 npm run dev
-# terminal 2, the shop repo (its .env.local points at :4100 and :4000, key dev-key)
-cd ../seismo-demo-shop && npm run dev          # http://localhost:3100
+# terminal 2, the shop repo (its .env.local points at :4100 and :4000, key dev-key, DEMO_PANEL=true)
+cd ../seismo-demo-shop && npm run dev:live     # http://localhost:3100, and pulls merged PRs from GitHub every 10 s
 ```
 
 Open the dashboard at http://localhost:3000/app (Overview → **Live activity**) next to the shop.
@@ -21,7 +21,17 @@ Open the dashboard at http://localhost:3000/app (Overview → **Live activity**)
 - For a steady stream (needed before a change can be detected): `npm run demo:traffic -- --shop --rps 2`.
   Seismo needs about **2 minutes** of normal traffic as a baseline, then about **1 minute** to confirm a change.
 
-## 3. Make a provider change by hand (pick one, save the file: the fake provider restarts by itself)
+## 3a. Make a provider change with one click (recommended in front of the jury)
+
+In the shop, **Demo changes** (bottom-right) lists every provider change: rename a field, change a data type, change units,
+cap a limit, add a status value, change the error format, announce a sunset, switch to cursors. Click one; keep placing
+orders (or keep `demo:traffic --shop` running). The same panel shows **Seismo detected** with severity and, for a rename,
+the link to the automatic fix PR. **Merge that PR on GitHub**: `npm run dev:live` pulls it within 10 s and the shop is
+fixed without anyone touching the code. **Reset all to normal** puts every provider back to v1.
+
+The dashboard's Overview chart defaults to **LIVE · 32 MIN** (one bar per minute, refreshed every 5 s).
+
+## 3b. Make a provider change by hand (pick one, save the file: the fake provider restarts by itself)
 
 All edits are in `services/src/` (the fake third-party APIs). Undo with `git checkout services/src` afterwards.
 

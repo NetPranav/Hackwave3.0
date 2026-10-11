@@ -50,6 +50,8 @@ export interface SeismoData {
   codeUrl: (file: string, line: number) => string | undefined;
   codeMap: { fieldCoverage: number; callSites: number; repos: string[] };
   chart: { days: ChartDay[]; max: Record<ChartMetric, number>; ticks: Record<ChartMetric, string[]> };
+  /** the last 32 minutes per minute (null in mock mode) */
+  liveChart: { days: ChartDay[]; max: Record<ChartMetric, number>; ticks: Record<ChartMetric, string[]> } | null;
   raw: { events: DriftEvent[]; radar: RadarItemApi[]; codemap: CodeMapView };
 }
 
@@ -69,6 +71,7 @@ const MOCK: SeismoData = {
   codeUrl: (file, line) => "https://github.com/NetPranav/seismo-demo-shop/blob/main/" + file + "#L" + line,
   codeMap: { fieldCoverage: 98.4, callSites: 186, repos: ["demo/shop"] },
   chart: { days: CHART_DAYS, max: CHART_MAX, ticks: CHART_TICKS },
+  liveChart: null,
   raw: { events: [], radar: [], codemap: EMPTY_CODEMAP },
 };
 
@@ -118,6 +121,7 @@ function LiveDataProvider({ children }: { children: ReactNode }) {
   const codemap = useLive<CodeMapView>("/v1/codemap", [], undefined, { pollMs: 60_000 });
   const coverage = useLive<Coverage>("/v1/coverage", [], undefined, { pollMs: 60_000 });
   const metrics = useLive<MetricsDay[]>("/v1/metrics", ["drift.created"], undefined, { pollMs: 60_000 });
+  const liveMetrics = useLive<MetricsDay[]>("/v1/metrics?range=live", ["drift.created"], undefined, { pollMs: 5_000 });
   const radar = useLive<RadarItemApi[]>("/v1/radar", ["radar.created", ...drift], undefined, { pollMs: 60_000 });
   // The clock starts after mount (Next must not read Date.now() while prerendering), then ticks every 30 s.
   const [now, setNow] = useState(0);
@@ -177,9 +181,10 @@ function LiveDataProvider({ children }: { children: ReactNode }) {
         repos: cm.repos.map((r) => r.repo),
       },
       chart: toChart(metrics.data ?? [], evs),
+      liveChart: liveMetrics.data ? toChart(liveMetrics.data, evs, true) : null,
       raw: { events: evs, radar: radarItems, codemap: cm },
     };
-  }, [me.data, svcStatus, evs, review, radar.data, coverage.data, cm, compares, metrics.data, now, connected, status, events, codemap]);
+  }, [me.data, svcStatus, evs, review, radar.data, coverage.data, cm, compares, metrics.data, liveMetrics.data, now, connected, status, events, codemap]);
 
   return <DataContext value={value}>{children}</DataContext>;
 }
