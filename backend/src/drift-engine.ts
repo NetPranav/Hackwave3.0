@@ -2,6 +2,7 @@ import type { AliasRule, CodeMap, DriftEvent, DriftState } from '@seismo/contrac
 import { buildBaselines } from './baseline.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
+import { memoryEvents, type EventStore, type StoredEvent } from './event-store.js';
 import { pathFor, planAlias, type CheckResult } from './planner.js';
 import { score, usagesFor } from './severity.js';
 
@@ -14,7 +15,9 @@ export interface EngineOptions {
 }
 export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24 * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
 
-interface Tracked { event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string }
+type Tracked = Omit<StoredEvent, 'key'>;
+
+const OPEN_CONFIRMED = (t: Tracked, confirmRuns: number) => t.runs >= confirmRuns && ['breaking', 'suspected', 'fix_pending'].includes(t.event.state);
 
 /** Opens fix PRs on the customer's repo (the GitHub App). Optional: without it, renames stay "breaking" with a suggested rule. */
 export interface FixDispatcher {
@@ -25,7 +28,21 @@ export interface FixDispatcher {
 /** Runs the detectors over stored fingerprints and keeps drift events with their state machine (suspected -> confirmed). */
 export class DriftEngine {
   private events = new Map<string, Tracked>();
-  constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS, private fixer?: FixDispatcher) {}
+  private loaded?: Promise<void>;
+  constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS, private fixer?: FixDispatcher, private store: EventStore = memoryEvents()) {}
+
+  /** Load remembered events (once). Call at startup so list() is complete before the first detection pass. */
+  init(): Promise<void> {
+    this.loaded ??= this.store.load().then((items) => { for (const i of items) if (!this.events.has(i.key)) this.events.set(i.key, { event: i.event, runs: i.runs, lastSeen: i.lastSeen, dispatched: i.dispatched, reviewReason: i.reviewReason }); }).catch(() => undefined);
+    return this.loaded;
+  }
+
+  private persist(keys: Iterable<string>) {
+    const items: StoredEvent[] = [];
+    for (const k of keys) { const t = this.events.get(k); if (t) items.push({ key: k, ...t }); }
+    return this.store.save(items).catch(() => undefined);   // persistence is best effort; detection never stops for it
+  }
+  private keyOf(id: string) { for (const [k, t] of this.events) if (t.event.id === id) return k; return undefined; }
 
   /** Events that need a human: everything non-alias, and renames the planner blocked. */
   reviewQueue(): { event: DriftEvent; reason: string }[] {
@@ -42,6 +59,7 @@ export class DriftEngine {
       if (t.event.fix?.rule?.id !== ruleId) continue;
       t.event = { ...t.event, state: merged ? 'resolved' : 'breaking' };
       if (!merged) t.dispatched = false;
+      void this.persist([this.keyOf(t.event.id)!]);
       return t.event;
     }
     return undefined;
@@ -49,21 +67,37 @@ export class DriftEngine {
 
   /** Attach data produced outside detection (AI explanation). */
   attach(id: string, patch: Partial<DriftEvent>) {
-    for (const t of this.events.values()) if (t.event.id === id) t.event = { ...t.event, ...patch };
+    for (const [k, t] of this.events) if (t.event.id === id) { t.event = { ...t.event, ...patch }; void this.persist([k]); }
   }
 
   /** Repo whose code uses this service (for issues and PRs). */
   get(id: string) { for (const t of this.events.values()) if (t.event.id === id) return t.event; return undefined; }
 
   setState(id: string, state: DriftState) {
-    for (const t of this.events.values()) if (t.event.id === id) t.event = { ...t.event, state };
+    for (const [k, t] of this.events) if (t.event.id === id) { t.event = { ...t.event, state }; void this.persist([k]); }
   }
 
   /** One detection pass. Returns the events that were created or changed in this pass. */
   async run(now = Date.now()): Promise<DriftEvent[]> {
+    await this.init();
     const all = await this.ingest.since('dev', now - this.opts.baselineMs);
     const cut = now - this.opts.windowMs;
-    const baseFps = all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 < cut);
+    // Baseline freeze: while a confirmed change is open on an endpoint, traffic from after it started (detection time minus
+    // one window) never becomes "history" for that endpoint. Otherwise a restart, or simply time passing, would teach the
+    // baseline the broken shape and the change would stop being reported.
+    const frozen = new Map<string, number>();
+    for (const t of this.events.values()) {
+      if (!OPEN_CONFIRMED(t, this.opts.confirmRuns)) continue;
+      const ep = `${t.event.service}|${t.event.endpoint}`;
+      const from = Date.parse(t.event.detectedAt) - this.opts.windowMs;
+      frozen.set(ep, Math.min(frozen.get(ep) ?? Infinity, from));
+    }
+    const baseFps = all.filter((f) => {
+      const end = Date.parse(f.windowStart) + f.windowSeconds * 1000;
+      if (end >= cut) return false;
+      const since = frozen.get(`${f.service}|${f.method} ${f.endpoint}`);
+      return since === undefined || Date.parse(f.windowStart) < since;
+    });
     const winFps = all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 >= cut);
     const bases = buildBaselines(baseFps, now), wins = buildBaselines(winFps, now);
     const maps = await this.maps();
@@ -122,7 +156,10 @@ export class DriftEngine {
       this.events.set(key, tracked);
     }
     // A finding that vanished before it was confirmed was noise: forget it.
-    for (const [key, t] of this.events) if (!seen.has(key) && t.runs < this.opts.confirmRuns) this.events.delete(key);
+    const noise: string[] = [];
+    for (const [key, t] of this.events) if (!seen.has(key) && t.runs < this.opts.confirmRuns) { noise.push(t.event.id); this.events.delete(key); }
+    await this.persist(seen);
+    if (noise.length) await this.store.remove(noise).catch(() => undefined);
     return changed;
   }
 }

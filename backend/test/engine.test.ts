@@ -113,3 +113,53 @@ describe('engine: endpoint-level findings', () => {
     expect(e.list().some((x) => x.detector === 'D17')).toBe(true);
   });
 });
+
+import { memoryEvents } from '../src/event-store.js';
+describe('restart safety (persisted events + baseline freeze)', () => {
+  it('a restarted engine keeps the event, its id and its PR, and still sees the change after the broken traffic has aged into history', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const store = memoryEvents();
+    const map = codeMap([{ field: 'name', usage: 'display' }]);
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (const fp of await capture(s, '/users/u_1', 40, { service: 'users', at: NOW - 30_000 })) await ingest.add('dev', fp);
+    const prs: unknown[] = [];
+    const fixer = { existingRules: async () => [], openPr: async (i: unknown) => { prs.push(i); return { url: 'https://github.com/demo/shop/pull/1', number: 1 }; } };
+    const a = new DriftEngine(ingest, async () => [map], undefined, fixer, store);
+    await a.run(NOW); await a.run(NOW + 5000);
+    const before = a.list().find((e) => e.detector === 'D3')!;
+    expect(before.state).toBe('fix_pending');
+
+    // 10 minutes later: the v2 traffic above is now older than the window, and more v2 traffic arrives. New process.
+    const LATER = NOW + 10 * 60_000;
+    for (const fp of await capture(s, '/users/u_1', 40, { service: 'users', at: LATER - 30_000 })) await ingest.add('dev', fp);
+    const b = new DriftEngine(ingest, async () => [map], undefined, fixer, store);
+    await b.init();
+    expect(b.list().map((e) => e.id)).toContain(before.id);                  // remembered before any detection pass
+    const changed = await b.run(LATER);
+    expect(changed).toEqual([]);                                              // nothing new -> no duplicate alerts
+    expect(prs).toHaveLength(1);                                              // no second PR
+    const after = b.list().find((e) => e.detector === 'D3')!;
+    expect(after.id).toBe(before.id);
+    expect(after.state).toBe('fix_pending');
+  });
+  it('without the freeze the change would vanish: the frozen baseline is what keeps D3 firing', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 8 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    for (const fp of await capture(s, '/users/u_1', 40, { service: 'users', at: NOW - 30_000 })) await ingest.add('dev', fp);
+    const fresh = new DriftEngine(ingest, async () => []);                    // knows nothing: baseline is half v1, half v2
+    await fresh.run(NOW); await fresh.run(NOW + 5000);
+    expect(fresh.list().some((e) => e.detector === 'D3')).toBe(false);      // documents the failure mode the freeze prevents
+  });
+  it('resolved / expected events unfreeze the endpoint so the new shape becomes normal', async () => {
+    const store = memoryEvents();
+    await store.save([{ key: 'k', runs: 3, lastSeen: NOW, event: { id: 'drift-x', service: 'users', endpoint: 'GET /users/{id}', detector: 'D3', title: 't', severity: 'breaking', state: 'resolved', confidence: 0.9, detectedAt: new Date(NOW - 60_000).toISOString(), before: null, after: null, usages: [] } }]);
+    const e = new DriftEngine(memoryIngest(), async () => [], undefined, undefined, store);
+    await e.init();
+    expect(e.list()[0]!.state).toBe('resolved');
+  });
+});
