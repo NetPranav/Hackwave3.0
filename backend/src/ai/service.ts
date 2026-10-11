@@ -55,7 +55,9 @@ export function promptFacts(e: DriftEvent) {
   };
 }
 
-export interface AiServiceOptions { client?: NimClient; smartModel?: string; fastModel?: string; cacheFile?: string; enabled?: () => boolean }
+/** Every model call, for the dashboard's live activity feed (v2): which model, for what, how long, and whether it was used. */
+export interface AiCall { phase: 'start' | 'done' | 'cached' | 'failed'; task: 'explain' | 'judge'; model: string; title: string; latencyMs?: number }
+export interface AiServiceOptions { client?: NimClient; smartModel?: string; fastModel?: string; cacheFile?: string; enabled?: () => boolean; onCall?: (c: AiCall) => void }
 
 /** Explainer + semantic judge with cache and template fallback (P6.5). The product works the same with AI off. */
 export class AiService {
@@ -85,14 +87,19 @@ export class AiService {
     if (!this.on) return this.template(e);
     const key = AiService.signature(e);
     const hit = this.cache.get(key);
-    if (hit) return hit;
+    const note = (c: Omit<AiCall, 'task' | 'model' | 'title'>) => { try { this.o.onCall?.({ task: 'explain', model: this.model('smart'), title: e.title, ...c }); } catch { /* never break explain */ } };
+    if (hit) { note({ phase: 'cached', latencyMs: 0 }); return hit; }
+    note({ phase: 'start' });
+    const started = Date.now();
     try {
       const { value, latencyMs } = await this.client.json(this.model('smart'), SYSTEM, `<DATA>\n${JSON.stringify(promptFacts(e), null, 1)}\n</DATA>`, AiExplanationBody, 'seismo_explanation', (v) => explanationProblems(v, e));
       const out: AiExplanation = { ...value, confidence: e.confidence, model: this.model('smart'), latencyMs, source: 'ai' };
       this.cache.set(key, out);
       this.persist();
+      note({ phase: 'done', latencyMs });
       return out;
     } catch {
+      note({ phase: 'failed', latencyMs: Date.now() - started });
       return this.template(e);
     }
   }

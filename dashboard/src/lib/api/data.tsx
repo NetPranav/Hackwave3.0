@@ -112,7 +112,7 @@ function LiveDataProvider({ children }: { children: ReactNode }) {
   const { connected } = useLiveContext();
   const drift = ["drift.created", "drift.updated"] as const;
   const me = useLive<Me>("/v1/me");
-  const status = useLive<{ services: ServiceStatusApi[] }>("/v1/status", [...drift], undefined, { pollMs: 10_000 });
+  const status = useLive<{ services: ServiceStatusApi[] }>("/v1/status", [...drift], undefined, { pollMs: 5_000 });
   const events = useLive<DriftEvent[]>("/v1/drift-events", [...drift]);
   const review = useLive<ReviewItemApi[]>("/v1/review", [...drift]);
   const codemap = useLive<CodeMapView>("/v1/codemap", [], undefined, { pollMs: 60_000 });

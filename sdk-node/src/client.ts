@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { gzipSync } from 'fflate';
 import { BatchInterceptor } from '@mswjs/interceptors';
 import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
@@ -32,6 +33,9 @@ interface Window {
 }
 
 const PRIVATE = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/;
+
+/** Set while a Seismo fetch wrapper is recording a call (see rewrapIfReplaced). */
+const observing = new AsyncLocalStorage<boolean>();
 
 /** Read-only, fail-open API sensor. Everything below is wrapped so it can never throw into the host app. */
 export class Seismo {
@@ -67,7 +71,7 @@ export class Seismo {
         } catch (e) { this.fail(e); }
       });
       this.interceptor.apply();
-      this.timer = setInterval(() => void this.flush(), this.o.flushMs);
+      this.timer = setInterval(() => { this.rewrapIfReplaced(); void this.flush(); }, this.o.flushMs);
       this.timer.unref();
     } catch (e) { this.fail(e); }
     return this;
@@ -82,10 +86,23 @@ export class Seismo {
     this.interceptor = undefined;
   }
 
-  private wrapFetch() {
+  /**
+   * Frameworks may replace globalThis.fetch after init (Next.js dev re-patches it on hot reload), which would silently
+   * blind the SDK. Every flush tick checks and wraps the current fetch again. The outermost wrapper records the call;
+   * inner ones (when a framework wrapped ours) pass straight through, so nothing is counted twice.
+   */
+  rewrapIfReplaced() {
+    try {
+      if (this.wrappedFetch && typeof globalThis.fetch === 'function' && globalThis.fetch !== this.wrappedFetch) this.wrapFetch(true);
+    } catch (e) { this.fail(e); }
+  }
+
+  private wrapFetch(again = false) {
     if (typeof globalThis.fetch !== 'function') return;
     const real = globalThis.fetch;
     const wrapped = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
+      if (observing.getStore()) return real(input, init);   // an outer Seismo wrapper already records this call
+      return observing.run(true, async () => {
       const started = performance.now();
       const res = await real(input, init);            // errors from the real fetch propagate exactly as before
       try {
@@ -94,8 +111,9 @@ export class Seismo {
         this.observeResponse(url, method, res, performance.now() - started);
       } catch (e) { this.fail(e); }
       return res;                                       // the app gets the original, untouched Response
+      });
     }) as typeof fetch;
-    this.realFetch = real;
+    if (!again) this.realFetch = real;                  // stop() restores the fetch from before init
     this.wrappedFetch = wrapped;
     globalThis.fetch = wrapped;
   }

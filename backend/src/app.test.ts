@@ -139,6 +139,18 @@ describe('onboarding: installations, rescan, setup PR (v2-P2)', () => {
   });
 });
 
+describe('live activity feed (v2)', () => {
+  it('every SDK batch and code map shows up in /v1/activity, newest first', async () => {
+    const a = buildApp();
+    await a.inject({ method: 'POST', url: '/v1/ingest', headers: { 'x-seismo-key': 'dev-key', 'content-type': 'application/json' }, payload: JSON.stringify(fp(3)) });
+    await a.inject({ method: 'POST', url: '/internal/codemap', headers: { 'x-internal-token': 'dev-internal' }, payload: { repo: 'o/r', commit: 'abcdef123', scannedAt: '2026-10-12T10:00:00.000Z', callSites: [], fieldReads: [], workflows: [] } });
+    const act = (await a.inject('/v1/activity')).json() as { kind: string; text: string }[];
+    expect(act.map((x) => x.kind)).toEqual(['scan', 'traffic']);
+    expect(act[1]!.text).toBe('payments: 3 calls to POST /payments · 1 fields profiled');
+    expect(act[0]!.text).toContain('o/r @ abcdef1');
+  });
+});
+
 describe('metrics for the overview chart (v2-P3.1)', () => {
   it('buckets calls, p95 and drift events per 6 h; future buckets are null', async () => {
     const { buildMetrics } = await import('./status.js');

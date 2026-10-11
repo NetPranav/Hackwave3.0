@@ -3,6 +3,7 @@
 import { useState } from "react";
 import KpiStrip from "./KpiStrip";
 import AttentionBar from "./AttentionBar";
+import ActivityFeed from "./ActivityFeed";
 import MetricChart from "./MetricChart";
 import ServicesTable, { type TableFilter } from "./ServicesTable";
 
@@ -19,6 +20,7 @@ export default function OverviewView() {
     <main id="top" className="mx-auto max-w-[1440px] space-y-6 px-6 py-6 md:px-10 lg:px-16">
       <KpiStrip onFilter={filterAndScroll} />
       <AttentionBar />
+      <ActivityFeed />
       <MetricChart />
       <ServicesTable filter={filter} onFilterChange={setFilter} />
     </main>

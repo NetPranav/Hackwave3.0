@@ -35,6 +35,8 @@ export interface AppOptions {
   alertAiWaitMs?: number;
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** One line of the dashboard's live activity feed. */
+export interface Activity { id: string; at: string; kind: 'traffic' | 'drift' | 'ai' | 'alert' | 'pr' | 'scan'; text: string; ok?: boolean; service?: string; driftId?: string }
 
 /**
  * Real data everywhere. Contract-shaped mock data is returned ONLY when SEISMO_MOCKS=1 (dashboard development without an engine);
@@ -64,9 +66,33 @@ export function buildApp(opts: AppOptions = {}) {
   const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all(), undefined, opts.fixer ?? httpFixDispatcher());
   const sseClients = new Set<(event: string, data: unknown) => void>();
   const broadcast = (event: string, data: unknown) => { for (const send of sseClients) { try { send(event, data); } catch { /* closed client */ } } };
+  // v2 live activity feed: what Seismo is doing right now (traffic batches, detections, model calls, alerts, PRs, scans).
+  const activityLog: Activity[] = [];
+  let activitySeq = 0;
+  const activity = (a: Omit<Activity, 'id' | 'at'>) => {
+    const entry: Activity = { id: `act-${++activitySeq}`, at: new Date().toISOString(), ...a };
+    activityLog.unshift(entry);
+    if (activityLog.length > 200) activityLog.length = 200;
+    broadcast('activity', entry);
+  };
   const settingsStore = opts.settings ?? memorySettings();
-  const ai = opts.ai ?? new AiService({ cacheFile: process.env.AI_CACHE_FILE });
-  const dispatcher = opts.dispatcher ?? new Dispatcher({ settings: () => settingsStore.get(), github: httpIssueSink(), dashboardUrl: process.env.DASHBOARD_URL, onNotification: (n) => broadcast('notification', n) });
+  const ai = opts.ai ?? new AiService({
+    cacheFile: process.env.AI_CACHE_FILE,
+    onCall: (c) => activity({
+      kind: 'ai', ok: c.phase !== 'failed',
+      text: c.phase === 'start' ? `Asking ${c.model.split('/').pop()} to explain: ${c.title}`
+        : c.phase === 'done' ? `${c.model.split('/').pop()} answered in ${((c.latencyMs ?? 0) / 1000).toFixed(1)} s (checked: no invented facts): ${c.title}`
+        : c.phase === 'cached' ? `Explanation reused from cache (no model call): ${c.title}`
+        : `Model call failed or was rejected; using the template text: ${c.title}`,
+    }),
+  });
+  const dispatcher = opts.dispatcher ?? new Dispatcher({
+    settings: () => settingsStore.get(), github: httpIssueSink(), dashboardUrl: process.env.DASHBOARD_URL,
+    onNotification: (n) => {
+      broadcast('notification', n);
+      if (n.channel !== 'dashboard') activity({ kind: 'alert', ok: n.ok, driftId: n.driftId, text: n.ok ? `Alert sent via ${n.channel}: ${n.title}` : `Alert via ${n.channel} failed: ${n.error ?? 'error'}` });
+    },
+  });
   const alertWait = opts.alertAiWaitMs ?? Number(process.env.ALERT_AI_WAIT_MS ?? 8000);
   const radar = opts.radar ?? new Radar({ sources: demoSources(), maps: () => store.all(), ai: { client: ai.client, model: process.env.NIM_MODEL_EXPLAIN ?? 'nvidia/nemotron-3-super-120b-a12b', enabled: () => true } });
   /** New radar items go to the same dispatcher (P7.6); announced changes are never "breaking". */
@@ -90,6 +116,9 @@ export function buildApp(opts: AppOptions = {}) {
     for (const e of changed) {
       try {
         broadcast(e.state === 'suspected' || e.state === 'normal' ? 'drift.created' : 'drift.updated', e);
+        activity({ kind: e.state === 'fix_pending' ? 'pr' : 'drift', service: e.service, driftId: e.id, ok: e.state === 'resolved',
+          text: e.state === 'fix_pending' && e.fix?.validation?.prUrl ? `Fix PR opened: ${e.fix.validation.prUrl} (${e.title})`
+            : `${e.detector} ${e.state === 'suspected' ? 'suspects' : e.state === 'resolved' ? 'resolved' : 'confirmed'}: ${e.title} [${e.severity}]` });
         if (e.severity === 'info' && e.state !== 'resolved') continue;
         const s = await settingsStore.get();
         const tpl = ai.template(e);
@@ -203,6 +232,7 @@ export function buildApp(opts: AppOptions = {}) {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_codemap', message: parsed.error.message });
     await store.put(parsed.data);
     scanning.delete(parsed.data.repo);
+    activity({ kind: 'scan', ok: true, text: `Code map updated: ${parsed.data.repo} @ ${parsed.data.commit.slice(0, 7)} (${parsed.data.callSites.length} API calls, ${parsed.data.fieldReads.length} field reads)` });
     for (const send of sseClients) send('graph.updated', { repo: parsed.data.repo });
     return { ok: true };
   });
@@ -249,6 +279,7 @@ export function buildApp(opts: AppOptions = {}) {
     return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
   });
   app.get('/v1/metrics', async () => buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list()));
+  app.get('/v1/activity', async () => activityLog.slice(0, 100));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {
     const maps = await store.all();
@@ -368,6 +399,9 @@ export function buildApp(opts: AppOptions = {}) {
     const parsed = Fingerprint.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_fingerprint', message: parsed.error.message });
     await ingestStore.add(projectId, parsed.data);
+    const fp = parsed.data;
+    const errs = Object.entries(fp.statusCounts).filter(([s]) => Number(s) >= 400).reduce((n, [, c]) => n + c, 0);
+    activity({ kind: 'traffic', service: fp.service, ok: errs === 0, text: `${fp.service}: ${fp.count} call${fp.count === 1 ? '' : 's'} to ${fp.method} ${fp.endpoint}${errs ? ` (${errs} errors)` : ''} · ${Object.keys(fp.fields).length} fields profiled` });
     for (const send of sseClients) send('status.updated', { service: parsed.data.service });
     return { ok: true };
   });

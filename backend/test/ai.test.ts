@@ -60,6 +60,15 @@ describe('AI layer (P6.5): explains, never decides', () => {
     await ai.explain(ev()); await ai.explain(ev({ id: 'drift-2', state: 'suspected' }));
     expect(calls).toHaveLength(1);
   });
+  it('every model call is reported for the live feed: start, done (with latency), then cached; failures too', async () => {
+    const seen: string[] = [];
+    const ai = new AiService({ client: fakeNim([GOOD, GOOD]).client, onCall: (c) => seen.push(c.phase + ':' + c.task) });
+    await ai.explain(ev()); await ai.explain(ev({ id: 'drift-2' }));
+    expect(seen).toEqual(['start:explain', 'done:explain', 'cached:explain']);
+    const bad: string[] = [];
+    await new AiService({ client: fakeNim(['x', 'y', 'z']).client, onCall: (c) => bad.push(c.phase) }).explain(ev());
+    expect(bad).toEqual(['start', 'failed']);
+  });
   it('prompt carries statistics, paths and code locations only: no response values', () => {
     const facts = JSON.stringify(promptFacts(ev()));
     expect(facts).toContain('lib/api/payments.ts');
