@@ -1,0 +1,13 @@
+{
+  "name": "@seismo/backend",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "@seismo/contracts": "*", "fastify": "^5.0.0", "@fastify/cors": "^10.0.0", "pino": "^9.0.0", "zod": "^4.0.0" },
+  "devDependencies": { "tsx": "^4.19.0", "@types/node": "^22.0.0" }
+}
