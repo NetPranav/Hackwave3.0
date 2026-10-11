@@ -1,5 +1,7 @@
 # COMPLETION.md: what is built, what is verified, what is left
 
+**What is left: [`docs/roadmap/v3/README.md`](docs/roadmap/v3/README.md).** This file records what is done and how it was verified.
+
 Two parts:
 - **v2 (after the merge):** the current plan. It joins the dashboard, GitHub login and the engine into one working product. Plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md). Everything starts unchecked and is ticked only with proof.
 - **Before merge (v1):** everything built up to the merge of PR #4 (engine) and PR #5 (dashboard) into `main` on 2026-10-11. Git tag `before-merge`. IDs there are written v1-P… / v1-A….
