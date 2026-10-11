@@ -28,7 +28,8 @@ describe('detectors on real v1 -> v2 fake-service traffic', () => {
   it('D3 rename: users name -> display_name (alias rung)', async () => {
     const f = await detect('users-rename', '/users/u_1', 'users');
     const r = f.find((x) => x.detector === 'D3')!;
-    expect(r.rename).toEqual({ from: 'name', to: 'display_name' });
+    expect(r.rename).toMatchObject({ from: 'name', to: 'display_name' });
+    expect(r.rename!.margin).toBeGreaterThanOrEqual(0);
     expect(r.rung).toBe('alias');
     expect(r.confidence).toBeGreaterThanOrEqual(0.75);
     expect(f.some((x) => x.detector === 'D1' && x.field === 'name')).toBe(false); // explained by the rename

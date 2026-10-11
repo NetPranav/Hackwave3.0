@@ -134,3 +134,15 @@ describe('SDK fail-open (P3.8)', () => {
     expect(s.errors).toBeGreaterThan(0);
   });
 });
+
+describe('hostile field names', () => {
+  it('__proto__ / constructor keys are skipped, not recorded', async () => {
+    const { observe, finish } = await import('../src/fingerprint.js');
+    const accs = new Map<string, import('../src/fingerprint.js').FieldAcc>();
+    const cfg = { salt: 's', enumAllowList: [], neverInspect: [], maxFields: 50, maxDepth: 5, maxArrayItems: 10 };
+    observe(JSON.parse('{"__proto__":{"x":1},"constructor":2,"ok":3}'), accs, cfg);
+    const fields = finish(accs).fields;
+    expect(Object.keys(fields)).toEqual(['ok']);
+    expect(({} as Record<string, unknown>)['x']).toBeUndefined();
+  });
+});

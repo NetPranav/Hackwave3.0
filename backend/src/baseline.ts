@@ -37,7 +37,7 @@ export function buildBaselines(fps: Fingerprint[], now = Date.now()): EndpointBa
   return [...groups.values()].map((g) => {
     const samples = g.reduce((s, f) => s + f.count, 0);
     const first = Math.min(...g.map((f) => Date.parse(f.windowStart)));
-    const fields: Record<string, FieldBaseline> = {};
+    const fields: Record<string, FieldBaseline> = Object.create(null);
     const lenW: Record<string, number> = {}, numW: Record<string, number> = {};
     for (const fp of g) for (const [path, f] of Object.entries(fp.fields)) {
       const b = (fields[path] ??= { n: 0, presence: 0, types: {}, fmt: {}, nullRate: 0, enumValues: {}, hashes: {}, mag: {} });

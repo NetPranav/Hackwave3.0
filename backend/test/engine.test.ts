@@ -33,7 +33,7 @@ describe('drift engine (P4.2/P4.5)', () => {
     expect(ev.id).toBe(first.id);
     expect(ev.state).toBe('breaking');                        // a renamed field the code reads is broken whatever the usage
     expect(ev.usages[0]!.file).toBe('app/checkout/page.tsx');
-    expect(ev.fix).toEqual({ rung: 'alias', rule: { endpoint: 'GET /users/{id}', source: 'display_name', target: 'name' } });
+    expect(ev.fix).toEqual({ rung: 'alias', rule: { kind: 'alias', path: '$', endpoint: 'GET /users/{id}', source: 'display_name', target: 'name' } });
   });
   it('a field read in a branch/arithmetic is breaking once confirmed', async () => {
     const e = await scenario([codeMap([{ field: 'name', usage: 'arithmetic' }])], async (s) => void (await toggle(s, 'users-rename')));

@@ -2,6 +2,7 @@ import type { CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
 import { runDetectors, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
+import { pathFor } from './planner.js';
 import { score, usagesFor } from './severity.js';
 
 export interface EngineOptions {
@@ -59,7 +60,7 @@ export class DriftEngine {
         ...(f.field ? { field: f.field } : {}), detector: f.detector, title: f.title, severity: s.label, state, confidence: f.confidence,
         detectedAt: prev?.event.detectedAt ?? new Date(now).toISOString(), before: f.evidence.before, after: f.evidence.after,
         usages: usages.map((u) => ({ file: u.file, line: u.line, kind: u.money ? `${u.kind}+money` : u.kind })),
-        ...(f.rung === 'alias' && f.rename ? { fix: { rung: 'alias' as const, rule: { endpoint: `${f.method} ${f.endpoint}`, source: f.rename.to, target: f.rename.from } } } : {}),
+        ...(f.rung === 'alias' && f.rename ? { fix: { rung: 'alias' as const, rule: { kind: 'alias' as const, endpoint: `${f.method} ${f.endpoint}`, path: pathFor(f.rename.from), source: f.rename.to.slice(f.rename.to.lastIndexOf('.') + 1), target: f.rename.from.slice(f.rename.from.lastIndexOf('.') + 1) } } } : {}),
       };
       if (!prev || prev.event.state !== event.state || prev.event.severity !== event.severity) changed.push(event);
       this.events.set(key, { event, runs, lastSeen: now });

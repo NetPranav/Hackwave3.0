@@ -9,7 +9,7 @@ export interface Finding {
   title: string;
   evidence: { before?: unknown; after?: unknown };
   rung: 'alias' | 'review';
-  rename?: { from: string; to: string };
+  rename?: { from: string; to: string; margin: number; valueSimilarity: number };
   /** Share of the window affected (exposure). */
   exposure: number;
 }
@@ -57,7 +57,7 @@ export function nameSimilarity(a: string, b: string): number {
   return Math.max(lev, jac, contain);
 }
 
-function valueSimilarity(a: FieldBaseline, b: FieldBaseline): number {
+export function valueSimilarity(a: FieldBaseline, b: FieldBaseline): number {
   const ka = Object.keys(a.hashes), kb = Object.keys(b.hashes);
   if (ka.length && kb.length) return ka.filter((k) => kb.includes(k)).length / new Set([...ka, ...kb]).size;
   const ea = Object.keys(a.enumValues), eb = Object.keys(b.enumValues);
@@ -74,20 +74,23 @@ export const d3Rename: Detector = (base, win, ctx) => {
   const out: Finding[] = [];
   const used = new Set<string>();
   for (const g of gone) {
-    let best: { f: Finding; score: number } | undefined;
+    const scored: { f: Finding; score: number; vs: number }[] = [];
     for (const a of added) {
       if (used.has(a.field!) || parentOf(a.field!) !== parentOf(g.field!)) continue;
       const bf = base.fields[g.field!]!, wf = win.fields[a.field!]!;
       const type = dominant(bf.types) === dominant(wf.types) ? 1 : 0;
       const fmt = dominant(bf.fmt) === dominant(wf.fmt) ? 1 : 0;
-      const score = 0.3 * type + 0.2 * fmt + 0.35 * valueSimilarity(bf, wf) + 0.15 * nameSimilarity(leafOf(g.field!), leafOf(a.field!));
-      if (!best || score > best.score) best = { f: a, score };
+      const vs = valueSimilarity(bf, wf);
+      scored.push({ f: a, vs, score: 0.3 * type + 0.2 * fmt + 0.35 * vs + 0.15 * nameSimilarity(leafOf(g.field!), leafOf(a.field!)) });
     }
+    scored.sort((x, y) => y.score - x.score);
+    const best = scored[0];
     if (best && best.score >= 0.75) {
       used.add(best.f.field!);
+      const margin = best.score - (scored[1]?.score ?? 0);
       out.push({
         ...where(base), detector: 'D3', field: g.field!, confidence: round(best.score), title: `Field renamed: ${g.field} → ${best.f.field}`,
-        rung: 'alias', rename: { from: g.field!, to: best.f.field! }, exposure: 1,
+        rung: 'alias', rename: { from: g.field!, to: best.f.field!, margin: round(margin), valueSimilarity: round(best.vs) }, exposure: 1,
         evidence: { before: { field: g.field, presence: round(base.fields[g.field!]!.presence) }, after: { field: best.f.field, presence: round(win.fields[best.f.field!]!.presence) } },
       });
     }

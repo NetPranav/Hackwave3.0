@@ -27,6 +27,8 @@ export interface FieldAcc {
 export const newAcc = (): FieldAcc => ({ n: 0, nulls: 0, types: {}, fmt: {}, lens: [], mags: {}, nums: [], enumValues: {}, hashes: {}, arrayLens: [], idHashes: new Set() });
 const bump = (r: Record<string, number>, k: string) => { r[k] = (r[k] ?? 0) + 1; };
 
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']); // provider-controlled names must never hit Object.prototype
+
 const allowed = (path: string, list: string[]) => {
   const last = path.split('.').pop()!.replace(/\[\]$/, '');
   return list.includes(path) || list.includes(last);
@@ -59,7 +61,7 @@ export function observe(body: unknown, accs: Map<string, FieldAcc>, cfg: FpConfi
     }
     if (v && typeof v === 'object') {
       if (acc) bump(acc.types, 'object');
-      for (const [k, child] of Object.entries(v as Record<string, unknown>)) walk(child, path ? `${path}.${k}` : k, depth + 1, seenInThisResponse);
+      for (const [k, child] of Object.entries(v as Record<string, unknown>)) if (!UNSAFE_KEYS.has(k)) walk(child, path ? `${path}.${k}` : k, depth + 1, seenInThisResponse);
       return;
     }
     if (!acc) return;
@@ -87,7 +89,7 @@ const sig = (x: number) => (x === 0 ? 0 : Number(x.toPrecision(3)));
 
 /** Turn accumulators into the wire format. Numbers: percentiles only, only with >= 5 values (else held back). */
 export function finish(accs: Map<string, FieldAcc>, minBatch = 5) {
-  const out: Record<string, unknown> = {};
+  const out: Record<string, unknown> = Object.create(null);
   const held = new Map<string, number[]>();
   for (const [path, a] of accs) {
     const f: Record<string, unknown> = { n: a.n, types: a.types, nulls: a.nulls };
