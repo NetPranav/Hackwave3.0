@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code PreToolUse hook (Edit|Write): keeps each person's Claude inside their own area.
 #   adarzhpathade -> may edit only dashboard/ (and their own .team/status file)
+#   NetPranav     -> may also edit dashboard/ (integration, lead decision 2026-10-11)
 #   everyone else -> may never edit dashboard/ (the demo shop lives in another repo)
 input=$(cat)
 if command -v jq >/dev/null 2>&1; then
@@ -33,9 +34,11 @@ if [ "$me" = "adarzhpathade" ]; then
     dashboard/*|.team/status/*) exit 0 ;;
     *) deny "Team rule: adarzhpathade's Claude only edits dashboard/. For anything else, add a request with: bash scripts/team-request.sh NetPranav \\\"what you need\\\" (see START_HERE.md)." ;;
   esac
+elif [ "$me" = "NetPranav" ]; then
+  : # lead: may also edit dashboard/ for the dashboard <-> engine integration (lead's decision 2026-10-11, MEMORY.md)
 else
   case "$rel" in
-    dashboard/*) deny "Team rule: only adarzhpathade works on dashboard/ (and the demo shop). Add a request instead: bash scripts/team-request.sh adarzhpathade \\\"what you need\\\"." ;;
+    dashboard/*) deny "Team rule: only adarzhpathade (and the lead, for integration) works on dashboard/. Add a request instead: bash scripts/team-request.sh adarzhpathade \\\"what you need\\\"." ;;
   esac
 fi
 exit 0

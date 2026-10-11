@@ -10,18 +10,18 @@ Then read **your** section below and do only that work, **on your own branch**.
 
 | GitHub | Person | Your branch | You may edit | You must NOT edit |
 |---|---|---|---|---|
-| **NetPranav** | Lead | `netpranav` | Everything except `dashboard/`: `contracts/`, `sdk-node/`, `backend/`, `github-app/`, `services/`, docs, repo config | `dashboard/` and the demo shop repo |
+| **NetPranav** | Lead | `netpranav` | Everything: `contracts/`, `sdk-node/`, `backend/`, `github-app/`, `services/`, docs, repo config, and `dashboard/` for the integration (v2, lead's decision 2026-10-11) | — |
 | **adarzhpathade** | Adarsh | `adarzhpathade` | `dashboard/` only (landing page, GitHub login, every dashboard screen), plus the separate demo shop repo `seismo-demo-shop` | Everything outside `dashboard/` in this repo |
 | OVERxPOWERED | — | `overxpowered` | No tasks yet (invite pending) | — |
 
 **Claude rules (enforced by a hook in `.claude/settings.json`; it blocks edits outside your area):**
 - **Adarsh's Claude works only on the dashboard** (`dashboard/`) and the demo shop repo. Nothing else.
-- **NetPranav's Claude never works on the dashboard or the demo shop.**
+- **NetPranav's Claude** may edit `dashboard/` for the v2 integration (data layer, auth, API routes, swapping mocks for live data); visual design and new pages stay Adarsh's.
 - If you need something outside your area: don't edit it. Run `bash scripts/team-request.sh <their-handle> "what you need"`, push nothing else, and tell your human to call that person.
 - Work, commit and push only on your own branch. Never push to `main` or another person's branch. Never merge PRs.
 - At session start, check the TEAM BRIEFING for **open requests addressed to you** and do those first.
 
-Full workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md) · Roadmap: [`docs/roadmap/README.md`](docs/roadmap/README.md) (NetPranav's phases are **P0–P8**, Adarsh's are **A0–A8**; ignore any mention of `develop`, feature branches and per-task PRs: we use the personal branches above).
+**Current plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md)** (v2 integration: NetPranav P0–P6, Adarsh A0–A3; NetPranav's Claude may also edit `dashboard/` for integration). Full workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md) · v1 roadmap (done): [`docs/roadmap/README.md`](docs/roadmap/README.md) (NetPranav's phases are **P0–P8**, Adarsh's are **A0–A8**; ignore any mention of `develop`, feature branches and per-task PRs: we use the personal branches above).
 
 ---
 

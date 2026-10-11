@@ -2,7 +2,7 @@
 
 **Read [`START_HERE.md`](START_HERE.md) first: who you are and which tasks are yours.**
 
-Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for teammates working in this repository. Read this first, then [`MEMORY.md`](MEMORY.md) for decisions and open questions.
+Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for teammates working in this repository. Read this first, then [`MEMORY.md`](MEMORY.md) for decisions and open questions. **Current plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md).**
 
 ## Project
 
@@ -38,7 +38,7 @@ Three developers work in parallel, each with their own Claude Code session on th
 
 1. **Read [`START_HERE.md`](START_HERE.md)** and the TEAM BRIEFING injected at session start. Do **open requests addressed to you** first.
 2. **Who you are:** `git config seismo.handle`. Your branch is the lowercase handle (`netpranav`, `adarzhpathade`). **Work, commit and push only on your own branch.** Never push to `main` or another person's branch; never merge PRs. The area-guard hook also blocks edits while you are on any other branch (old `chore/*`, `docs/*`, `develop`): switch first, see START_HERE.md "Moving to your personal branch". Phase IDs: NetPranav `P0–P8`, Adarsh `A0–A8` (`docs/roadmap/`).
-3. **Stay in your area.** adarzhpathade's Claude edits only `dashboard/` (and works in the separate demo shop repo). NetPranav's Claude never edits `dashboard/` or the demo shop. A PreToolUse hook (`scripts/guard-area.sh`) blocks violations.
+3. **Stay in your area.** adarzhpathade's Claude edits only `dashboard/` (and works in the separate demo shop repo). NetPranav's Claude may edit `dashboard/` only for the v2 integration (data layer, auth, API routes; lead's decision 2026-10-11) and never the demo shop unless the lead asks. A PreToolUse hook (`scripts/guard-area.sh`) blocks violations.
 4. **Need something outside your area?** Don't edit it. Run `bash scripts/team-request.sh <their-handle> "what you need"` (stored in `REQUESTS.md` on the `team-status` branch) and tell your human to call or message that person. When you finish a request addressed to you: `bash scripts/team-request.sh done <id>`.
 5. **Contracts first.** Interfaces between the backend and the dashboard live in `contracts/` (owned by NetPranav). The dashboard uses mock data shaped like the contracts until the real API exists.
 6. **End each session with `/handoff`:** checks, commit, push your own branch, status note.
