@@ -44,7 +44,7 @@ const SCENARIOS = [
   { id: 'type', panel: { service: 'orders', kind: 'type', field: 'total_rupees', input: 'string' }, sample: 'orders',
     expect: { detector: 'D4', field: 'data[].total_rupees', fix: 'coerce rule (review)' }, check: { field: 'total_rupees', list: 'data' } },
   { id: 'value', panel: { service: 'shipping', kind: 'value', field: 'status', input: 'lost' }, sample: 'shipping',
-    expect: { detector: 'D7', field: 'status', fix: 'map rule only with a confident AI judge (review)' }, check: { field: 'status', semantic: true } },
+    expect: { detector: 'D7', field: 'status', fix: 'review; a map rule only for a spelling variant, never a new meaning' }, check: { field: 'status', semantic: true } },
   { id: 'remove', panel: { service: 'users', kind: 'remove', field: 'email', input: '' }, sample: 'users',
     expect: { detector: 'D1', field: 'email', fix: 'none (code change, review)' }, check: null },
   { id: 'cap', panel: { service: 'orders', kind: 'cap', field: 'data', input: '2' }, sample: 'orders',

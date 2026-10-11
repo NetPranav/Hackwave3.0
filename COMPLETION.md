@@ -77,6 +77,7 @@ Found and fixed while doing this (live): D2 required a field to be completely ab
 - [~] P2.2 Opt-in switch **Settings → Self-heal renames** (`autoHeal`, off by default); off → the SDK drops live rules on its next poll. Expiry of live rules whose PR is never merged is not built
 - [x] P2.1 (proof) Healed counts: the SDK counts each healed response per rule and reports `POST /v1/sdk/rule-hits`; the change shows **Healed live · N responses** on the timeline and the fix page, and the live feed says so
 - [x] P3.1 SDK delivery: failed sends go back into a bounded queue and are retried; `Retry-After` on 429 pauses sending; every batch has a `batchId` and the backend stores a resent batch once (tests)
+- [x] P0.7 (headed) `scripts/verify/pipeline.mjs`: real clicks in the shop panel → detection → dashboard → fix → oracle → revert, timings per step. Run 2026-10-12: **6/6 changes flagged by the expected detector, 3/3 fix rules restore the original value, 0 false alarms, 19/19 screens without errors** ([report](docs/verification/pipeline-run-2026-10-11.md)); 6 defects found and fixed on the way (listed in the report)
 - [ ] P2.3 post-fix verification · P2.4 pagination template · P2.5 cleanup PR · P3.2–P3.6 · P4–P6
 
 ### Adarsh
