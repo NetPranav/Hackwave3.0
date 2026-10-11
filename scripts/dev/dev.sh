@@ -3,7 +3,11 @@
 # Ports: PORT (backend, default 4000), SERVICES_PORT (4100), GITHUB_APP_PORT (3060), DASHBOARD_PORT (default 3000; the GitHub App's login callback is registered for 3000).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
+# values given on the command line (PORT=4050 npm run dev) win over .env
+cli_port=${PORT:-}; cli_dash=${DASHBOARD_PORT:-}
 set -a; [ -f .env ] && . ./.env; set +a
+[ -n "$cli_port" ] && PORT=$cli_port
+[ -n "$cli_dash" ] && DASHBOARD_PORT=$cli_dash
 trap 'kill 0' EXIT
 backend_port=${PORT:-4000}
 # the backend reaches the GitHub App (PRs, issues, installations) over HTTP
