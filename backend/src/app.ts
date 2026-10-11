@@ -11,14 +11,15 @@ import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
 import { buildBaselines } from './baseline.js';
 import { buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
-import { DriftEngine } from './drift-engine.js';
+import { DriftEngine, type FixDispatcher } from './drift-engine.js';
+import { httpFixDispatcher } from './fix-dispatcher.js';
 
 /** P0.4 skeleton: routes return contract-shaped mock data until the real engine (P2-P6) replaces each one. */
-export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine } = {}) {
+export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine; fixer?: FixDispatcher } = {}) {
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
-  const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all());
+  const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all(), undefined, opts.fixer ?? httpFixDispatcher());
   const sseClients = new Set<(event: string, data: unknown) => void>();
   const app = Fastify({ logger: process.env.NODE_ENV === 'test' ? false : { level: 'info' } });
   app.register(cors, { origin: true });
@@ -65,6 +66,14 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     if (!maps.length) return mockGraph();
     return impact(buildGraph({ maps }).g, node ?? '');
   });
+  // The GitHub App reports merged/closed fix PRs here (P5.9).
+  app.post('/internal/fix-event', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const { ruleId, merged } = req.body as { ruleId: string; merged: boolean };
+    const ev = engine.resolveByRule(ruleId, !!merged);
+    if (ev) for (const send of sseClients) send('drift.updated', ev);
+    return { ok: !!ev };
+  });
   // The GitHub App posts finished scans here (service-to-service, shared secret).
   app.post('/internal/codemap', async (req, reply) => {
     if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
@@ -104,7 +113,10 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     return { changed: changed.length };
   });
   app.get('/v1/radar', async () => mockRadar());
-  app.get('/v1/review', async () => mockReview());
+  app.get('/v1/review', async () => {
+    const q = engine.reviewQueue();
+    return q.length ? q.map(({ event, reason }) => ({ id: `rev-${event.id}`, drift: event, suggestion: reason, status: 'open' as const })) : mockReview();
+  });
   app.post('/v1/review', async () => ({ ok: true }));
   app.get('/v1/settings/notifications', async () => notif);
   app.put('/v1/settings/notifications', async (req) => { notif = NotificationSettings.parse(req.body); return notif; });

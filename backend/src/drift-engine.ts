@@ -1,8 +1,8 @@
-import type { CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
+import type { AliasRule, CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
 import { runDetectors, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
-import { pathFor } from './planner.js';
+import { pathFor, planAlias, type CheckResult } from './planner.js';
 import { score, usagesFor } from './severity.js';
 
 export interface EngineOptions {
@@ -13,15 +13,37 @@ export interface EngineOptions {
 }
 export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24 * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
 
-interface Tracked { event: DriftEvent; runs: number; lastSeen: number }
+interface Tracked { event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string }
+
+/** Opens fix PRs on the customer's repo (the GitHub App). Optional: without it, renames stay "breaking" with a suggested rule. */
+export interface FixDispatcher {
+  existingRules(repo: string): Promise<AliasRule[]>;
+  openPr(i: { repo: string; rule: AliasRule; checks: CheckResult[]; usages: { file: string; line: number }[]; eventId: string }): Promise<{ url: string; number: number }>;
+}
 
 /** Runs the detectors over stored fingerprints and keeps drift events with their state machine (suspected -> confirmed). */
 export class DriftEngine {
   private events = new Map<string, Tracked>();
-  constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS) {}
+  constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS, private fixer?: FixDispatcher) {}
+
+  /** Events that need a human: everything non-alias, and renames the planner blocked. */
+  reviewQueue(): { event: DriftEvent; reason: string }[] {
+    return [...this.events.values()].filter((t) => t.reviewReason && !['resolved', 'expected', 'snoozed'].includes(t.event.state)).map((t) => ({ event: t.event, reason: t.reviewReason! }));
+  }
 
   list(): DriftEvent[] {
     return [...this.events.values()].map((t) => t.event).sort((a, b) => b.detectedAt.localeCompare(a.detectedAt));
+  }
+
+  /** A fix PR was merged/closed (GitHub webhook): resolve the event whose rule id matches. */
+  resolveByRule(ruleId: string, merged: boolean): DriftEvent | undefined {
+    for (const t of this.events.values()) {
+      if (t.event.fix?.rule?.id !== ruleId) continue;
+      t.event = { ...t.event, state: merged ? 'resolved' : 'breaking' };
+      if (!merged) t.dispatched = false;
+      return t.event;
+    }
+    return undefined;
   }
 
   setState(id: string, state: DriftState) {
@@ -38,9 +60,10 @@ export class DriftEngine {
     const maps = await this.maps();
 
     const findings: Finding[] = [];
+    const ctxOf = new Map<Finding, { base: ReturnType<typeof buildBaselines>[number]; win: ReturnType<typeof buildBaselines>[number] }>();
     for (const w of wins) {
       const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === w.statusClass);
-      if (b && b.samples >= this.opts.minBaselineSamples) findings.push(...runDetectors(b, w));
+      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w)) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
 
     const changed: DriftEvent[] = [];
@@ -62,8 +85,26 @@ export class DriftEngine {
         usages: usages.map((u) => ({ file: u.file, line: u.line, kind: u.money ? `${u.kind}+money` : u.kind })),
         ...(f.rung === 'alias' && f.rename ? { fix: { rung: 'alias' as const, rule: { kind: 'alias' as const, endpoint: `${f.method} ${f.endpoint}`, path: pathFor(f.rename.from), source: f.rename.to.slice(f.rename.to.lastIndexOf('.') + 1), target: f.rename.from.slice(f.rename.from.lastIndexOf('.') + 1) } } } : {}),
       };
-      if (!prev || prev.event.state !== event.state || prev.event.severity !== event.severity) changed.push(event);
-      this.events.set(key, { event, runs, lastSeen: now });
+      let tracked: Tracked = { event, runs, lastSeen: now, dispatched: prev?.dispatched, reviewReason: prev?.reviewReason };
+      const c = ctxOf.get(f);
+      if (confirmed && s.label !== 'info' && c && !tracked.dispatched) {
+        if (f.rung !== 'alias') tracked.reviewReason = 'Only renames get automatic PRs; this change needs a human decision.';
+        else {
+          const repo = maps.flatMap((m) => m.callSites).find((cs) => cs.service === f.service)?.repo;
+          const plan = planAlias({ finding: f, base: c.base, win: c.win, maps, existingRules: repo && this.fixer ? await this.fixer.existingRules(repo).catch(() => []) : [], eventId: event.id });
+          if (!plan.ok) tracked.reviewReason = plan.reason;
+          else if (this.fixer && repo) {
+            try {
+              const pr = await this.fixer.openPr({ repo, rule: plan.rule!, checks: plan.checks, usages: usages.map((u) => ({ file: u.file, line: u.line })), eventId: event.id });
+              tracked = { ...tracked, dispatched: true, event: { ...event, state: 'fix_pending', fix: { rung: 'alias', rule: plan.rule!, validation: { driftId: event.id, checks: plan.checks.map((k) => ({ id: k.id, passed: k.passed, detail: k.detail })), ci: 'pending', prUrl: pr.url } } } };
+            } catch (e) { tracked.reviewReason = `PR could not be opened: ${(e as Error).message}`; }
+          }
+        }
+      }
+      // Once a human-facing state is set (PR open, resolved, expected, snoozed) the stored event is authoritative.
+      if (prev && ['fix_pending', 'resolved', 'expected', 'snoozed'].includes(prev.event.state)) tracked = { ...tracked, event: prev.event };
+      if (!prev || prev.event.state !== tracked.event.state || prev.event.severity !== tracked.event.severity) changed.push(tracked.event);
+      this.events.set(key, tracked);
     }
     // A finding that vanished before it was confirmed was noise: forget it.
     for (const [key, t] of this.events) if (!seen.has(key) && t.runs < this.opts.confirmRuns) this.events.delete(key);
