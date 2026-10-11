@@ -15,10 +15,28 @@ export const AliasRule = z.object({
 });
 export type AliasRule = z.infer<typeof AliasRule>;
 
+/**
+ * A unit-change fix (P5.10): divide one numeric field by an exact factor. NOT additive, so it is never automatic:
+ * only proposed in a `needs-review` PR a human asked for, and applied by `applyTransforms` (separate from applyAliases).
+ */
+export const ScaleRule = z.object({
+  id: z.string().optional(),
+  kind: z.literal('scale'),
+  endpoint: z.string(),
+  path: z.string().default('$'),
+  field: z.string(),
+  divideBy: z.number().positive(),
+  driftEvent: z.string().optional(),
+  addedAt: z.string().optional(),
+});
+export type ScaleRule = z.infer<typeof ScaleRule>;
+export const SeismoRule = z.union([AliasRule, ScaleRule]);
+export type SeismoRule = z.infer<typeof SeismoRule>;
+
 export const CheckResult = z.object({ id: z.enum(['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8']), passed: z.boolean(), detail: z.string().optional() });
-export const FixRequest = z.object({ driftId: z.string(), repo: z.string(), rung: FixRung, rule: AliasRule.optional() });
+export const FixRequest = z.object({ driftId: z.string(), repo: z.string(), rung: FixRung, rule: SeismoRule.optional() });
 export const ValidationResult = z.object({ driftId: z.string(), checks: z.array(CheckResult), ci: z.enum(['pending', 'green', 'red']), prUrl: z.string().url().optional() });
-export const AliasSpec = z.object({ version: z.literal(1).default(1), rules: z.array(AliasRule) });
+export const AliasSpec = z.object({ version: z.literal(1).default(1), rules: z.array(SeismoRule) });
 
 /** What the model must return (validated with zod). Anything else is rejected and retried, then replaced by a template. */
 export const AiExplanationBody = z.object({
@@ -54,7 +72,7 @@ export const DriftEvent = z.object({
   detector: DetectorId, title: z.string(), severity: Severity, state: DriftState, confidence: z.number().min(0).max(1),
   detectedAt: z.string().datetime(), before: z.unknown(), after: z.unknown(),
   usages: z.array(Usage), explanation: AiExplanation.optional(),
-  fix: z.object({ rung: FixRung, rule: AliasRule.optional(), validation: ValidationResult.optional() }).optional(),
+  fix: z.object({ rung: FixRung, rule: SeismoRule.optional(), validation: ValidationResult.optional() }).optional(),
 });
 export type DriftEvent = z.infer<typeof DriftEvent>;
 

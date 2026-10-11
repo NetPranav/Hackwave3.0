@@ -51,7 +51,7 @@ export function promptFacts(e: DriftEvent) {
     detector: e.detector, title: e.title, service: e.service, endpoint: e.endpoint, field: e.field ?? null,
     severity: e.severity, state: e.state, confidence: e.confidence, before: e.before, after: e.after,
     usedAt: e.usages.map((u) => ({ file: u.file, line: u.line, usage: u.kind })),
-    automaticFix: e.fix?.rule ? `alias rule ${e.fix.rule.target} <- ${e.fix.rule.source} in seismo/aliases.json (pull request, human merges)` : 'none: human review',
+    automaticFix: !e.fix?.rule ? 'none: human review' : e.fix.rule.kind === 'scale' ? `suggested scale rule ${e.fix.rule.field} / ${e.fix.rule.divideBy} (needs-review pull request a human asked for)` : `alias rule ${e.fix.rule.target} <- ${e.fix.rule.source} in seismo/aliases.json (pull request, human merges)`,
   };
 }
 

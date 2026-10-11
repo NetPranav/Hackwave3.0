@@ -92,3 +92,38 @@ describe('applyAliases guarantees', () => {
     expect(applyAliases(input, r, 'GET /users/{id}')).not.toBe(input);
   });
 });
+
+import { applyTransforms } from '../src/runtime.js';
+describe('applyTransforms (P5.10 scale rules)', () => {
+  const scale = fc.record({ kind: fc.constant('scale' as const), field: name, divideBy: fc.constantFrom(10, 100, 1000), path: fc.constantFrom('$', '$.a', '$.items[*]') });
+  it('T1 identity: no matching field -> same reference', () => {
+    fc.assert(fc.property(json, fc.array(scale, { maxLength: 3 }), (v, rs) => {
+      expect(applyTransforms(v, rs.map((r) => ({ ...r, field: 'zzNever_' + r.field })))).toBe(v);
+    }), RUNS);
+  });
+  it('T2 only the named numeric field changes, by exactly the factor', () => {
+    fc.assert(fc.property(fc.dictionary(name, fc.oneof(fc.integer(), fc.string(), fc.boolean()), { minKeys: 1, maxKeys: 6 }), (obj) => {
+      const field = Object.keys(obj)[0]!;
+      const out = applyTransforms(obj, [{ kind: 'scale', field, divideBy: 100, path: '$' }]) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(obj)) {
+        if (k === field && typeof v === 'number') expect(out[k]).toBe(v / 100);
+        else expect(out[k]).toBe(v);
+      }
+      expect(Object.keys(out).sort()).toEqual(Object.keys(obj).sort());
+    }), RUNS);
+  });
+  it('paise -> rupees on the real payload shape; input untouched', () => {
+    const v2 = Object.freeze({ id: 'pay_1', amount: 49900, currency: 'INR' });
+    expect(applyTransforms(v2, [{ kind: 'scale', endpoint: 'GET /payments/{id}', field: 'amount', divideBy: 100 }], 'GET /payments/pay_1')).toEqual({ id: 'pay_1', amount: 499, currency: 'INR' });
+    expect(v2.amount).toBe(49900);
+    expect(applyTransforms(v2, [{ kind: 'scale', endpoint: 'GET /users/{id}', field: 'amount', divideBy: 100 }], 'GET /payments/pay_1')).toBe(v2);
+  });
+  it('T3 never throws; bad rules are ignored; aliases ignore scale rules and vice versa', () => {
+    const bad = [{ kind: 'scale', field: '__proto__', divideBy: 100 }, { kind: 'scale', field: 'a', divideBy: 0 }, { kind: 'scale', field: 'a', divideBy: -1 }, { kind: 'scale', field: 'a', divideBy: Infinity }, null, 5];
+    const input = { a: 100 };
+    expect(applyTransforms(input, bad)).toBe(input);
+    expect(applyAliases(input, [{ kind: 'scale', field: 'a', divideBy: 100 } as never])).toBe(input);
+    expect(applyTransforms(input, [{ kind: 'alias', target: 'b', source: 'a' }])).toBe(input);
+    for (const h of [null, 3, 'x', new Map(), Object.freeze([1])]) expect(() => applyTransforms(h as never, [{ kind: 'scale', field: 'a', divideBy: 10 }])).not.toThrow();
+  });
+});

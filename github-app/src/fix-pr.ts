@@ -1,4 +1,4 @@
-import type { AliasRule } from '@seismo/contracts';
+import type { AliasRule, ScaleRule, SeismoRule } from '@seismo/contracts';
 
 /** The ONLY file a fix PR may touch (AGENTS.md rule 6). */
 export const ALIASES_PATH = 'seismo/aliases.json';
@@ -25,22 +25,33 @@ export interface OctokitFix {
   };
 }
 
-export interface AliasFile { version: number; rules: AliasRule[] }
+export interface AliasFile { version: number; rules: SeismoRule[] }
+
+const ruleKey = (r: SeismoRule) => (r.kind === 'scale' ? `scale|${r.endpoint}|${r.path}|${(r as ScaleRule).field}` : `alias|${r.endpoint}|${r.path}|${(r as AliasRule).target}`);
+export const isScale = (r: SeismoRule): r is ScaleRule => r.kind === 'scale';
 
 /** Append one rule to the file content; returns the new text. Refuses duplicates. Stable formatting keeps diffs to one rule. */
-export function addRule(existing: string | null, rule: AliasRule): string {
+export function addRule(existing: string | null, rule: SeismoRule): string {
   let file: AliasFile = { version: 1, rules: [] };
   if (existing) {
     try { file = JSON.parse(existing) as AliasFile; } catch { throw new Error(`${ALIASES_PATH} is not valid JSON; refusing to touch it`); }
     if (!Array.isArray(file.rules)) throw new Error(`${ALIASES_PATH} has no rules array; refusing to touch it`);
   }
-  if (file.rules.some((r) => r.id === rule.id || (r.endpoint === rule.endpoint && r.path === rule.path && r.target === rule.target))) throw new Error('a rule for this key already exists');
+  if (file.rules.some((r) => (r.id && r.id === rule.id) || ruleKey(r) === ruleKey(rule))) throw new Error('a rule for this key already exists');
   file.rules.push(rule);
   return JSON.stringify(file, null, 2) + '\n';
 }
 
-export function prBody(rule: AliasRule, checks: Check[], usages: { file: string; line: number }[], eventUrl?: string) {
+export function prBody(rule: SeismoRule, checks: Check[], usages: { file: string; line: number }[], eventUrl?: string) {
   const tick = (c: Check) => `- ${c.passed ? '✅' : '❌'} **${c.id}** ${c.detail}`;
+  if (isScale(rule)) return [
+    `**Needs review.** Seismo saw every \`${rule.field}\` on \`${rule.endpoint}\` become ${rule.divideBy} times larger (a unit change). You asked for a suggested fix, so here it is:`,
+    '', '### The change', `One data rule in \`${ALIASES_PATH}\`: divide \`${rule.field}\` by ${rule.divideBy} when the response arrives. No code is modified.`,
+    '```json', JSON.stringify(rule, null, 2), '```',
+    '**This changes values**, unlike an alias. Confirm the new unit with the provider before merging; if they switch back, this rule would be wrong and must be removed. Seismo never merges this and never opens it on its own.',
+    '', '### Where it is used', ...(usages.length ? usages.slice(0, 8).map((u) => `- \`${u.file}:${u.line}\``) : ['- no reads found']),
+    '', '### How to revert', `Delete the rule from \`${ALIASES_PATH}\` (or revert this PR).`, ...(eventUrl ? ['', `[Drift details in Seismo](${eventUrl})`] : []),
+  ].join('\n');
   return [
     `Seismo noticed that \`${rule.endpoint}\` now sends \`${rule.source}\` where your code reads \`${rule.target}\`.`,
     '',
@@ -61,12 +72,13 @@ export function prBody(rule: AliasRule, checks: Check[], usages: { file: string;
   ].join('\n');
 }
 
-export interface OpenFixInput { owner: string; repo: string; rule: AliasRule; checks: Check[]; usages: { file: string; line: number }[]; eventId: string; eventUrl?: string }
+export interface OpenFixInput { owner: string; repo: string; rule: SeismoRule; checks: Check[]; usages: { file: string; line: number }[]; eventId: string; eventUrl?: string }
 
 /** Branch `seismo/alias-<id>`, commit ONE file, open the PR. Idempotent: an open PR for the branch is returned instead of a duplicate. */
 export async function openAliasPr(octokit: OctokitFix, i: OpenFixInput): Promise<{ url: string; number: number; created: boolean }> {
   const { owner, repo, rule } = i;
-  const branch = `seismo/alias-${rule.id ?? i.eventId}`;
+  const branch = `seismo/${isScale(rule) ? 'scale' : 'alias'}-${rule.id ?? i.eventId}`;
+  const title = isScale(rule) ? `fix(seismo): ${rule.endpoint} ${rule.field} ÷ ${rule.divideBy} (needs review)` : `fix(seismo): alias ${rule.endpoint} ${(rule as AliasRule).target} ← ${(rule as AliasRule).source}`;
   const open = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: 'open' });
   if (open.data[0]) return { url: open.data[0].html_url, number: open.data[0].number, created: false };
 
@@ -83,16 +95,16 @@ export async function openAliasPr(octokit: OctokitFix, i: OpenFixInput): Promise
   const baseSha = (await octokit.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
   await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: baseSha });
   const put = (await octokit.rest.repos.createOrUpdateFileContents({
-    owner, repo, path: ALIASES_PATH, branch, message: `fix(seismo): alias ${rule.endpoint} ${rule.target} ← ${rule.source}`,
+    owner, repo, path: ALIASES_PATH, branch, message: title,
     content: Buffer.from(next).toString('base64'), ...(sha ? { sha } : {}),
   })) as { data?: { commit?: { sha?: string } } };
   const pr = await octokit.rest.pulls.create({
-    owner, repo, base, head: branch, title: `fix(seismo): alias ${rule.endpoint} ${rule.target} ← ${rule.source}`,
+    owner, repo, base, head: branch, title,
     body: prBody(rule, i.checks, i.usages, i.eventUrl),
   });
-  await octokit.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: ['seismo', 'auto-safe'] }).catch(() => undefined);
+  await octokit.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: isScale(rule) ? ['seismo', 'needs-review'] : ['seismo', 'auto-safe'] }).catch(() => undefined);
   const headSha = put.data?.commit?.sha;
-  if (headSha && octokit.rest.checks) await octokit.rest.checks.create(safetyCheckRun(owner, repo, headSha, rule, i.checks)).catch(() => undefined);
+  if (headSha && octokit.rest.checks && !isScale(rule)) await octokit.rest.checks.create(safetyCheckRun(owner, repo, headSha, rule, i.checks)).catch(() => undefined);
   return { url: pr.data.html_url, number: pr.data.number, created: true };
 }
 

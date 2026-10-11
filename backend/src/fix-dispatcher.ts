@@ -1,4 +1,4 @@
-import type { AliasRule } from '@seismo/contracts';
+import type { SeismoRule } from '@seismo/contracts';
 import type { FixDispatcher } from './drift-engine.js';
 import type { GithubIssueSink } from './alerts/dispatcher.js';
 
@@ -11,7 +11,7 @@ export function httpFixDispatcher(baseUrl = process.env.GITHUB_APP_URL, token = 
     return r.json() as Promise<Record<string, unknown>>;
   };
   return {
-    async existingRules(repo) { return ((await call('rules', { repo })).rules as AliasRule[]) ?? []; },
+    async existingRules(repo) { return ((await call('rules', { repo })).rules as SeismoRule[]) ?? []; },
     async openPr(i) { const r = await call('fix', i); return { url: String(r['url']), number: Number(r['number']) }; },
   };
 }

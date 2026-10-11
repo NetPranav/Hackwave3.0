@@ -17,17 +17,17 @@ export interface SetupPlan { files: FileChange[]; wrapped: { file: string; line:
 
 const HELPER = `// Added by Seismo (setup PR). Routes provider responses through alias rules (data, not code).
 // With no rules in aliases.json this is the identity: responses pass through unchanged.
-import { applyAliases, type AliasRule } from '@seismo/sdk/runtime';
+import { applyAliases, applyTransforms, type AliasRule } from '@seismo/sdk/runtime';
 import file from './aliases.json';
 
 const rules = (file as { rules: AliasRule[] }).rules;
 
-/** Parsed JSON body of a provider response. */
-export const withAliases = <T>(body: T, endpoint: string): T => applyAliases(body, rules, endpoint);
+/** Parsed JSON body of a provider response: alias rules (add-only), then reviewed scale rules if any. */
+export const withAliases = <T>(body: T, endpoint: string): T => applyTransforms(applyAliases(body, rules, endpoint), rules, endpoint);
 
 /** axios-style response objects: only \`data\` is passed through the rules. */
 export const withAliasesResponse = <R extends { data: unknown }>(res: R, endpoint: string): R => {
-  const data = applyAliases(res.data, rules, endpoint);
+  const data = withAliases(res.data, endpoint);
   return data === res.data ? res : { ...res, data };
 };
 `;
@@ -43,13 +43,13 @@ const rules = (file as { rules: AliasRule[] }).rules;
 
 describe('seismo/aliases.json', () => {
   it('is valid', () => {
-    for (const r of rules) {
+    for (const r of rules.filter((x) => (x as { kind?: string }).kind !== 'scale')) {
       expect(r.target).toMatch(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/);
       expect(r.source).toMatch(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/);
       expect(r.target).not.toBe(r.source);
     }
   });
-  for (const r of rules) {
+  for (const r of rules.filter((x) => (x as { kind?: string }).kind !== 'scale')) {
     it(\`\${r.endpoint} \${r.target} <- \${r.source}: G1 + G2\`, () => {
       const oldShape = { [r.target]: 'old', [r.source]: 'new', other: 1 };
       expect(applyAliases(oldShape, [r], r.endpoint)).toBe(oldShape);

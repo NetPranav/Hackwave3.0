@@ -16,7 +16,7 @@ export function suggestionFor(e: DriftEvent): string {
   switch (e.detector) {
     case 'D3': {
       const r = e.fix?.rule;
-      return r ? `Merge the Seismo PR that adds one alias rule (${r.target} ← ${r.source}) to seismo/aliases.json. No code changes.` : `Add an alias rule for ${f} in seismo/aliases.json, or update the code to read the new name.`;
+      return r && r.kind === 'alias' ? `Merge the Seismo PR that adds one alias rule (${r.target} ← ${r.source}) to seismo/aliases.json. No code changes.` : `Add an alias rule for ${f} in seismo/aliases.json, or update the code to read the new name.`;
     }
     case 'D1': return `The provider stopped sending ${f}. Handle its absence where it is read (${where(e)}) or ask the provider whether it moved.`;
     case 'D2': return `The provider added ${f}. No action needed unless you want to use it.`;

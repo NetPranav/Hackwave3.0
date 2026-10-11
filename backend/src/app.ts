@@ -208,7 +208,13 @@ export function buildApp(opts: AppOptions = {}) {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_request', message: parsed.error.message });
     const id = parsed.data.id.replace(/^rev-/, '');
     if (!engine.get(id)) return reply.code(404).send({ error: 'unknown_event' });
-    if (parsed.data.action === 'open_pr') return reply.code(501).send({ error: 'not_available', message: 'Suggestion PRs for non-alias changes (P5.10) are not built; change the code by hand.' });
+    if (parsed.data.action === 'open_pr') {
+      const ev = engine.get(id)!;
+      const r = await engine.openScalePr(id, await repoFor(ev.service)).catch((e: Error) => ({ error: e.message, event: undefined }));
+      if (r.error || !r.event) return reply.code(409).send({ error: 'not_available', message: r.error });
+      broadcast('drift.updated', r.event);
+      return { ok: true, prUrl: r.event.fix?.validation?.prUrl };
+    }
     engine.setState(id, parsed.data.action === 'expected' ? 'expected' : 'snoozed');
     broadcast('drift.updated', engine.get(id));
     return { ok: true };

@@ -1,4 +1,4 @@
-import type { AliasRule, CodeMap, DriftEvent, DriftState } from '@seismo/contracts';
+import type { AliasRule, CodeMap, DriftEvent, DriftState, ScaleRule, SeismoRule } from '@seismo/contracts';
 import { buildBaselines } from './baseline.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
@@ -21,8 +21,8 @@ const OPEN_CONFIRMED = (t: Tracked, confirmRuns: number) => t.runs >= confirmRun
 
 /** Opens fix PRs on the customer's repo (the GitHub App). Optional: without it, renames stay "breaking" with a suggested rule. */
 export interface FixDispatcher {
-  existingRules(repo: string): Promise<AliasRule[]>;
-  openPr(i: { repo: string; rule: AliasRule; checks: CheckResult[]; usages: { file: string; line: number }[]; eventId: string }): Promise<{ url: string; number: number }>;
+  existingRules(repo: string): Promise<SeismoRule[]>;
+  openPr(i: { repo: string; rule: SeismoRule; checks: CheckResult[]; usages: { file: string; line: number }[]; eventId: string }): Promise<{ url: string; number: number }>;
 }
 
 /** Runs the detectors over stored fingerprints and keeps drift events with their state machine (suspected -> confirmed). */
@@ -63,6 +63,28 @@ export class DriftEngine {
       return t.event;
     }
     return undefined;
+  }
+
+  /**
+   * P5.10: a HUMAN asked for a suggestion PR on a unit change (D5). Proposes one `scale` rule (divide by the factor),
+   * labelled needs-review, never merged by Seismo. Returns an error string when not applicable.
+   */
+  async openScalePr(id: string, repo: string | undefined): Promise<{ event?: DriftEvent; error?: string }> {
+    const k = this.keyOf(id);
+    const t = k ? this.events.get(k) : undefined;
+    if (!t) return { error: 'unknown_event' };
+    if (t.event.detector !== 'D5' || !t.event.field) return { error: 'Suggestion PRs exist only for unit changes (D5); change the code by hand.' };
+    if (!this.fixer || !repo) return { error: 'No GitHub App connection for this repo.' };
+    const m = /×(1\/)?([\d.]+)/.exec(t.event.title);
+    const factor = m ? (m[1] ? 1 / Number(m[2]) : Number(m[2])) : NaN;
+    if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return { error: 'Unit factor not known for this event.' };
+    const [method, ...p] = t.event.endpoint.split(' ');
+    const rule: ScaleRule = { id: `s-${t.event.id.slice(-6)}`, kind: 'scale', endpoint: `${method} ${p.join(' ')}`, path: pathFor(t.event.field), field: t.event.field.slice(t.event.field.lastIndexOf('.') + 1), divideBy: factor, driftEvent: t.event.id, addedAt: new Date().toISOString().slice(0, 10) };
+    const pr = await this.fixer.openPr({ repo, rule, checks: [], usages: t.event.usages.map((u) => ({ file: u.file, line: u.line })), eventId: t.event.id });
+    t.event = { ...t.event, state: 'fix_pending', fix: { rung: 'transform', rule, validation: { driftId: t.event.id, checks: [], ci: 'pending', prUrl: pr.url } } };
+    t.dispatched = true;
+    await this.persist([k!]);
+    return { event: t.event };
   }
 
   /** P5.6: the customer's CI finished on the fix PR -> C7 + C8 and the CI state on the event. */
@@ -156,7 +178,7 @@ export class DriftEngine {
         if (f.rung !== 'alias') tracked.reviewReason = 'Only renames get automatic PRs; this change needs a human decision.';
         else {
           const repo = maps.flatMap((m) => m.callSites).find((cs) => cs.service === f.service)?.repo;
-          const plan = planAlias({ finding: f, base: c.base, win: c.win, maps, existingRules: repo && this.fixer ? await this.fixer.existingRules(repo).catch(() => []) : [], eventId: event.id });
+          const plan = planAlias({ finding: f, base: c.base, win: c.win, maps, existingRules: repo && this.fixer ? ((await this.fixer.existingRules(repo).catch(() => [])).filter((r) => r.kind !== 'scale') as AliasRule[]) : [], eventId: event.id });
           if (!plan.ok) tracked.reviewReason = plan.reason;
           else if (this.fixer && repo) {
             try {

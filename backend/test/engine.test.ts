@@ -179,3 +179,25 @@ describe('fix CI tracking (P5.6)', () => {
     expect(red.fix!.validation!.checks.filter((c) => c.id === 'C8')).toEqual([{ id: 'C8', passed: false, detail: 'CI on the fix PR: failure' }]);
   });
 });
+
+describe('suggestion PR for a unit change (P5.10)', () => {
+  it('only when a human asks, only for D5, rule = divide by the detected factor', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/payments/pay_1', 20, { service: 'payments', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'payments-paise');
+    for (const fp of await capture(s, '/payments/pay_1', 40, { service: 'payments', at: NOW - 20_000 })) await ingest.add('dev', fp);
+    const prs: { rule: unknown }[] = [];
+    const map: CodeMap = { repo: 'demo/shop', commit: 'c', scannedAt: '2026-10-14T10:00:00.000Z', workflows: [], callSites: [{ id: 'p', repo: 'demo/shop', file: 'lib/pay.ts', line: 3, service: 'payments', method: 'GET', endpoint: '/payments/{id}' }], fieldReads: [{ callSiteId: 'p', field: 'amount', file: 'lib/pay.ts', line: 5, usage: 'arithmetic', money: true }] };
+    const e = new DriftEngine(ingest, async () => [map], undefined, { existingRules: async () => [], openPr: async (i: { rule: unknown }) => { prs.push(i); return { url: 'https://github.com/demo/shop/pull/5', number: 5 }; } } as never);
+    await e.run(NOW); await e.run(NOW + 5000);
+    expect(prs).toHaveLength(0);                                                  // never automatic
+    const d5 = e.list().find((x) => x.detector === 'D5')!;
+    const r = await e.openScalePr(d5.id, 'demo/shop');
+    expect(r.event!.state).toBe('fix_pending');
+    expect(prs[0]!.rule).toMatchObject({ kind: 'scale', endpoint: 'GET /payments/{id}', path: '$', field: 'amount', divideBy: 100 });
+    expect(r.event!.fix!.rung).toBe('transform');
+    const rename = await e.openScalePr('nope', 'demo/shop');
+    expect(rename.error).toBe('unknown_event');
+  });
+});

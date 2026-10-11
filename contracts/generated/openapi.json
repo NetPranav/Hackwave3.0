@@ -813,44 +813,88 @@
                             ]
                           },
                           "rule": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "default": "alias",
+                                    "type": "string",
+                                    "const": "alias"
+                                  },
+                                  "endpoint": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "default": "$",
+                                    "type": "string"
+                                  },
+                                  "target": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "type": "string"
+                                  },
+                                  "driftEvent": {
+                                    "type": "string"
+                                  },
+                                  "addedAt": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "endpoint",
+                                  "path",
+                                  "target",
+                                  "source"
+                                ],
+                                "additionalProperties": false
                               },
-                              "kind": {
-                                "default": "alias",
-                                "type": "string",
-                                "const": "alias"
-                              },
-                              "endpoint": {
-                                "type": "string"
-                              },
-                              "path": {
-                                "default": "$",
-                                "type": "string"
-                              },
-                              "target": {
-                                "type": "string"
-                              },
-                              "source": {
-                                "type": "string"
-                              },
-                              "driftEvent": {
-                                "type": "string"
-                              },
-                              "addedAt": {
-                                "type": "string"
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "scale"
+                                  },
+                                  "endpoint": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "default": "$",
+                                    "type": "string"
+                                  },
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "divideBy": {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  "driftEvent": {
+                                    "type": "string"
+                                  },
+                                  "addedAt": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "endpoint",
+                                  "path",
+                                  "field",
+                                  "divideBy"
+                                ],
+                                "additionalProperties": false
                               }
-                            },
-                            "required": [
-                              "kind",
-                              "endpoint",
-                              "path",
-                              "target",
-                              "source"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "validation": {
                             "type": "object",
@@ -1298,44 +1342,88 @@
                                 ]
                               },
                               "rule": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "default": "alias",
+                                        "type": "string",
+                                        "const": "alias"
+                                      },
+                                      "endpoint": {
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "default": "$",
+                                        "type": "string"
+                                      },
+                                      "target": {
+                                        "type": "string"
+                                      },
+                                      "source": {
+                                        "type": "string"
+                                      },
+                                      "driftEvent": {
+                                        "type": "string"
+                                      },
+                                      "addedAt": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "endpoint",
+                                      "path",
+                                      "target",
+                                      "source"
+                                    ],
+                                    "additionalProperties": false
                                   },
-                                  "kind": {
-                                    "default": "alias",
-                                    "type": "string",
-                                    "const": "alias"
-                                  },
-                                  "endpoint": {
-                                    "type": "string"
-                                  },
-                                  "path": {
-                                    "default": "$",
-                                    "type": "string"
-                                  },
-                                  "target": {
-                                    "type": "string"
-                                  },
-                                  "source": {
-                                    "type": "string"
-                                  },
-                                  "driftEvent": {
-                                    "type": "string"
-                                  },
-                                  "addedAt": {
-                                    "type": "string"
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "scale"
+                                      },
+                                      "endpoint": {
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "default": "$",
+                                        "type": "string"
+                                      },
+                                      "field": {
+                                        "type": "string"
+                                      },
+                                      "divideBy": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                      },
+                                      "driftEvent": {
+                                        "type": "string"
+                                      },
+                                      "addedAt": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "endpoint",
+                                      "path",
+                                      "field",
+                                      "divideBy"
+                                    ],
+                                    "additionalProperties": false
                                   }
-                                },
-                                "required": [
-                                  "kind",
-                                  "endpoint",
-                                  "path",
-                                  "target",
-                                  "source"
-                                ],
-                                "additionalProperties": false
+                                ]
                               },
                               "validation": {
                                 "type": "object",

@@ -1,6 +1,6 @@
 import type { ApplicationFunctionOptions, Probot } from 'probot';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AliasRule } from '@seismo/contracts';
+import type { AliasRule, SeismoRule } from '@seismo/contracts';
 import { ALIASES_PATH, CHECK_NAME, openAliasPr, type Check, type OctokitFix } from './fix-pr.js';
 import { upsertIssue, type OctokitIssues } from './issues.js';
 import { publishCodeMap, scanRepo, withCheckout } from './scan-repo.js';
@@ -135,7 +135,7 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions) {
   router.post('/internal/fix', async (req: IncomingMessage, res: ServerResponse) => {
     if (req.headers['x-internal-token'] !== TOKEN()) return send(res, 401, { error: 'unauthorized' });
     try {
-      const b = (await readJson(req)) as { repo: string; rule: AliasRule; checks: Check[]; usages: { file: string; line: number }[]; eventId: string };
+      const b = (await readJson(req)) as { repo: string; rule: SeismoRule; checks: Check[]; usages: { file: string; line: number }[]; eventId: string };
       const { owner, name, kit } = await octokitFor(b.repo);
       const pr = await openAliasPr(kit as unknown as OctokitFix, { owner, repo: name, rule: b.rule, checks: b.checks, usages: b.usages, eventId: b.eventId, eventUrl: process.env.DASHBOARD_URL ? `${process.env.DASHBOARD_URL}/app/drift/${b.eventId}` : undefined });
       return send(res, 200, pr);
@@ -165,8 +165,9 @@ export { CHECK_NAME };
 export function watchFixPrs(app: Probot) {
   app.on('pull_request.closed', async (ctx) => {
     const ref = ctx.payload.pull_request.head.ref;
-    if (!ref.startsWith('seismo/alias-')) return;
-    const ruleId = ref.slice('seismo/alias-'.length);
+    const m = /^seismo\/(?:alias|scale)-(.+)$/.exec(ref);
+    if (!m) return;
+    const ruleId = m[1]!;
     await fetch(`${process.env.BACKEND_URL ?? 'http://localhost:4000'}/internal/fix-event`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-token': TOKEN() },
       body: JSON.stringify({ ruleId, merged: ctx.payload.pull_request.merged }),
