@@ -4,4 +4,7 @@ import { pgIngest } from './ingest-store.js';
 
 const port = Number(process.env.PORT ?? 4000);
 const pg = !!process.env.DATABASE_URL;
-await buildApp({ store: pg ? pgStore() : undefined, ingest: pg ? pgIngest() : undefined }).listen({ port, host: '0.0.0.0' });
+const app = buildApp({ store: pg ? pgStore() : undefined, ingest: pg ? pgIngest() : undefined });
+await app.listen({ port, host: '0.0.0.0' });
+// Detection pass every 5 s (P4.2). Errors must never kill the API.
+setInterval(() => { (app as unknown as { detectNow: () => Promise<unknown> }).detectNow().catch((e: unknown) => app.log.error(e)); }, 5000).unref();

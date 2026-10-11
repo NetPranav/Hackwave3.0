@@ -15,6 +15,7 @@
     "@fastify/cors": "^10.0.0",
     "@seismo/contracts": "*",
     "drizzle-orm": "^0.45.4",
+    "fastest-levenshtein": "^1.0.16",
     "fastify": "^5.0.0",
     "graphology": "^0.26.0",
     "graphology-traversal": "^0.3.1",

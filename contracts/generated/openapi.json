@@ -1791,6 +1791,16 @@
                   "endpoint": {
                     "type": "string"
                   },
+                  "statusClass": {
+                    "default": "2xx",
+                    "type": "string",
+                    "enum": [
+                      "2xx",
+                      "3xx",
+                      "4xx",
+                      "5xx"
+                    ]
+                  },
                   "windowStart": {
                     "type": "string",
                     "format": "date-time",
@@ -2024,6 +2034,7 @@
                   "service",
                   "method",
                   "endpoint",
+                  "statusClass",
                   "windowStart",
                   "windowSeconds",
                   "count",

@@ -30,6 +30,7 @@ export const Fingerprint = z.object({
   service: z.string(),
   method: z.string(),
   endpoint: z.string(),                       // normalised template, e.g. "/users/{id}"
+  statusClass: z.enum(['2xx', '3xx', '4xx', '5xx']).default('2xx'), // windows are split by class so error bodies never mix with success bodies
   windowStart: z.string().datetime(),
   windowSeconds: z.number().int(),
   count: z.number().int(),                    // sampled responses in the window

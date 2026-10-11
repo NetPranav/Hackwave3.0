@@ -26,7 +26,7 @@ export interface InitOptions {
 }
 
 interface Window {
-  service: string; method: string; endpoint: string; start: number;
+  service: string; method: string; endpoint: string; statusClass: string; start: number;
   count: number; statuses: Record<string, number>; latencies: number[];
   headers: Record<string, string>; queryKeys: Set<string>; limit?: number;
   accs: Map<string, FieldAcc>;
@@ -99,10 +99,11 @@ export class Seismo {
       const url = new URL(meta.url);
       const { endpoint, queryKeys, limit } = normalise(url);
       const service = this.serviceOf(url);
-      const key = `${service}|${meta.method}|${endpoint}`;
+      const statusClass = `${Math.floor(meta.status / 100)}xx`;
+      const key = `${service}|${meta.method}|${endpoint}|${statusClass}`;
       let w = this.windows.get(key);
       if (!w) {
-        w = { service, method: meta.method, endpoint, start: Date.now(), count: 0, statuses: {}, latencies: [], headers: {}, queryKeys: new Set(), accs: new Map() };
+        w = { service, method: meta.method, endpoint, statusClass, start: Date.now(), count: 0, statuses: {}, latencies: [], headers: {}, queryKeys: new Set(), accs: new Map() };
         this.windows.set(key, w);
       }
       w.count++;
@@ -136,7 +137,7 @@ export class Seismo {
         for (const [path, nums] of held) this.held.set(`${k}|${path}`, nums.slice(-50));
         const shape = createHash('sha256').update(JSON.stringify(Object.entries(fields).map(([p, f]) => [p, Object.keys((f as { types: object }).types).sort()]).sort())).digest('hex').slice(0, 16);
         this.ready.push({
-          v: 1, service: w.service, method: w.method, endpoint: w.endpoint,
+          v: 1, service: w.service, method: w.method, endpoint: w.endpoint, statusClass: w.statusClass,
           windowStart: new Date(w.start).toISOString(), windowSeconds: Math.max(1, Math.round((now - w.start) / 1000)),
           count: w.count, statusCounts: w.statuses,
           latencyMs: { p50: Math.round(percentile(w.latencies, 0.5)), p95: Math.round(percentile(w.latencies, 0.95)) },

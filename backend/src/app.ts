@@ -11,17 +11,18 @@ import { memoryIngest, SdkKeys, type IngestStore } from './ingest-store.js';
 import { buildBaselines } from './baseline.js';
 import { buildStatus, providerStatus } from './status.js';
 import { gunzipSync } from 'node:zlib';
+import { DriftEngine } from './drift-engine.js';
 
 /** P0.4 skeleton: routes return contract-shaped mock data until the real engine (P2-P6) replaces each one. */
-export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys } = {}) {
+export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; keys?: SdkKeys; engine?: DriftEngine } = {}) {
   const store = opts.store ?? memoryStore();
   const ingestStore = opts.ingest ?? memoryIngest();
   const keys = opts.keys ?? new SdkKeys();
+  const engine = opts.engine ?? new DriftEngine(ingestStore, () => store.all());
   const sseClients = new Set<(event: string, data: unknown) => void>();
   const app = Fastify({ logger: process.env.NODE_ENV === 'test' ? false : { level: 'info' } });
   app.register(cors, { origin: true });
 
-  const ingestKeys = new Set((process.env.SEISMO_SDK_KEYS ?? 'dev-key').split(','));
   let notif = mockNotificationSettings();
 
   // SDK batches arrive gzipped.
@@ -91,7 +92,17 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
     return { services: buildStatus(fps, { provider }) };
   });
-  app.get('/v1/drift-events', async () => mockDrift());
+  app.get('/v1/drift-events', async () => {
+    const real = engine.list();
+    return real.length ? real : mockDrift();
+  });
+  /** One detection pass now (the server also runs it every 5 s). Emits drift.created / drift.updated over SSE. */
+  app.post('/internal/detect', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const changed = await engine.run();
+    for (const e of changed) for (const send of sseClients) send(e.state === 'suspected' || e.state === 'normal' ? 'drift.created' : 'drift.updated', e);
+    return { changed: changed.length };
+  });
   app.get('/v1/radar', async () => mockRadar());
   app.get('/v1/review', async () => mockReview());
   app.post('/v1/review', async () => ({ ok: true }));
@@ -123,5 +134,7 @@ export function buildApp(opts: { store?: CodeMapStore; ingest?: IngestStore; key
     const t = setInterval(() => reply.raw.write(': ping\n\n'), 15000);
     req.raw.on('close', () => { clearInterval(t); sseClients.delete(send); });
   });
+  (app as unknown as { engine: DriftEngine }).engine = engine;
+  app.decorate('detectNow', async () => { const changed = await engine.run(); for (const e of changed) for (const send of sseClients) send('drift.updated', e); return changed; });
   return app;
 }
