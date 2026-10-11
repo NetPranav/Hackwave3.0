@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { requireUser, signUserToken, userFrom } from './auth.js';
@@ -159,7 +160,7 @@ export function buildApp(opts: AppOptions = {}) {
   // open to any signed-in user so the dashboard can say "this project belongs to someone else".
   const OPEN_TO_ANY_USER = ['/v1/me', '/v1/projects'];
   app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events') || req.url.startsWith('/v1/sdk/')) return;
+    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events') || req.url.startsWith('/v1/sdk/')) return;   // SDK routes: key auth
     await requireUser(req, reply);
     if (reply.sent) return;
     const path = req.url.split('?')[0]!;
@@ -293,6 +294,45 @@ export function buildApp(opts: AppOptions = {}) {
   });
   // v2 demo: the app itself (holding its SDK key) may ask what Seismo has detected for its project: titles and states
   // only, no evidence, no code locations. Used by the demo shop's "Demo changes" panel.
+  // v3-P2 self-healing: the SDK asks for live alias rules; it reports how many responses each rule healed.
+  // Served only with auto-heal on, only renames whose fix PR passed every check (state fix_pending), never value rules.
+  const heal = new Map<string, { hits: number; lastAt?: string; announced?: number }>();
+  const liveRules = async () => {
+    if (!(await settingsStore.get()).autoHeal) return [];
+    return engine.list()
+      .filter((e) => e.state === 'fix_pending' && e.fix?.rung === 'alias' && e.fix.rule?.kind === 'alias' && e.fix.validation?.checks.every((c) => c.passed))
+      .map((e) => ({ ...e.fix!.rule!, id: e.fix!.rule!.id ?? `live-${e.id}` }));
+  };
+  app.get('/v1/sdk/rules', async (req, reply) => {
+    if (!keys.verify(String(req.headers['x-seismo-key'] ?? ''))) return reply.code(401).send({ error: 'bad_key' });
+    const rules = await liveRules();
+    const etag = `"${createHash('sha1').update(JSON.stringify(rules)).digest('hex').slice(0, 16)}"`;
+    if (req.headers['if-none-match'] === etag) return reply.code(304).send();
+    return reply.header('etag', etag).send({ rules });
+  });
+  app.post('/v1/sdk/rule-hits', async (req, reply) => {
+    if (!keys.verify(String(req.headers['x-seismo-key'] ?? ''))) return reply.code(401).send({ error: 'bad_key' });
+    const hits = ((req.body ?? {}) as { hits?: Record<string, number> }).hits ?? {};
+    for (const [id, n] of Object.entries(hits).slice(0, 200)) {
+      if (!Number.isFinite(n) || n <= 0) continue;
+      const h = heal.get(id) ?? { hits: 0 };
+      h.hits += Math.min(n, 1e6);
+      h.lastAt = new Date().toISOString();
+      heal.set(id, h);
+      if (!h.announced || Date.now() - h.announced > 60_000) {   // one feed line per rule per minute
+        h.announced = Date.now();
+        const ev = engine.list().find((e) => e.fix?.rule?.id === id || `live-${e.id}` === id);
+        activity({ kind: 'pr', ok: true, ...(ev ? { driftId: ev.id, service: ev.service } : {}), text: `Healed live in the app: ${h.hits} response(s) so far with rule ${id}${ev ? ` (${ev.title})` : ''}` });
+      }
+    }
+    return { ok: true };
+  });
+  const healOf = (e: DriftEvent, live: Set<string>) => {
+    const id = e.fix?.rule?.id ?? `live-${e.id}`;
+    const h = heal.get(id);
+    return live.has(id) || h ? { heal: { live: live.has(id), hits: h?.hits ?? 0, ...(h?.lastAt ? { lastAt: h.lastAt } : {}) } } : {};
+  };
+
   app.get('/v1/sdk/changes', async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
     if (!projectId) return reply.code(401).send({ error: 'bad_key' });
@@ -318,7 +358,8 @@ export function buildApp(opts: AppOptions = {}) {
     const real = engine.list();
     if (!real.length && mocks) return mockDrift();
     const maps = await store.all();
-    return real.map((e) => enrichEvent(e, maps));
+    const live = new Set((await liveRules()).map((r) => r.id));
+    return real.map((e) => ({ ...enrichEvent(e, maps), ...healOf(e, live) }));
   });
   /** One detection pass now (the server also runs it every 5 s). Emits drift.created / drift.updated over SSE. */
   app.post('/internal/detect', async (req, reply) => {
@@ -417,6 +458,7 @@ export function buildApp(opts: AppOptions = {}) {
   });
 
   // One fingerprint is a few KB; 512 KB is far above any real batch and stops oversized bodies early.
+  const seenBatches = new Set<string>();
   app.post('/v1/ingest', { bodyLimit: 512 * 1024 }, async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
     if (!projectId) return reply.code(401).send({ error: 'bad_key' });
@@ -424,6 +466,13 @@ export function buildApp(opts: AppOptions = {}) {
     if (wait) return reply.code(429).header('retry-after', String(wait)).send({ error: 'rate_limited', retryAfterSeconds: wait });
     const parsed = Fingerprint.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_fingerprint', message: parsed.error.message });
+    // v3-P3.1: an SDK resend after a timeout carries the same batchId: accept it, store it once
+    if (parsed.data.batchId) {
+      const k = `${projectId}|${parsed.data.batchId}`;
+      if (seenBatches.has(k)) return { ok: true, duplicate: true };
+      seenBatches.add(k);
+      if (seenBatches.size > 50_000) seenBatches.delete(seenBatches.values().next().value!);
+    }
     await ingestStore.add(projectId, parsed.data);
     const fp = parsed.data;
     const errs = Object.entries(fp.statusCounts).filter(([s]) => Number(s) >= 400).reduce((n, [, c]) => n + c, 0);

@@ -180,6 +180,7 @@ export function toTimeline(events: DriftEvent[], reviewIds: Set<string>, radar: 
       impactedWorkflows: workflowsOf(e.usages),
       impactedFilesCount: new Set(e.usages.map((u) => u.file)).size,
       ...(pr ? { fixPrNumber: pr } : {}),
+      ...(e.heal?.live ? { healedHits: e.heal.hits } : {}),
       ...(e.fix ? { fixType: e.fix.rung === "alias" ? ("alias" as const) : ("review" as const) } : {}),
       ...(shortDiff(e) ? { diffSnippet: shortDiff(e) } : {}),
     };
@@ -475,6 +476,7 @@ export function toFixes(events: DriftEvent[]): FixRuleData[] {
         driftType: detectorName(e.detector) + " (" + e.detector + ")",
         branchName: "seismo/alias-" + (rule.id ?? e.id),
         ...(prNumber(e.fix?.validation?.prUrl) ? { fixPrNumber: prNumber(e.fix?.validation?.prUrl), prUrl: e.fix?.validation?.prUrl } : {}),
+        ...(e.heal?.live ? { healedHits: e.heal.hits } : {}),
         detectedAt: e.detectedAt,
         impactWorkflows: workflowsOf(e.usages),
         codeSites: toCodeSites(e.usages).map((s) => ({ file: s.file, line: s.line, workflow: s.workflow, snippet: s.snippet })),

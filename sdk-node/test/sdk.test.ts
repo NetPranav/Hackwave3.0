@@ -23,6 +23,7 @@ beforeAll(async () => {
     const chunks: Buffer[] = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
+      if (req.url !== '/v1/ingest') return res.end(req.url === '/v1/sdk/rules' ? '{"rules":[]}' : '{}');   // live rules / rule hits
       const text = new TextDecoder().decode(gunzipSync(new Uint8Array(Buffer.concat(chunks))));
       rawBodies.push(text);
       received.push(JSON.parse(text));
@@ -121,7 +122,7 @@ describe('SDK fail-open (P3.8)', () => {
     await s.flush(); // fails silently
     s.stop();
     expect(appMs).toBeLessThan(2000);
-    expect(s.dropped).toBeGreaterThan(0);
+    expect(s.pending).toBeGreaterThan(0);          // v3-P3.1: kept for the next flush, not dropped
   });
   it('never throws on bad bodies', async () => {
     const bad = http.createServer((_q, r) => { r.setHeader('content-type', 'application/json'); r.end('{not json'); }).listen(0);
@@ -241,5 +242,68 @@ describe('ignore option', () => {
       const fps = received.map((r) => Fingerprint.parse(r));
       expect(fps.map((f) => f.endpoint)).toEqual(['/payments/{id}']);
     } finally { s.stop(); }
+  });
+});
+
+describe('delivery guarantees and live rules (v3-P2/P3.1)', () => {
+  it('backend down, then back: queued fingerprints are delivered once, in order, with a batch id', async () => {
+    let up = false;
+    const got: { batchId?: string; count: number }[] = [];
+    const flaky = http.createServer((req, res) => {
+      if (!up) { res.statusCode = 503; return res.end(); }
+      const chunks: Buffer[] = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => {
+        if (req.url === '/v1/ingest') got.push(JSON.parse(new TextDecoder().decode(gunzipSync(new Uint8Array(Buffer.concat(chunks))))));
+        res.end('{"ok":true}');
+      });
+    }).listen(0);
+    const ep = `http://localhost:${(flaky.address() as AddressInfo).port}`;
+    const s = new Seismo().init({ key: 'k', endpoint: ep, sampleRate: 1, services: { [apiUrl]: 'payments' }, flushMs: 60_000, liveRules: false });
+    try {
+      await (await fetch(`${apiUrl}/payments/pay_1`)).json();
+      await new Promise((r) => setTimeout(r, 50));
+      await s.flush();
+      expect(got).toHaveLength(0);
+      expect(s.pending).toBe(1);
+      up = true;
+      await s.flush();
+      expect(got).toHaveLength(1);
+      expect(got[0]!.batchId).toMatch(/^[\w-]{8,}$/);
+      expect(s.pending).toBe(0);
+    } finally { s.stop(); flaky.close(); }
+  });
+  it('429 with Retry-After pauses sending; nothing is lost', async () => {
+    const busy = http.createServer((_req, res) => { res.writeHead(429, { 'retry-after': '120' }); res.end(); }).listen(0);
+    const ep = `http://localhost:${(busy.address() as AddressInfo).port}`;
+    const s = new Seismo().init({ key: 'k', endpoint: ep, sampleRate: 1, services: { [apiUrl]: 'payments' }, flushMs: 60_000, liveRules: false });
+    try {
+      await (await fetch(`${apiUrl}/payments/pay_1`)).json();
+      await new Promise((r) => setTimeout(r, 50));
+      await s.flush();
+      await (await fetch(`${apiUrl}/payments/pay_2`)).json();
+      await new Promise((r) => setTimeout(r, 50));
+      await s.flush();                                  // paused: not even attempted
+      expect(s.pending).toBeGreaterThanOrEqual(1);
+    } finally { s.stop(); busy.close(); }
+  });
+  it('live alias rules from Seismo are applied by the app wrapper, and healed responses are counted and reported', async () => {
+    const { applyAliases, liveAliasRules } = await import('../src/runtime.js');
+    const posts: { url?: string; body: string }[] = [];
+    const seismoApi = http.createServer((req, res) => {
+      if (req.url === '/v1/sdk/rules') { res.setHeader('etag', '"r1"'); return res.end(JSON.stringify({ rules: [{ id: 'a-1', kind: 'alias', endpoint: 'GET /users/{id}', path: '$', target: 'name', source: 'display_name' }, { kind: 'scale', field: 'x', divideBy: 2 }] })); }
+      let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { posts.push({ url: req.url, body: b }); res.end('{}'); });
+    }).listen(0);
+    const ep = `http://localhost:${(seismoApi.address() as AddressInfo).port}`;
+    const s = new Seismo().init({ key: 'k', endpoint: ep, sampleRate: 1, services: { [apiUrl]: 'payments' }, flushMs: 60_000 });
+    try {
+      await s.pollRules();
+      expect(liveAliasRules().map((r) => r.target)).toEqual(['name']);          // the scale rule is never served live
+      const healed = applyAliases({ display_name: 'Asha' }, liveAliasRules(), 'GET /users/u_1');
+      expect(healed).toEqual({ display_name: 'Asha', name: 'Asha' });
+      await s.flush();
+      await new Promise((r) => setTimeout(r, 100));
+      expect(posts.find((p) => p.url === '/v1/sdk/rule-hits')!.body).toBe('{"hits":{"a-1":1}}');
+    } finally { s.stop(); seismoApi.close(); (await import('../src/runtime.js')).setLiveAliasRules([]); }
   });
 });

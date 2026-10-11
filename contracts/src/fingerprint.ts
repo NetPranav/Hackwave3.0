@@ -27,6 +27,8 @@ export type FieldFp = z.infer<typeof FieldFp>;
 
 export const Fingerprint = z.object({
   v: z.literal(1),
+  /** v3-P3.1: unique per fingerprint, so a resend after a timeout is ignored instead of counted twice */
+  batchId: z.string().max(64).optional(),
   service: z.string(),
   method: z.string(),
   endpoint: z.string(),                       // normalised template, e.g. "/users/{id}"

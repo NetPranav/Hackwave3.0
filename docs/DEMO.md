@@ -38,6 +38,11 @@ no longer breaks the shop.
 proposed rule. **Open fix PR (stress-tested)** runs the C9 stress test (2000 generated responses with the repo's other
 rules) and opens a `needs-review` PR only if it passes; the shop's CI runs the same stress test again.
 
+**Self-healing renames (v3):** dashboard → Settings → **Self-heal renames** on. Rename a field in the shop panel: once the
+alias PR is open (all checks C1–C9 passed), the SDK in the shop picks the rule up within 30 s and the shop shows the name
+again **before anyone merges**. The timeline and the fix page show **Healed live · N responses**. Merging the PR keeps
+the rule in the repo; switching the setting off removes the live rule within 30 s.
+
 The dashboard's Overview chart defaults to **LIVE · 32 MIN** (one bar per minute, refreshed every 5 s).
 
 ## 3b. Make a provider change by hand (pick one, save the file: the fake provider restarts by itself)

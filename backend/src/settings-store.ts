@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
   github: { enabled: true, minSeverity: 'breaking' },
   minSeverity: 'warning',
   aiEnabled: true,
+  autoHeal: false,
 };
 
 /** Notification settings per project (P6.13). Postgres when DATABASE_URL is set, memory otherwise. */

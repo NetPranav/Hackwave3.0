@@ -29,6 +29,8 @@ export interface TimelineDriftEvent {
   impactedWorkflows: string[];
   impactedFilesCount: number;
   fixPrNumber?: number;
+  /** v3-P2: responses this rename rule has healed live in the app (auto-heal on) */
+  healedHits?: number;
   fixType?: "alias" | "review";
   diffSnippet?: {
     before: string;

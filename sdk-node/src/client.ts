@@ -6,6 +6,7 @@ import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
 import { createHash } from 'node:crypto';
 import { normalise, percentile } from './classify.js';
 import { finish, observe, type FieldAcc, type FpConfig } from './fingerprint.js';
+import { drainRuleHits, setLiveAliasRules } from './runtime.js';
 
 export interface InitOptions {
   key: string;
@@ -21,6 +22,8 @@ export interface InitOptions {
   allowHosts?: string[];
   /** URL prefixes never recorded (e.g. a provider's admin or health routes). */
   ignore?: string[];
+  /** v3-P2: fetch live (self-healing) alias rules from Seismo; default true. Seismo only serves them when auto-heal is on. */
+  liveRules?: boolean;
   /** Map URL prefixes to service names, e.g. { 'http://localhost:4100/users': 'users' }. Default: the host. */
   services?: Record<string, string>;
   salt?: string;                  // default: random per process (set it to keep hashes comparable across restarts)
@@ -45,8 +48,14 @@ export class Seismo {
   private realFetch?: typeof fetch;
   private wrappedFetch?: typeof fetch;
   private windows = new Map<string, Window>();
-  private ready: unknown[] = [];
+  private ready: Record<string, unknown>[] = [];
+  /** fingerprints waiting to be delivered (kept across failed flushes, bounded by maxQueue) */
+  get pending() { return this.ready.length; }
   private timer?: NodeJS.Timeout;
+  private rulesTimer?: NodeJS.Timeout;
+  private rulesEtag = '';
+  /** v3-P3.1: do not send before this time (the backend asked us to wait with 429 Retry-After) */
+  private pausedUntil = 0;
   private starts = new Map<string, number>();
   private held = new Map<string, number[]>();
   private o!: Required<Pick<InitOptions, 'sampleRate' | 'flushMs' | 'maxBodyBytes' | 'maxQueue'>> & InitOptions;
@@ -74,6 +83,11 @@ export class Seismo {
       });
       this.interceptor.apply();
       this.timer = setInterval(() => { this.rewrapIfReplaced(); void this.flush(); }, this.o.flushMs);
+      if (this.o.liveRules !== false) {
+        void this.pollRules();
+        this.rulesTimer = setInterval(() => void this.pollRules(), 30_000);
+        this.rulesTimer.unref();
+      }
       this.timer.unref();
     } catch (e) { this.fail(e); }
     return this;
@@ -85,6 +99,7 @@ export class Seismo {
     if (this.realFetch && globalThis.fetch === this.wrappedFetch) globalThis.fetch = this.realFetch;
     this.realFetch = this.wrappedFetch = undefined;
     if (this.timer) clearInterval(this.timer);
+    if (this.rulesTimer) clearInterval(this.rulesTimer);
     this.interceptor = undefined;
   }
 
@@ -220,23 +235,52 @@ export class Seismo {
         });
       }
       if (this.ready.length > this.o.maxQueue) { this.dropped += this.ready.length - this.o.maxQueue; this.ready = this.ready.slice(-this.o.maxQueue); }
+      const hits = drainRuleHits();
+      if (Object.keys(hits).length) void this.post('/v1/sdk/rule-hits', { hits });
+      if (Date.now() < this.pausedUntil) return;               // backend asked us to wait: keep everything queued
       const batch = this.ready.splice(0, this.ready.length);
-      for (const fp of batch) await this.send(fp);
+      for (let i = 0; i < batch.length; i++) {
+        const ok = await this.send(batch[i]!);
+        // v3-P3.1: not delivered -> back in the (bounded) queue for the next flush, in order, never dropped silently
+        if (!ok) { this.ready.unshift(...batch.slice(i)); break; }
+      }
     } catch (e) { this.fail(e); }
   }
 
-  private async send(fp: unknown) {
+  /** true = delivered (or rejected for good, e.g. a bad key); false = try again later. */
+  private async send(fp: Record<string, unknown>): Promise<boolean> {
+    fp['batchId'] ??= randomBytes(9).toString('base64url');   // the same id on every retry: the backend ignores repeats
     const body = gzipSync(new TextEncoder().encode(JSON.stringify(fp)));
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const r = await fetch(`${this.o.endpoint}/v1/ingest`, {
-          method: 'POST', body, signal: AbortSignal.timeout(3000),
-          headers: { 'content-type': 'application/json', 'content-encoding': 'gzip', 'x-seismo-key': this.o.key },
-        });
-        if (r.ok || r.status < 500) return;
-      } catch { /* retry once */ }
-    }
-    this.dropped++;
+    try {
+      const r = await fetch(`${this.o.endpoint}/v1/ingest`, {
+        method: 'POST', body, signal: AbortSignal.timeout(3000),
+        headers: { 'content-type': 'application/json', 'content-encoding': 'gzip', 'x-seismo-key': this.o.key },
+      });
+      if (r.status === 429) {
+        const wait = Number(r.headers.get('retry-after'));
+        this.pausedUntil = Date.now() + (Number.isFinite(wait) && wait > 0 ? Math.min(wait, 300) : 30) * 1000;
+        return false;
+      }
+      if (r.ok || r.status < 500) return true;
+      return false;
+    } catch { return false; }
+  }
+
+  private async post(path: string, body: unknown) {
+    try {
+      await fetch(`${this.o.endpoint}${path}`, { method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(3000), headers: { 'content-type': 'application/json', 'x-seismo-key': this.o.key } });
+    } catch { /* fail-open */ }
+  }
+
+  /** v3-P2: the alias rules Seismo serves live for this project. Keeps the last good set when Seismo is unreachable. */
+  async pollRules() {
+    try {
+      const r = await fetch(`${this.o.endpoint}/v1/sdk/rules`, { signal: AbortSignal.timeout(3000), headers: { 'x-seismo-key': this.o.key, ...(this.rulesEtag ? { 'if-none-match': this.rulesEtag } : {}) } });
+      if (r.status === 304 || !r.ok) return;
+      const j = (await r.json()) as { rules?: unknown };
+      setLiveAliasRules(j.rules);
+      this.rulesEtag = r.headers.get('etag') ?? '';
+    } catch { /* fail-open: keep the last rules */ }
   }
 }
 

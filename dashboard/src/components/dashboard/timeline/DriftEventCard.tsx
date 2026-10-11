@@ -77,6 +77,11 @@ function EventFooter({ event, expanded, onToggleDiff }: DriftEventCardProps) {
         <Link href={"/app/drift/" + event.id} className={QUIET_BUTTON}>
           Details ↗
         </Link>
+{event.healedHits !== undefined && (
+          <span className="inline-flex items-center gap-1 rounded border border-accent/60 px-2 py-0.5 font-aeonik-mono text-[10px] uppercase tracking-wider text-accent">
+            Healed live · {event.healedHits} response{event.healedHits === 1 ? "" : "s"}
+          </span>
+        )}
         {event.fixPrNumber && (
           <a
             href={prUrl}

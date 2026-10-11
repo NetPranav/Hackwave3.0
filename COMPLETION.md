@@ -65,6 +65,20 @@ Found and fixed while doing this (live): D2 required a field to be completely ab
 - [ ] P6.4 Sentry + uptime ping
 - [ ] P6.5 Rehearsals, backup video, final merge, tag `v1.0`
 
+### v3 (NetPranav) · from [`docs/roadmap/v3/README.md`](docs/roadmap/v3/README.md)
+
+- [x] P0.3 Fingerprint retention: raw rows older than 26 h deleted every 10 min (`ingest-store.prune`, test)
+- [x] P0.4 Production guard: backend, GitHub App and fake providers refuse default `INTERNAL_TOKEN` / `DEMO_ADMIN_TOKEN` / `AUTH_SECRET` when `NODE_ENV=production` (test)
+- [x] P0.5 One public service: the backend forwards `/api/github/*` (raw body, signature intact) and `/providers/*`; `scripts/start-all.mjs` + `render.yaml` (forwarding tests)
+- [ ] P0.6 Deploy (needs your Render/Vercel/Neon login)
+- [x] P1.1 (local) `@seismo/sdk/auto`: one import starts the SDK from `SEISMO_KEY` + `seismo.config.json` (tests). Publishing to npm is still open (scope, Q10)
+- [x] P1.2 Setup PR installs the SDK: dependency (+ lockfile, `--ignore-scripts`), Next.js `instrumentation.ts` or the entry import, `seismo.config.json` from the provider URL env vars, `.env.example`; opened as a **draft** and marked ready only when CI passes (tests)
+- [x] P2.1 Live rules: the SDK polls `GET /v1/sdk/rules` every 30 s (ETag/304, fail-open); `withAliases` applies repo rules + `liveAliasRules()`; only `fix_pending` **alias** rules whose checks C1–C9 all passed are served (tests: `backend/test/self-heal.test.ts`, SDK live-rules test)
+- [~] P2.2 Opt-in switch **Settings → Self-heal renames** (`autoHeal`, off by default); off → the SDK drops live rules on its next poll. Expiry of live rules whose PR is never merged is not built
+- [x] P2.1 (proof) Healed counts: the SDK counts each healed response per rule and reports `POST /v1/sdk/rule-hits`; the change shows **Healed live · N responses** on the timeline and the fix page, and the live feed says so
+- [x] P3.1 SDK delivery: failed sends go back into a bounded queue and are retried; `Retry-After` on 429 pauses sending; every batch has a `batchId` and the backend stores a resent batch once (tests)
+- [ ] P2.3 post-fix verification · P2.4 pagination template · P2.5 cleanup PR · P3.2–P3.6 · P4–P6
+
 ### Adarsh
 
 - [ ] A0 Missing screens: radar, landing, login design, onboarding design, 404/error, mobile nav

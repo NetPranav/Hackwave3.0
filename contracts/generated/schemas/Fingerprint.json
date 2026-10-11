@@ -6,6 +6,10 @@
       "type": "number",
       "const": 1
     },
+    "batchId": {
+      "type": "string",
+      "maxLength": 64
+    },
     "service": {
       "type": "string"
     },
