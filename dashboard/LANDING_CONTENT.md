@@ -153,7 +153,7 @@ Result card buttons: `RUN AGAIN` / `EXPLORE WHAT NEEDS FIXING`
     {
       "service": "pay-provider",
       "rules": [
-        { "source": "customer_id", "target": "customerId" }
+        { "source": "customerId", "target": "customer_id" }
       ]
     }
 

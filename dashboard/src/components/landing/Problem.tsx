@@ -1,56 +1,102 @@
+"use client";
+
+import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { cn } from "@/lib/utils";
 import Reveal from "./Reveal";
 import SectionLabel from "./SectionLabel";
-import { EVIDENCE } from "@/lib/landing";
 
-const LOOP = ["Build", "Deploy", "Provider changes silently", "A user notices", "Days of debugging"];
+type Mode = "today" | "seismo";
 
-/** Why uptime checks miss this, then five labelled facts. Every card carries its evidence label. */
+const LOOPS: Record<Mode, { steps: string[]; hot: number; note: string; dot: string; speed: string }> = {
+  today: {
+    steps: ["Build and ship", "Provider changes silently", "A user complains", "Days of debugging"],
+    hot: 1,
+    note: "Who finds out first: your users.",
+    dot: "fill-accent",
+    speed: "9s",
+  },
+  seismo: {
+    steps: ["Build and ship", "Seismo flags the change", "A fix PR is opened", "You review and merge"],
+    hot: 1,
+    note: "Who finds out first: you, with the code that breaks and a fix ready.",
+    dot: "fill-ok",
+    speed: "4.5s",
+  },
+};
+
+/** The four corners of the loop, as % of the panel. */
+const CORNERS = [
+  { left: "18%", top: "22%" },
+  { left: "82%", top: "22%" },
+  { left: "82%", top: "78%" },
+  { left: "18%", top: "78%" },
+];
+
+const TRACK = "M 162 70 L 738 70 A 90 90 0 0 1 738 250 L 162 250 A 90 90 0 0 1 162 70 Z";
+
+/** Slide 2: the loop teams live in today, and the same loop with Seismo. A dot runs around it; toggle to compare. */
 export default function Problem() {
+  const [mode, setMode] = useState<Mode>("today");
+  const loop = LOOPS[mode];
+
   return (
-    <section id="problem" className="mx-auto max-w-[1440px] px-6 pb-24 md:px-10 lg:px-16">
-      <Reveal>
-        <SectionLabel n="1" label="The problem" />
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
-          <h2 className="font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl">Documented is not the same as told.</h2>
-          <p className="font-aeonik-light text-base leading-relaxed text-text-primary/75 md:text-lg">
-            Providers announce changes as sentences in a changelog. Your code cannot read a sentence. Uptime monitors only ask whether the API is up. When a field is renamed, a limit is lowered or a number changes its unit, the API still answers 200 OK, and your app quietly gets it wrong.
+    <div className="mx-auto grid h-full w-full max-w-[1440px] items-center gap-12 px-6 py-24 md:px-10 lg:grid-cols-[0.9fr_1.1fr] lg:px-16">
+      <div>
+        <Reveal depth={0.6}>
+          <SectionLabel n="1" label="The problem" />
+        </Reveal>
+        <Reveal depth={1}>
+          <h2 className="mt-6 font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl short:md:text-5xl">Documented is not the same as told.</h2>
+        </Reveal>
+        <Reveal depth={1.3}>
+          <p className="mt-6 max-w-lg font-aeonik-light text-base leading-relaxed text-text-primary/75 md:text-lg">
+            Providers announce changes as sentences in a changelog. Your code cannot read a sentence, and uptime checks only ask whether the API is up. A renamed field still answers 200 OK.
           </p>
-        </div>
-      </Reveal>
-
-      <Reveal className="mt-12">
-        <ol className="flex flex-wrap items-center gap-y-3">
-          {LOOP.map((step, i) => (
-            <li key={step} className="flex items-center">
-              <span
-                className={
-                  "rounded-md border px-3 py-2 font-aeonik-mono text-[11px] uppercase tracking-wider " +
-                  (i === 2 ? "border-accent bg-accent/10 text-accent" : "border-box-outline bg-section text-text-primary/70")
-                }
-              >
-                {step}
-              </span>
-              {i < LOOP.length - 1 && <span aria-hidden className="mx-2 h-px w-5 bg-box-outline sm:w-8" />}
-            </li>
+        </Reveal>
+        <Reveal depth={1.6} className="mt-8 inline-flex rounded-md border border-box-outline bg-section p-1">
+          {(["today", "seismo"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={cn(
+                "rounded px-4 py-2 font-aeonik-mono text-xs uppercase tracking-wider transition-colors",
+                mode === m ? "bg-btn-primary text-white" : "text-text-primary/60 hover:text-text-primary"
+              )}
+            >
+              {m === "today" ? "How it works today" : "With Seismo"}
+            </button>
           ))}
-        </ol>
-      </Reveal>
-
-      <div className="mt-12 grid gap-px overflow-hidden rounded-xl border border-box-outline bg-box-outline md:grid-cols-2 lg:grid-cols-5">
-        {EVIDENCE.map((e, i) => (
-          <Reveal key={e.value} delay={i * 0.06} className="bg-section p-5 transition-colors hover:bg-dash-bg">
-            <p className="font-aeonik text-2xl leading-tight tracking-tight">{e.value}</p>
-            <p className="mt-3 font-aeonik-light text-sm leading-relaxed text-text-primary/70">{e.text}</p>
-            <p className="mt-4 font-aeonik-mono text-[10px] uppercase tracking-wider">
-              <span className="rounded border border-accent/50 px-1.5 py-0.5 text-accent">{e.tag}</span>
-              <span className="ml-2 text-text-primary/45">{e.source}</span>
-            </p>
-          </Reveal>
-        ))}
+        </Reveal>
       </div>
-      <p className="mt-4 font-aeonik-light text-sm text-text-primary/55">
-        Nobody has measured what silent API drift costs. We say unmeasured and do not invent a number.
-      </p>
-    </section>
+
+      <Reveal depth={2} className="relative aspect-[900/320] w-full rounded-xl border border-box-outline bg-section">
+        <svg viewBox="0 0 900 320" className="absolute inset-0 h-full w-full" aria-hidden>
+          <path d={TRACK} fill="none" className="stroke-box-outline" strokeWidth={1.5} />
+          <circle r={7} className={cn("transition-colors duration-500", loop.dot)}>
+            <animateMotion key={mode} dur={loop.speed} repeatCount="indefinite" path={TRACK} />
+          </circle>
+        </svg>
+        <AnimatePresence mode="wait">
+          <motion.div key={mode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="absolute inset-0">
+            {loop.steps.map((s, i) => (
+              <span
+                key={s}
+                style={CORNERS[i]}
+                className={cn(
+                  "absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border bg-section px-3 py-2 font-aeonik-mono text-[11px] uppercase tracking-wider transition-transform hover:scale-105",
+                  i === loop.hot ? (mode === "today" ? "border-accent text-accent" : "border-ok text-ok") : "border-box-outline"
+                )}
+              >
+                {s}
+              </span>
+            ))}
+            <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-24 text-center font-aeonik text-base leading-snug md:text-lg">{loop.note}</p>
+          </motion.div>
+        </AnimatePresence>
+      </Reveal>
+    </div>
   );
 }

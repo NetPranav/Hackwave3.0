@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import Reveal from "./Reveal";
+import SectionLabel from "./SectionLabel";
+import { useSlideActive } from "./deck/Slide";
 
 type TabId = "detect" | "map" | "fix";
 
@@ -79,7 +81,7 @@ function FixPanel() {
       <pre className="mt-5 overflow-x-auto rounded-md border border-box-outline bg-inset p-4 font-aeonik-mono text-[13px] leading-relaxed">
         <span className="text-text-primary/40">{"  \"rules\": ["}</span>
         {"\n"}
-        <span className="block bg-ok/10 text-ok">{"+   { \"source\": \"customer_id\", \"target\": \"customerId\" }"}</span>
+        <span className="block bg-ok/10 text-ok">{"+   { \"source\": \"customerId\", \"target\": \"customer_id\" }"}</span>
         <span className="text-text-primary/40">{"  ]"}</span>
       </pre>
       <div className="mt-4 flex flex-wrap items-center gap-3 font-aeonik-mono text-xs">
@@ -90,51 +92,78 @@ function FixPanel() {
   );
 }
 
-/** Scorecard-style tab strip: three one-line stories of what Seismo does, each with a small live picture. */
+const AUTO_MS = 5000;
+
+/** Slide 7: Scorecard-style tabs that play by themselves like a presentation. Hover to pause, click to pick. */
 export default function ProductTabs() {
+  const active = useSlideActive();
   const [tab, setTab] = useState<TabId>("detect");
+  const [paused, setPaused] = useState(false);
   const current = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const playing = active && !paused;
+
+  useEffect(() => {
+    if (!playing) return;
+    const t = window.setTimeout(() => {
+      const i = TABS.findIndex((x) => x.id === tab);
+      setTab(TABS[(i + 1) % TABS.length].id);
+    }, AUTO_MS);
+    return () => window.clearTimeout(t);
+  }, [playing, tab]);
 
   return (
-    <section className="mx-auto max-w-[1440px] px-6 pb-24 md:px-10 lg:px-16">
-      <Reveal>
-        <div role="tablist" aria-label="What Seismo does" className="flex gap-1.5 pl-3">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              type="button"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "rounded-t-lg border border-b-0 px-7 py-2.5 font-aeonik-mono text-xs uppercase tracking-wider transition-colors",
-                tab === t.id ? "border-box-outline bg-section text-text-primary" : "border-transparent text-text-primary/50 hover:text-text-primary"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="grid gap-8 rounded-xl border border-box-outline bg-section p-6 md:p-10 lg:grid-cols-[320px_1fr] lg:gap-14">
-          <p className="font-aeonik-mono text-sm uppercase leading-relaxed tracking-wide">{current.caption}</p>
-          <div className="min-h-[300px]" role="tabpanel">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={tab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {tab === "detect" && <DetectPanel />}
-                {tab === "map" && <MapPanel />}
-                {tab === "fix" && <FixPanel />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-        <p className="mt-3 text-right font-aeonik-mono text-[10px] uppercase tracking-wider text-text-primary/40">Sample data from a demo shop, for illustration</p>
+    <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col justify-center px-6 py-24 md:px-10 lg:px-16">
+      <Reveal depth={0.6}>
+        <SectionLabel n="5" label="Detect · Map · Fix" />
       </Reveal>
-    </section>
+      <Reveal depth={1}>
+        <h2 className="mt-6 font-aeonik text-4xl leading-[0.98] tracking-tight md:text-6xl short:md:text-5xl">From a quiet change to a safe fix.</h2>
+      </Reveal>
+
+      <Reveal depth={1.8} className="mt-10 short:mt-7">
+        <div onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)}>
+          <div role="tablist" aria-label="What Seismo does" className="flex gap-1.5 pl-3">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                type="button"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  "relative overflow-hidden rounded-t-lg border border-b-0 px-7 py-2.5 font-aeonik-mono text-xs uppercase tracking-wider transition-colors",
+                  tab === t.id ? "border-box-outline bg-section text-text-primary" : "border-transparent text-text-primary/50 hover:text-text-primary"
+                )}
+              >
+                {t.label}
+                {tab === t.id && (
+                  <motion.span
+                    key={tab + String(playing)}
+                    aria-hidden
+                    className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-accent"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: playing ? 1 : 0 }}
+                    transition={{ duration: playing ? AUTO_MS / 1000 : 0.2, ease: "linear" }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-8 rounded-xl border border-box-outline bg-section p-6 md:p-10 lg:grid-cols-[300px_1fr] lg:gap-14 short:p-6">
+            <p className="font-aeonik-mono text-sm uppercase leading-relaxed tracking-wide">{current.caption}</p>
+            <div className="min-h-[280px]" role="tabpanel">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+                  {tab === "detect" && <DetectPanel />}
+                  {tab === "map" && <MapPanel />}
+                  {tab === "fix" && <FixPanel />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+          <p className="mt-3 text-right font-aeonik-mono text-[10px] uppercase tracking-wider text-text-primary/40">Sample data from a demo shop, for illustration</p>
+        </div>
+      </Reveal>
+    </div>
   );
 }
