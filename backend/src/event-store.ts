@@ -4,7 +4,7 @@ import { connect } from './db/index.js';
 import { driftEvents } from './db/schema.js';
 
 /** What the engine must remember across restarts: the event plus its bookkeeping (runs, PR dispatched, review reason). */
-export interface StoredEvent { key: string; event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string }
+export interface StoredEvent { key: string; event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string; /** passes in a row without the finding while the endpoint had traffic */ misses?: number }
 
 export interface EventStore {
   load(): Promise<StoredEvent[]>;

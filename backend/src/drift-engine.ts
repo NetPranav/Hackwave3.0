@@ -18,6 +18,11 @@ export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24
 
 type Tracked = Omit<StoredEvent, 'key'>;
 
+const CLOSED: string[] = ['resolved', 'expected', 'snoozed'];
+
+/** Passes (5 s apart) without a confirmed change before it counts as gone: the provider went back to normal. */
+const RECOVER_RUNS = 3;
+
 const OPEN_CONFIRMED = (t: Tracked, confirmRuns: number) => t.runs >= confirmRuns && ['breaking', 'suspected', 'fix_pending'].includes(t.event.state);
 
 /** Opens fix PRs on the customer's repo (the GitHub App). Optional: without it, renames stay "breaking" with a suggested rule. */
@@ -29,6 +34,8 @@ export interface FixDispatcher {
 /** Runs the detectors over stored fingerprints and keeps drift events with their state machine (suspected -> confirmed). */
 export class DriftEngine {
   private events = new Map<string, Tracked>();
+  /** endpoint -> when the first finding of the current investigation was seen (baseline frozen from there) */
+  private investigating = new Map<string, number>();
   private loaded?: Promise<void>;
   constructor(private ingest: IngestStore, private maps: () => Promise<CodeMap[]>, private opts: EngineOptions = ENGINE_DEFAULTS, private fixer?: FixDispatcher, private store: EventStore = memoryEvents()) {}
 
@@ -93,6 +100,7 @@ export class DriftEngine {
     await this.init();
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
+    this.investigating.clear();
     await this.store.remove(ids).catch(() => undefined);
   }
 
@@ -133,6 +141,15 @@ export class DriftEngine {
     // one window) never becomes "history" for that endpoint. Otherwise a restart, or simply time passing, would teach the
     // baseline the broken shape and the change would stop being reported.
     const frozen = new Map<string, number>();
+    // ...and from the FIRST finding of the current investigation on an endpoint while any finding there is still open:
+    // a rename shows up as "new field" one pass before "field removed"/"renamed" can be scored, and the later findings
+    // replace the earlier one. Anchoring on the later finding would let the new shape into the baseline and the rename
+    // would never be confirmed.
+    const openEp = new Set([...this.events.values()].filter((t) => !CLOSED.includes(t.event.state)).map((t) => `${t.event.service}|${t.event.endpoint}`));
+    for (const [ep, since] of this.investigating) {
+      if (!openEp.has(ep)) { this.investigating.delete(ep); continue; }
+      frozen.set(ep, Math.min(frozen.get(ep) ?? Infinity, since - this.opts.windowMs));
+    }
     for (const t of this.events.values()) {
       if (!OPEN_CONFIRMED(t, this.opts.confirmRuns)) continue;
       const ep = `${t.event.service}|${t.event.endpoint}`;
@@ -163,6 +180,7 @@ export class DriftEngine {
 
     const changed: DriftEvent[] = [];
     const seen = new Set<string>();
+    for (const f of findings) { const ep = `${f.service}|${f.method} ${f.endpoint}`; if (!this.investigating.has(ep)) this.investigating.set(ep, now); }
     for (const f of findings) {
       const key = `${f.service}|${f.method}|${f.endpoint}|${f.detector}|${f.field ?? f.title}`;
       seen.add(key);
@@ -210,6 +228,20 @@ export class DriftEngine {
       const t = this.events.get(k);
       if (!t || seen.has(k) || ['resolved', 'expected', 'snoozed'].includes(t.event.state)) continue;
       t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: renamed to ${f.rename.to})` };
+      seen.add(k);
+      changed.push(t.event);
+    }
+    // The provider went back to normal: a confirmed change that is no longer found for RECOVER_RUNS passes in a row,
+    // while its endpoint has enough traffic to judge, is closed as resolved (and its baseline unfreezes).
+    // No traffic means no evidence either way, so the count only moves when the endpoint was actually observed.
+    const minSamples = { ...DEFAULT_CTX, ...this.opts.ctx }.minSamples;
+    const observed = new Set(wins.filter((w) => w.samples >= minSamples).map((w) => `${w.service}|${w.method} ${w.endpoint}`));
+    for (const [k, t] of this.events) {
+      if (seen.has(k)) { t.misses = 0; continue; }
+      if (!OPEN_CONFIRMED(t, this.opts.confirmRuns) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
+      t.misses = (t.misses ?? 0) + 1;
+      if (t.misses < RECOVER_RUNS) { seen.add(k); continue; }
+      t.event = { ...t.event, state: 'resolved' };
       seen.add(k);
       changed.push(t.event);
     }

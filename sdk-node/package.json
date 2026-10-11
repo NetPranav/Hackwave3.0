@@ -1,6 +1,6 @@
 {
   "name": "@seismo/sdk",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Read-only, fail-open API drift sensor for Node.js",
   "type": "module",
   "main": "dist/index.js",

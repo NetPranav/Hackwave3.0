@@ -39,8 +39,8 @@ export async function api<T>(path: string, init?: { method?: "GET" | "POST" | "P
   return (await res.json()) as T;
 }
 
-export type LiveEvent = "drift.created" | "drift.updated" | "status.updated" | "notification" | "radar.created";
-const EVENTS: LiveEvent[] = ["drift.created", "drift.updated", "status.updated", "notification", "radar.created"];
+export type LiveEvent = "drift.created" | "drift.updated" | "status.updated" | "notification" | "radar.created" | "activity";
+const EVENTS: LiveEvent[] = ["drift.created", "drift.updated", "status.updated", "notification", "radar.created", "activity"];
 
 interface LiveContextValue {
   connected: boolean;

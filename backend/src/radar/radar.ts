@@ -89,7 +89,9 @@ export class Radar {
   constructor(private o: RadarOptions) { this.f = o.fetchImpl ?? ((...a) => fetch(...a)); }
 
   list(events: DriftEvent[] = []): RadarItem[] {
-    return [...this.items.values()].map((i) => {
+    const closed = (id?: string) => { const ev = events.find((e) => e.id === id); return !ev || ['resolved', 'expected', 'snoozed'].includes(ev.state); };
+    // a Sunset/Deprecation header the provider has withdrawn (its D13 event resolved) is no longer an upcoming change
+    return [...this.items.values()].filter((i) => i.extractedBy !== 'header' || !closed(i.driftEventId)).map((i) => {
       const ev = events.find((e) => e.service === i.service && e.detector === DETECTOR[i.changeType] && (!i.endpoint || norm(e.endpoint) === norm(i.endpoint)));
       return ev ? { ...i, driftEventId: ev.id } : i;
     }).sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999'));
@@ -129,7 +131,7 @@ export class Radar {
   /** Sunset / Deprecation headers seen in traffic (D13 events) appear on the radar too. */
   fromHeaders(events: DriftEvent[]): RadarItem[] {
     const fresh: RadarItem[] = [];
-    for (const e of events.filter((x) => x.detector === 'D13')) {
+    for (const e of events.filter((x) => x.detector === 'D13' && !['resolved', 'expected', 'snoozed'].includes(x.state))) {
       const id = `rad-h-${e.id}`;
       if (this.items.has(id)) continue;
       const sunset = /^Sunset announced: (.*)$/.exec(e.title)?.[1];

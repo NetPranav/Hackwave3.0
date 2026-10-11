@@ -46,6 +46,49 @@ describe('drift engine (P4.2/P4.5)', () => {
     expect(closed.title).toBe('Field removed: name (explained: renamed to display_name)');
     expect(changed.map((c) => c.id)).toContain('drift-d1');   // so the dashboard and the GitHub issue are updated
   });
+  it('when the provider goes back to normal, the confirmed change resolves after 3 passes with traffic (not without traffic)', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');
+    // no traffic at all for 10 minutes: nothing is known, nothing resolves
+    const quiet = NOW + 10 * 60_000;
+    for (let i = 0; i < 4; i++) await e.run(quiet + i * 5000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');
+    // the provider reverts and traffic flows again
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 20 * 60_000;
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: back - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    await e.run(back); await e.run(back + 1000);
+    expect(e.list().find((x) => x.detector === 'D3')!.state).toBe('breaking');      // 2 passes: not yet
+    const changed = await e.run(back + 2000);
+    const d3 = e.list().find((x) => x.detector === 'D3')!;
+    expect(d3.state).toBe('resolved');
+    expect(changed.map((c) => c.id)).toContain(d3.id);                                // dashboard, issue and alerts hear about it
+  });
+  it('a rename still becomes D3 when the new field shows up a pass before the old one is gone (baseline must not learn it)', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const T = NOW;
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: T - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: T - 50_000 + i * 5000 })) await ingest.add('dev', fp);  // v1 still in the window
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 4; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: T - 25_000 + i * 5000 })) await ingest.add('dev', fp);   // v2 half the window
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(T);                                                          // window mixed: only D2 "new field"
+    expect(e.list().some((x) => x.detector === 'D2')).toBe(true);
+    expect(e.list().some((x) => x.detector === 'D3')).toBe(false);
+    // 90 s later: the window is all v2 AND, without the freeze, the baseline would already contain v2 responses
+    for (let i = 0; i < 18; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: T + i * 5000 })) await ingest.add('dev', fp);
+    await e.run(T + 90_000); await e.run(T + 95_000);
+    const d3 = e.list().find((x) => x.detector === 'D3');
+    expect(d3?.title).toBe('Field renamed: name → display_name');
+    expect(d3!.state).toBe('breaking');
+  });
   it('a field read in a branch/arithmetic is breaking once confirmed', async () => {
     const e = await scenario([codeMap([{ field: 'name', usage: 'arithmetic' }])], async (s) => void (await toggle(s, 'users-rename')));
     await e.run(NOW); await e.run(NOW + 5000);

@@ -201,3 +201,45 @@ describe('webhook drift (P6.12)', () => {
     expect(rawBodies.join('')).not.toMatch(/priya@example.com|pay_3|49900/);
   });
 });
+
+describe('SDK keeps seeing fetch when a framework replaces it (Next.js dev hot reload)', () => {
+  it('re-wraps a replaced fetch on the next tick and never counts a call twice', async () => {
+    received.length = 0;
+    const original = globalThis.fetch;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, services: { [apiUrl]: 'payments' }, flushMs: 60_000 });
+    try {
+      // 1) the framework puts the original fetch back: the SDK is blind until it re-wraps
+      globalThis.fetch = original;
+      await (await fetch(`${apiUrl}/payments/pay_1`)).json();
+      s.rewrapIfReplaced();
+      await (await fetch(`${apiUrl}/payments/pay_2`)).json();
+      // 2) the framework wraps the SDK's wrapper: after re-wrapping there are two Seismo layers, still one record per call
+      const ours = globalThis.fetch;
+      globalThis.fetch = ((...a: Parameters<typeof fetch>) => ours(...a)) as typeof fetch;
+      s.rewrapIfReplaced();
+      await (await fetch(`${apiUrl}/payments/pay_3`)).json();
+      await new Promise((r) => setTimeout(r, 100));
+      await s.flush();
+      const counted = received.map((r) => Fingerprint.parse(r)).reduce((n, f) => n + f.count, 0);
+      expect(counted).toBe(2);                          // pay_2 and pay_3 once each; pay_1 happened while blind
+    } finally {
+      s.stop();
+      globalThis.fetch = original;
+    }
+  });
+});
+
+describe('ignore option', () => {
+  it('never records URLs under an ignored prefix', async () => {
+    received.length = 0;
+    const s = new Seismo().init({ key: 'k', endpoint: ingestUrl, sampleRate: 1, services: { [apiUrl]: 'payments' }, ignore: [`${apiUrl}/admin`], flushMs: 60_000 });
+    try {
+      await (await fetch(`${apiUrl}/admin/scenarios`)).json();
+      await (await fetch(`${apiUrl}/payments/pay_1`)).json();
+      await new Promise((r) => setTimeout(r, 100));
+      await s.flush();
+      const fps = received.map((r) => Fingerprint.parse(r));
+      expect(fps.map((f) => f.endpoint)).toEqual(['/payments/{id}']);
+    } finally { s.stop(); }
+  });
+});

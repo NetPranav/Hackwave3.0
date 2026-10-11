@@ -108,6 +108,8 @@ export interface ChartDay {
   latency: (number | null)[];
   drifts: (number | null)[];
   driftNotes?: (string | null)[];
+  /** labels of the 4 bars (live view: their minutes); default BUCKET_LABELS */
+  labels?: string[];
 }
 
 export const CHART_DAYS: ChartDay[] = [

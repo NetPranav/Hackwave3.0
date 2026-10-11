@@ -551,18 +551,23 @@ const niceMax = (n: number) => {
 };
 const short = (n: number) => (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(Math.round(n)));
 
-export function toChart(days: MetricsDay[], events: DriftEvent[]) {
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** `live`: one-minute buckets (calls per minute as is); otherwise 6-hour buckets (averaged to calls per minute). */
+export function toChart(days: MetricsDay[], events: DriftEvent[], live = false) {
+  const bucketMs = live ? 60_000 : 6 * 3600_000;
   const chartDays: ChartDay[] = days.map((d) => {
-    const [, m, day] = d.date.split("-");
+    const [, m, day] = d.date.slice(0, 10).split("-");
     return {
-      date: MONTHS[Number(m) - 1] + " " + day,
-      volume: d.buckets.map((b) => (b.calls === null ? null : Math.round((b.calls / 360) * 10) / 10)),
+      date: live ? hhmm(d.date) : MONTHS[Number(m) - 1] + " " + day,
+      ...(live ? { labels: d.buckets.map((b) => hhmm(b.start)) } : {}),
+      volume: d.buckets.map((b) => (b.calls === null ? null : live ? b.calls : Math.round((b.calls / 360) * 10) / 10)),
       latency: d.buckets.map((b) => b.p95Ms),
       drifts: d.buckets.map((b) => b.drifts),
       driftNotes: d.buckets.map((b) => {
         if (!b.drifts) return null;
         const from = Date.parse(b.start);
-        const names = [...new Set(events.filter((e) => e.severity !== "info" && Date.parse(e.detectedAt) >= from && Date.parse(e.detectedAt) < from + 6 * 3600_000).map((e) => titleCase(e.service)))];
+        const names = [...new Set(events.filter((e) => e.severity !== "info" && Date.parse(e.detectedAt) >= from && Date.parse(e.detectedAt) < from + bucketMs).map((e) => titleCase(e.service)))];
         return names.join(", ") || null;
       }),
     };

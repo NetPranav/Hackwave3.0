@@ -93,7 +93,7 @@ export default function DemoControl() {
             type="button"
             className={BUTTON}
             disabled={busy !== null}
-            onClick={() => act("reset", "reset", {}, "Reset: every provider back to v1, Seismo's events and baselines cleared.")}
+            onClick={() => act("reset", "reset", {}, "Reset: providers back to v1, Seismo's events and baselines cleared, demo repo's fix rules removed (open Seismo PRs closed). Let traffic run 2 minutes before the next change.")}
           >
             Reset everything
           </button>

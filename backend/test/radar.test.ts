@@ -89,6 +89,9 @@ describe('radar end to end (P7 DoD)', () => {
     const radar = new Radar({ sources: [], maps: async () => [] });
     const items = radar.fromHeaders([{ id: 'drift-s', service: 'shipping', endpoint: 'GET /shipments/{id}', detector: 'D13', title: 'Sunset announced: Wed, 30 Dec 2026 00:00:00 GMT', severity: 'warning', state: 'suspected', confidence: 0.95, detectedAt: '2026-10-14T00:00:00.000Z', before: null, after: null, usages: [{ file: 'lib/api/shipping.ts', line: 4, kind: 'call' }] }]);
     expect(items[0]).toMatchObject({ kind: 'sunset', date: '2026-12-30', driftEventId: 'drift-s', matchedFiles: ['lib/api/shipping.ts:4'] });
+    const ev = { id: 'drift-s', service: 'shipping', endpoint: 'GET /shipments/{id}', detector: 'D13', title: 'Sunset announced: Wed, 30 Dec 2026 00:00:00 GMT', severity: 'warning' as const, state: 'suspected' as const, confidence: 0.95, detectedAt: '2026-10-14T00:00:00.000Z', before: null, after: null, usages: [] };
+    expect(radar.list([ev]).map((i) => i.id)).toEqual(['rad-h-drift-s']);
+    expect(radar.list([{ ...ev, state: 'resolved' }])).toEqual([]);           // the provider withdrew the header
   });
   it('an announcement for code nobody calls is info (FYI), not an alert', async () => {
     const radar = new Radar({ sources: demoSources(base), maps: async () => [shop], now: () => REF });
