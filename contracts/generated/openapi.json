@@ -1778,12 +1778,9 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                  "version": {
+                  "v": {
                     "type": "number",
                     "const": 1
-                  },
-                  "sdkKeyId": {
-                    "type": "string"
                   },
                   "service": {
                     "type": "string"
@@ -1793,19 +1790,6 @@
                   },
                   "endpoint": {
                     "type": "string"
-                  },
-                  "status": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "latencyMs": {
-                    "type": "number"
-                  },
-                  "count": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
                   },
                   "windowStart": {
                     "type": "string",
@@ -1817,6 +1801,38 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
                   },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "statusCounts": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "latencyMs": {
+                    "type": "object",
+                    "properties": {
+                      "p50": {
+                        "type": "number"
+                      },
+                      "p95": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "p50",
+                      "p95"
+                    ],
+                    "additionalProperties": false
+                  },
                   "headers": {
                     "type": "object",
                     "properties": {
@@ -1826,19 +1842,44 @@
                       "sunset": {
                         "type": "string"
                       },
+                      "rateLimitLimit": {
+                        "type": "string"
+                      },
                       "rateLimitRemaining": {
-                        "type": "number"
+                        "type": "string"
+                      },
+                      "contentType": {
+                        "type": "string"
                       }
                     },
                     "additionalProperties": false
                   },
-                  "fields": {
+                  "reqQueryKeys": {
                     "type": "array",
                     "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reqLimit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "shapeHash": {
+                    "type": "string"
+                  },
+                  "fields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
                       "type": "object",
                       "properties": {
-                        "path": {
-                          "type": "string"
+                        "n": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         },
                         "types": {
                           "type": "object",
@@ -1846,80 +1887,151 @@
                             "type": "string"
                           },
                           "additionalProperties": {
-                            "type": "number"
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
-                        "presence": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "formatClass": {
-                          "type": "string"
-                        },
-                        "lengthBuckets": {
-                          "type": "array",
-                          "items": {
-                            "type": "number"
-                          }
-                        },
-                        "magnitude": {
+                        "nulls": {
                           "type": "integer",
                           "minimum": -9007199254740991,
                           "maximum": 9007199254740991
                         },
-                        "percentiles": {
+                        "fmt": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "len": {
                           "type": "object",
                           "properties": {
-                            "p10": {
+                            "p5": {
                               "type": "number"
                             },
                             "p50": {
                               "type": "number"
                             },
-                            "p90": {
+                            "p95": {
                               "type": "number"
                             }
                           },
                           "required": [
-                            "p10",
+                            "p5",
                             "p50",
-                            "p90"
+                            "p95"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "mag": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "num": {
+                          "type": "object",
+                          "properties": {
+                            "p5": {
+                              "type": "number"
+                            },
+                            "p50": {
+                              "type": "number"
+                            },
+                            "p95": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "p5",
+                            "p50",
+                            "p95"
                           ],
                           "additionalProperties": false
                         },
                         "enumValues": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "hashes": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "arrayLen": {
+                          "type": "object",
+                          "properties": {
+                            "p50": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            },
+                            "atMax": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "p50",
+                            "max",
+                            "atMax"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "idHashes": {
                           "type": "array",
                           "items": {
                             "type": "string"
                           }
-                        },
-                        "saltedHashes": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
-                        "path",
+                        "n",
                         "types",
-                        "presence"
+                        "nulls"
                       ],
                       "additionalProperties": false
                     }
                   }
                 },
                 "required": [
-                  "version",
-                  "sdkKeyId",
+                  "v",
                   "service",
                   "method",
                   "endpoint",
-                  "status",
-                  "latencyMs",
-                  "count",
                   "windowStart",
                   "windowSeconds",
+                  "count",
+                  "statusCounts",
+                  "latencyMs",
+                  "headers",
+                  "reqQueryKeys",
+                  "shapeHash",
                   "fields"
                 ],
                 "additionalProperties": false
