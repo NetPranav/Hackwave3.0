@@ -52,7 +52,13 @@ export function buildApp(opts: { store?: CodeMapStore } = {}) {
     for (const send of sseClients) send('graph.updated', { repo: parsed.data.repo });
     return { ok: true };
   });
-  app.get('/v1/installations', async () => [{ id: 'inst-1', account: 'demo', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }] }]);
+  app.get('/v1/installations', async () => {
+    const maps = await store.all();
+    if (!maps.length) return [{ id: 'inst-1', account: 'demo', repos: [{ name: 'seismo-demo-shop', scan: 'done', progress: 1 }] }];
+    const byOwner = new Map<string, string[]>();
+    for (const m of maps) { const [o, r] = m.repo.split('/') as [string, string]; byOwner.set(o, [...(byOwner.get(o) ?? []), r]); }
+    return [...byOwner].map(([account, repos]) => ({ id: `inst-${account}`, account, repos: repos.map((name) => ({ name, scan: 'done' as const, progress: 1 })) }));
+  });
   app.get('/v1/coverage', async () => {
     const maps = await store.all();
     return maps.length ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
