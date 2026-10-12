@@ -6,7 +6,8 @@ import { fingerprints, projects, sdkKeys } from './db/schema.js';
 
 export interface IngestStore {
   add(projectId: string, fp: Fingerprint): Promise<void>;
-  since(projectId: string, sinceMs: number): Promise<Fingerprint[]>;
+  /** fingerprints with windowStart after sinceMs (and before untilMs when given) */
+  since(projectId: string, sinceMs: number, untilMs?: number): Promise<Fingerprint[]>;
   /** Demo reset only. */
   clear(projectId: string): Promise<void>;
   /** v3-P0.3 retention: delete fingerprints whose window started before `beforeMs`; returns how many. */
@@ -17,7 +18,7 @@ export function memoryIngest(): IngestStore {
   const rows: { projectId: string; at: number; fp: Fingerprint }[] = [];
   return {
     add: async (projectId, fp) => void rows.push({ projectId, at: Date.parse(fp.windowStart), fp }),
-    since: async (projectId, sinceMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs).map((r) => r.fp),
+    since: async (projectId, sinceMs, untilMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs && (untilMs === undefined || r.at < untilMs)).map((r) => r.fp),
     clear: async (projectId) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.projectId === projectId) rows.splice(i, 1); },
     prune: async (beforeMs) => { let n = 0; for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.at < beforeMs) { rows.splice(i, 1); n++; } return n; },
   };
@@ -29,8 +30,8 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
     async add(projectId, fp) {
       await db.insert(fingerprints).values({ id: randomBytes(8).toString('hex'), projectId, service: fp.service, endpoint: fp.endpoint, windowStart: new Date(fp.windowStart), payload: fp });
     },
-    async since(projectId, sinceMs) {
-      const rows = await db.select({ payload: fingerprints.payload }).from(fingerprints).where(and(eq(fingerprints.projectId, projectId), gt(fingerprints.windowStart, new Date(sinceMs))));
+    async since(projectId, sinceMs, untilMs) {
+      const rows = await db.select({ payload: fingerprints.payload }).from(fingerprints).where(and(eq(fingerprints.projectId, projectId), gt(fingerprints.windowStart, new Date(sinceMs)), ...(untilMs === undefined ? [] : [lt(fingerprints.windowStart, new Date(untilMs))])));
       return rows.map((r) => r.payload as Fingerprint);
     },
     async clear(projectId) { await db.delete(fingerprints).where(eq(fingerprints.projectId, projectId)); },

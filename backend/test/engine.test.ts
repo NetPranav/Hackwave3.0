@@ -376,9 +376,11 @@ describe('detection reads only new fingerprints each pass (found on Render free:
     const asked: number[] = [];
     const spy = { ...ingest, since: (p: string, ms: number) => { asked.push(ms); return ingest.since(p, ms); } };
     const e = new DriftEngine(spy, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
-    await e.run(NOW); await e.run(NOW + 5000);
-    expect(asked[0]).toBe(NOW - 24 * 3600_000);
-    expect(asked[1]).toBe(NOW - 10 * 60_000);
+    await e.run(NOW);
+    const firstPass = asked.splice(0);
+    await e.run(NOW + 5000);
+    expect(Math.min(...firstPass)).toBe(NOW - 24 * 3600_000);      // the whole baseline period, read in slices
+    expect(Math.min(...asked)).toBe(NOW - 10 * 60_000);            // later: only the last 10 minutes
     expect(e.list().find((x) => x.detector === 'D3')?.state).toBe('breaking');
   });
 });

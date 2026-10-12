@@ -1,6 +1,7 @@
 import { PROJECT_ID } from './projects.js';
 import type { AliasRule, CodeMap, DriftEvent, DriftState, Fingerprint, SeismoRule } from '@seismo/contracts';
 import { alignSalts, buildBaselines } from './baseline.js';
+import { bucketKey, bucketMsFor, mergeInto, startBucket } from './rollup.js';
 import { stressCheck, stressTest, templateFor } from './fix-templates.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
@@ -132,21 +133,33 @@ export class DriftEngine {
    * 10-minute overlap for late deliveries, e.g. the SDK retry queue after an outage, deduplicated) instead of re-reading and re-parsing the whole history (found on
    * Render free: re-reading starved the CPU).
    */
-  private cache: Fingerprint[] = [];
-  private cacheKeys = new Set<string>();
+  private buckets = new Map<string, Fingerprint>();      // 10 s rollups (see rollup.ts)
+  private seenFps = new Map<string, number>();            // fingerprints already folded in (late re-reads are skipped)
   private cachedUntil = 0;
+  private get cache(): Fingerprint[] { return [...this.buckets.values()]; }
   private async history(now: number): Promise<Fingerprint[]> {
     const floor = now - this.opts.baselineMs;
     const from = this.cachedUntil ? Math.max(floor, this.cachedUntil - LATE_MS) : floor;
-    for (const f of await this.ingest.since(PROJECT_ID(), from)) {
+    // read in 10-minute slices, yielding between them: a cold start reads hours of history and must not block the
+    // event loop (a small host's health check would time out and restart the engine in a loop)
+    const fresh: Fingerprint[] = [];
+    for (let a = from; a < now; a += 10 * 60_000) {
+      fresh.push(...(await this.ingest.since(PROJECT_ID(), a, Math.min(now + 60_000, a + 10 * 60_000))));
+      if (now - a > 10 * 60_000) await new Promise((r) => setImmediate(r));
+    }
+    fresh.push(...(await this.ingest.since(PROJECT_ID(), now + 60_000)));
+    for (const f of fresh) {
       const k = f.batchId ?? `${f.service}|${f.method}|${f.endpoint}|${f.statusClass}|${f.windowStart}|${f.count}|${f.shapeHash}|${f.saltId ?? ''}`;
-      if (!this.cacheKeys.has(k)) { this.cacheKeys.add(k); this.cache.push(f); }
+      if (this.seenFps.has(k)) continue;
+      this.seenFps.set(k, Date.parse(f.windowStart));
+      const ms = bucketMsFor(this.opts.windowMs);
+      const bk = bucketKey(f, ms);
+      const b = this.buckets.get(bk);
+      if (b) mergeInto(b, f); else this.buckets.set(bk, startBucket(f, ms));
     }
     this.cachedUntil = now;
-    if (this.cache.some((f) => Date.parse(f.windowStart) <= floor)) {
-      this.cache = this.cache.filter((f) => Date.parse(f.windowStart) > floor);
-      this.cacheKeys = new Set(this.cache.map((f) => f.batchId ?? `${f.service}|${f.method}|${f.endpoint}|${f.statusClass}|${f.windowStart}|${f.count}|${f.shapeHash}|${f.saltId ?? ''}`));
-    }
+    for (const [k, b] of this.buckets) if (Date.parse(b.windowStart) + b.windowSeconds * 1000 <= floor) this.buckets.delete(k);
+    for (const [k, at] of this.seenFps) if (at < floor - LATE_MS) this.seenFps.delete(k);
     return this.cache;
   }
 
@@ -163,7 +176,7 @@ export class DriftEngine {
   /** Demo reset (P8.5): forget every event, in memory and in the store. */
   async clear(): Promise<void> {
     await this.init();
-    this.cache = []; this.cacheKeys.clear(); this.cachedUntil = 0;
+    this.buckets.clear(); this.seenFps.clear(); this.cachedUntil = 0;
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
     this.investigating.clear();
