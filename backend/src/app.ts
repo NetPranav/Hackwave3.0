@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { requireUser, signUserToken, userFrom } from './auth.js';
@@ -22,6 +23,8 @@ import { Radar, demoSources } from './radar/radar.js';
 import { PROJECT_ID, Projects, RateLimiter } from './projects.js';
 import { codemapView, enrichEvent } from './codemap-view.js';
 import { templateFor } from './fix-templates.js';
+import { forwardRules, tryForward } from './forward.js';
+import { shopLocator } from './demo-shop.js';
 import type { RadarItem } from '@seismo/contracts';
 
 export interface AppOptions {
@@ -147,12 +150,18 @@ export function buildApp(opts: AppOptions = {}) {
     } catch (e) { done(e as Error, undefined); }
   });
 
+  // v3-P0.5: GitHub webhooks and the demo's fake providers go through this one public service (raw, before parsing)
+  const forwards = forwardRules();
+  app.addHook('onRequest', async (req, reply) => {
+    if (forwards.some((r) => r.target && req.url.startsWith(r.prefix)) && tryForward(req.raw, reply.raw, forwards)) return reply.hijack();
+  });
+
   // Every /v1 route except SDK ingest and SSE is user-scoped (P0.11).
   // ...and to the deployment's project: only its owners see or change anything (v2). /v1/me and /v1/projects stay
   // open to any signed-in user so the dashboard can say "this project belongs to someone else".
   const OPEN_TO_ANY_USER = ['/v1/me', '/v1/projects'];
   app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events') || req.url.startsWith('/v1/sdk/')) return;
+    if (!req.url.startsWith('/v1/') || req.url.startsWith('/v1/ingest') || req.url.startsWith('/v1/events') || req.url.startsWith('/v1/sdk/')) return;   // SDK routes: key auth
     await requireUser(req, reply);
     if (reply.sent) return;
     const path = req.url.split('?')[0]!;
@@ -185,7 +194,7 @@ export function buildApp(opts: AppOptions = {}) {
     return { token: await signUserToken(req.user!, '60s', 'sse') };
   });
   app.get('/v1/overview', async () => {
-    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
+    const fps = await engine.recent(Date.now() - 10 * 60_000);
     const maps = await store.all();
     if (!fps.length && !maps.length && mocks) return mockOverview();
     const st = buildStatus(fps);
@@ -281,11 +290,50 @@ export function buildApp(opts: AppOptions = {}) {
   });
   app.get('/v1/metrics', async (req) => {
     // ?range=live: last 32 minutes per minute (what a demo audience sees move); default: 7 days per 6 h
-    if ((req.query as { range?: string }).range === 'live') return buildLiveMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 33 * 60_000), engine.list());
-    return buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list());
+    if ((req.query as { range?: string }).range === 'live') return buildLiveMetrics(await engine.recent(Date.now() - 33 * 60_000), engine.list());
+    return buildMetrics(await engine.recent(Date.now() - 7 * 86_400_000), engine.list());
   });
   // v2 demo: the app itself (holding its SDK key) may ask what Seismo has detected for its project: titles and states
   // only, no evidence, no code locations. Used by the demo shop's "Demo changes" panel.
+  // v3-P2 self-healing: the SDK asks for live alias rules; it reports how many responses each rule healed.
+  // Served only with auto-heal on, only renames whose fix PR passed every check (state fix_pending), never value rules.
+  const heal = new Map<string, { hits: number; lastAt?: string; announced?: number }>();
+  const liveRules = async () => {
+    if (!(await settingsStore.get()).autoHeal) return [];
+    return engine.list()
+      .filter((e) => e.state === 'fix_pending' && e.fix?.rung === 'alias' && e.fix.rule?.kind === 'alias' && e.fix.validation?.checks.every((c) => c.passed))
+      .map((e) => ({ ...e.fix!.rule!, id: e.fix!.rule!.id ?? `live-${e.id}` }));
+  };
+  app.get('/v1/sdk/rules', async (req, reply) => {
+    if (!keys.verify(String(req.headers['x-seismo-key'] ?? ''))) return reply.code(401).send({ error: 'bad_key' });
+    const rules = await liveRules();
+    const etag = `"${createHash('sha1').update(JSON.stringify(rules)).digest('hex').slice(0, 16)}"`;
+    if (req.headers['if-none-match'] === etag) return reply.code(304).send();
+    return reply.header('etag', etag).send({ rules });
+  });
+  app.post('/v1/sdk/rule-hits', async (req, reply) => {
+    if (!keys.verify(String(req.headers['x-seismo-key'] ?? ''))) return reply.code(401).send({ error: 'bad_key' });
+    const hits = ((req.body ?? {}) as { hits?: Record<string, number> }).hits ?? {};
+    for (const [id, n] of Object.entries(hits).slice(0, 200)) {
+      if (!Number.isFinite(n) || n <= 0) continue;
+      const h = heal.get(id) ?? { hits: 0 };
+      h.hits += Math.min(n, 1e6);
+      h.lastAt = new Date().toISOString();
+      heal.set(id, h);
+      if (!h.announced || Date.now() - h.announced > 60_000) {   // one feed line per rule per minute
+        h.announced = Date.now();
+        const ev = engine.list().find((e) => e.fix?.rule?.id === id || `live-${e.id}` === id);
+        activity({ kind: 'pr', ok: true, ...(ev ? { driftId: ev.id, service: ev.service } : {}), text: `Healed live in the app: ${h.hits} response(s) so far with rule ${id}${ev ? ` (${ev.title})` : ''}` });
+      }
+    }
+    return { ok: true };
+  });
+  const healOf = (e: DriftEvent, live: Set<string>) => {
+    const id = e.fix?.rule?.id ?? `live-${e.id}`;
+    const h = heal.get(id);
+    return live.has(id) || h ? { heal: { live: live.has(id), hits: h?.hits ?? 0, ...(h?.lastAt ? { lastAt: h.lastAt } : {}) } } : {};
+  };
+
   app.get('/v1/sdk/changes', async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
     if (!projectId) return reply.code(401).send({ error: 'bad_key' });
@@ -294,6 +342,24 @@ export function buildApp(opts: AppOptions = {}) {
       .filter((e) => !['resolved', 'expected', 'snoozed', 'normal'].includes(e.state))
       .map((e) => ({ id: e.id, service: e.service, endpoint: e.endpoint, detector: e.detector, title: e.title, state: e.state, severity: e.severity, detectedAt: e.detectedAt, prUrl: e.fix?.validation?.prUrl }));
   });
+  // Is Seismo still learning this app's traffic? A change made before an endpoint is ready becomes its normal shape
+  // (found live: a rename made 1 minute after a reset was never reported). Shown in the demo panel and the dashboard.
+  app.get('/v1/sdk/readiness', async (req, reply) => {
+    const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
+    if (!projectId) return reply.code(401).send({ error: 'bad_key' });
+    return projectId === PROJECT_ID() ? engine.readiness() : [];
+  });
+  app.get('/v1/readiness', async () => engine.readiness());
+  // Where the demo shop runs now (the hosted one if it answers, else the local one): links in the dashboard use this.
+  const shop = shopLocator({ repo: async () => process.env.DEMO_REPO ?? (await store.all()).find((m) => m.callSites.length)?.repo });
+  app.get('/v1/demo/shop', async (req) => shop.locate((req.query as { refresh?: string }).refresh === '1'));
+  app.post('/internal/demo/shop', async (req, reply) => {
+    if (req.headers['x-internal-token'] !== (process.env.INTERNAL_TOKEN ?? 'dev-internal')) return reply.code(401).send({ error: 'unauthorized' });
+    const url = String((req.body as { url?: unknown })?.url ?? '');
+    if (!/^https?:\/\/[^\s]+$/.test(url)) return reply.code(400).send({ error: 'bad_url' });
+    shop.register(url);
+    return shop.locate(true);
+  });
   app.get('/v1/activity', async () => activityLog.slice(0, 100));
   app.get('/v1/codemap', async () => codemapView(await store.all()));
   app.get('/v1/coverage', async () => {
@@ -301,7 +367,7 @@ export function buildApp(opts: AppOptions = {}) {
     return maps.length || !mocks ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
   });
   app.get('/v1/status', async () => {
-    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
+    const fps = await engine.recent(Date.now() - 10 * 60_000);
     if (!fps.length) return { services: mocks ? mockStatus() : [] };
     const services = [...new Set(fps.map((f) => f.service))];
     const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
@@ -311,7 +377,8 @@ export function buildApp(opts: AppOptions = {}) {
     const real = engine.list();
     if (!real.length && mocks) return mockDrift();
     const maps = await store.all();
-    return real.map((e) => enrichEvent(e, maps));
+    const live = new Set((await liveRules()).map((r) => r.id));
+    return real.map((e) => ({ ...enrichEvent(e, maps), ...healOf(e, live) }));
   });
   /** One detection pass now (the server also runs it every 5 s). Emits drift.created / drift.updated over SSE. */
   app.post('/internal/detect', async (req, reply) => {
@@ -393,7 +460,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.get('/v1/compare', async (req, reply) => {
     const { service, endpoint } = req.query as { service?: string; endpoint?: string };
     if (!service || !endpoint) return reply.code(400).send({ error: 'bad_request', message: 'service and endpoint (e.g. "GET /users/{id}") are required' });
-    return compare(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000), service, endpoint);
+    return compare(await engine.recent(Date.now() - 24 * 3600_000), service, endpoint);
   });
   app.post('/v1/simulate', async (req, reply) => {
     const parsed = SimulateRequest.safeParse(req.body);
@@ -410,6 +477,7 @@ export function buildApp(opts: AppOptions = {}) {
   });
 
   // One fingerprint is a few KB; 512 KB is far above any real batch and stops oversized bodies early.
+  const seenBatches = new Set<string>();
   app.post('/v1/ingest', { bodyLimit: 512 * 1024 }, async (req, reply) => {
     const projectId = keys.verify(String(req.headers['x-seismo-key'] ?? ''));
     if (!projectId) return reply.code(401).send({ error: 'bad_key' });
@@ -417,6 +485,13 @@ export function buildApp(opts: AppOptions = {}) {
     if (wait) return reply.code(429).header('retry-after', String(wait)).send({ error: 'rate_limited', retryAfterSeconds: wait });
     const parsed = Fingerprint.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_fingerprint', message: parsed.error.message });
+    // v3-P3.1: an SDK resend after a timeout carries the same batchId: accept it, store it once
+    if (parsed.data.batchId) {
+      const k = `${projectId}|${parsed.data.batchId}`;
+      if (seenBatches.has(k)) return { ok: true, duplicate: true };
+      seenBatches.add(k);
+      if (seenBatches.size > 50_000) seenBatches.delete(seenBatches.values().next().value!);
+    }
     await ingestStore.add(projectId, parsed.data);
     const fp = parsed.data;
     const errs = Object.entries(fp.statusCounts).filter(([s]) => Number(s) >= 400).reduce((n, [, c]) => n + c, 0);
@@ -437,7 +512,7 @@ export function buildApp(opts: AppOptions = {}) {
     const p = req.params as { id: string; keyId: string };
     return keys.revoke(p.keyId, p.id) ? { ok: true } : reply.code(404).send({ error: 'not_found' });
   });
-  app.get('/v1/baselines', async () => buildBaselines(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000)));
+  app.get('/v1/baselines', async () => buildBaselines(await engine.recent(Date.now() - 24 * 3600_000)));
 
   // SSE stub (P0.4). Real events arrive with P2/P4.
   app.get('/v1/events', async (req, reply) => {

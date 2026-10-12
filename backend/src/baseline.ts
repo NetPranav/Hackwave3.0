@@ -30,6 +30,8 @@ export interface EndpointBaseline {
   /** Largest `limit`/`per_page` the app asked for (a request parameter, not response data). */
   reqLimit?: number;
   reqQueryKeys: string[];
+  /** salt ids of the SDKs that sent these windows (hashes are only comparable under the same salt) */
+  saltIds?: string[];
 }
 
 const add = (into: Record<string, number>, from?: Record<string, number>) => { for (const [k, v] of Object.entries(from ?? {})) into[k] = (into[k] ?? 0) + v; };
@@ -77,8 +79,21 @@ export function buildBaselines(fps: Fingerprint[], now = Date.now(), allClasses 
       latencyP95: Math.max(...g.map((f) => f.latencyMs.p95)), statusCounts,
       shapes: [...new Set(g.map((f) => f.shapeHash))],
       reqQueryKeys: [...new Set(g.flatMap((f) => f.reqQueryKeys))],
+      saltIds: [...new Set(g.map((f) => f.saltId).filter((s): s is string => !!s))],
       ...(g.some((f) => f.reqLimit !== undefined) ? { reqLimit: Math.max(...g.map((f) => f.reqLimit ?? 0)) } : {}),
       headers: { ...(hdr('sunset') ? { sunset: hdr('sunset')! } : {}), ...(hdr('deprecation') ? { deprecation: hdr('deprecation')! } : {}), ...(last.headers.rateLimitLimit ? { rateLimitLimit: last.headers.rateLimitLimit } : {}) },
     };
   });
+}
+
+/**
+ * Salted hashes from two different salts never match, so comparing them would call every value "new" and hide every
+ * rename (found live: each restart of the app without a fixed salt gave "New id value" changes). When the window holds a
+ * salt the baseline has never seen, both sides are compared without hashes (types, formats, lengths, sizes still work).
+ */
+export function alignSalts(b: EndpointBaseline, w: EndpointBaseline): [EndpointBaseline, EndpointBaseline] {
+  const bs = b.saltIds ?? [], ws = w.saltIds ?? [];
+  if (!bs.length || !ws.length || ws.every((s) => bs.includes(s))) return [b, w];
+  const strip = (x: EndpointBaseline): EndpointBaseline => ({ ...x, fields: Object.fromEntries(Object.entries(x.fields).map(([k, f]) => [k, { ...f, hashes: {}, idHashes: undefined }])) });
+  return [strip(b), strip(w)];
 }

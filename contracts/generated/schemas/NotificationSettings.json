@@ -124,6 +124,9 @@
     },
     "aiEnabled": {
       "type": "boolean"
+    },
+    "autoHeal": {
+      "type": "boolean"
     }
   },
   "required": [

@@ -1,0 +1,221 @@
+{
+  "date": "2026-10-12T03:10:44.537Z",
+  "browser": "Brave Browser",
+  "learning": {
+    "GET /orders": 13308,
+    "GET /payments/{id}": 13308,
+    "GET /shipments/{id}": 13308,
+    "GET /users/{id}": 13308,
+    "POST /payments": 13308
+  },
+  "results": [
+    {
+      "id": "rename",
+      "change": "users: rename name → customer_name",
+      "expected": {
+        "detector": "D3",
+        "field": "name",
+        "fix": "alias PR + self-heal"
+      },
+      "applied": false,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 78939
+        },
+        {
+          "state": "fix_pending",
+          "at": 102373
+        }
+      ],
+      "t": {
+        "firstSeen": 78939,
+        "dashboard": 81212,
+        "confirmed": 91252,
+        "pr": 102373
+      },
+      "prUrl": "https://github.com/NetPranav/seismo-demo-shop/pull/62",
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-zf9v87",
+        "detector": "D3",
+        "field": "name",
+        "title": "Field renamed: name → customer_name",
+        "state": "fix_pending",
+        "severity": "breaking",
+        "usages": 2
+      },
+      "falseAlarms": [],
+      "rule": {
+        "id": "a-zf9v87",
+        "kind": "alias",
+        "endpoint": "GET /users/{id}",
+        "path": "$",
+        "target": "name",
+        "source": "customer_name",
+        "driftEvent": "drift-zf9v87",
+        "addedAt": "2026-10-12"
+      },
+      "oracle": {
+        "verdict": "PASS",
+        "detail": "restored name = \"Asha Rao\" (provider before the change: \"Asha Rao\")"
+      },
+      "shopShowsName": false,
+      "rerun": false
+    }
+  ],
+  "screens": [
+    {
+      "url": "http://localhost:3000/",
+      "status": 200,
+      "ms": 1998,
+      "chars": 6399,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/login",
+      "status": 200,
+      "ms": 1525,
+      "chars": 452,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/docs/sdk",
+      "status": 200,
+      "ms": 1036,
+      "chars": 4701,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/onboarding",
+      "status": 200,
+      "ms": 2689,
+      "chars": 674,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app",
+      "status": 200,
+      "ms": 6274,
+      "chars": 2139,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/status",
+      "status": 200,
+      "ms": 3020,
+      "chars": 1199,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/status/users",
+      "status": 200,
+      "ms": 15273,
+      "chars": 1271,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/timeline",
+      "status": 200,
+      "ms": 3068,
+      "chars": 2354,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/graph",
+      "status": 200,
+      "ms": 4883,
+      "chars": 796,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/fixes",
+      "status": 200,
+      "ms": 3009,
+      "chars": 2032,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/review",
+      "status": 200,
+      "ms": 2557,
+      "chars": 564,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/compare",
+      "status": 200,
+      "ms": 3560,
+      "chars": 935,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/radar",
+      "status": 200,
+      "ms": 2706,
+      "chars": 293,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/settings",
+      "status": 200,
+      "ms": 3608,
+      "chars": 1861,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/demo",
+      "status": 200,
+      "ms": 4076,
+      "chars": 1219,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "https://seismo-demo-shop.vercel.app/",
+      "status": 200,
+      "ms": 3405,
+      "chars": 447,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "https://seismo-demo-shop.vercel.app/checkout",
+      "status": 200,
+      "ms": 17042,
+      "chars": 269,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "https://seismo-demo-shop.vercel.app/orders",
+      "status": 200,
+      "ms": 15746,
+      "chars": 350,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "https://seismo-demo-shop.vercel.app/invoice",
+      "status": 200,
+      "ms": 16004,
+      "chars": 166,
+      "errorOverlay": false,
+      "consoleErrors": []
+    }
+  ]
+}

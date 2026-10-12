@@ -2,7 +2,7 @@
 
 **Read [`START_HERE.md`](START_HERE.md) first: who you are and which tasks are yours.**
 
-Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for teammates working in this repository. Read this first, then [`MEMORY.md`](MEMORY.md) for decisions and open questions. **Current plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md).**
+Instructions for AI coding agents (Claude Code, Codex, Cursor, etc.) and for teammates working in this repository. Read this first, then [`MEMORY.md`](MEMORY.md) for decisions and open questions. **Current plan (only what is left): [`docs/roadmap/v3/README.md`](docs/roadmap/v3/README.md).**
 
 ## Project
 

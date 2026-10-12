@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { Threads } from "@/components/ui";
 import DeckLink from "./deck/DeckLink";
-import Float from "./Float";
-import HeroAlerts from "./HeroAlerts";
 import Magnetic from "./Magnetic";
 import Reveal from "./Reveal";
 
-/** Slide 1: threads that follow the cursor, the headline, and a live-looking alert card that drifts with the mouse. */
+/** Slide 1: threads that follow the cursor, behind the headline. */
 export default function Hero() {
   return (
     <>
@@ -30,13 +28,13 @@ export default function Hero() {
         />
       </div>
 
-      <div className="mx-auto grid h-full w-full max-w-[1440px] items-center gap-10 px-6 pb-16 pt-24 md:px-10 lg:grid-cols-[1fr_auto] lg:px-16">
+      <div className="mx-auto grid h-full w-full max-w-[1440px] items-center px-6 pb-16 pt-24 md:px-10 lg:px-16">
         <div>
           <Reveal depth={0.6}>
             <p className="font-aeonik-mono text-xs uppercase tracking-[0.2em] text-accent">Dependabot for the APIs you depend on</p>
           </Reveal>
           <Reveal depth={1}>
-            <h1 className="mt-5 font-aeonik text-5xl leading-[0.92] tracking-tight md:text-7xl xl:text-[6.5rem] short:xl:text-[5.25rem]">
+            <h1 className="mt-6 font-aeonik text-5xl leading-[0.95] tracking-tight md:text-6xl xl:text-[5.5rem] short:xl:text-[4.6rem]">
               Your API is up.
               <br />
               Your monitor is green.
@@ -45,29 +43,23 @@ export default function Hero() {
             </h1>
           </Reveal>
           <Reveal depth={1.4}>
-            <p className="mt-7 max-w-xl font-aeonik-light text-base leading-relaxed text-text-primary/75 md:text-lg">
+            <p className="mt-7 max-w-lg font-aeonik-light text-base leading-relaxed text-text-primary/65 md:text-lg">
               Seismo catches silent changes in the APIs you depend on, shows which of your code breaks, and opens a safe fix pull request.
             </p>
           </Reveal>
-          <Reveal depth={1.8} className="mt-9 flex flex-wrap items-center gap-3">
+          <Reveal depth={1.8} className="mt-10 flex flex-wrap items-center gap-5">
             <Magnetic>
               <Link href="/login" className="block rounded-md bg-btn-primary px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-white transition-colors hover:bg-accent">
                 Install on GitHub
               </Link>
             </Magnetic>
-            <Magnetic>
-              <DeckLink to="demo" className="block rounded-md border border-text-primary bg-section/70 px-6 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider backdrop-blur-sm transition-colors hover:bg-section">
-                Break an API live ↓
-              </DeckLink>
-            </Magnetic>
+            <DeckLink to="demo" className="group flex items-center gap-2 px-2 py-3.5 font-aeonik-mono text-sm uppercase tracking-wider text-text-primary/70 transition-colors hover:text-accent">
+              Watch it break
+              <span aria-hidden className="transition-transform group-hover:translate-y-0.5">↓</span>
+            </DeckLink>
           </Reveal>
         </div>
 
-        <Reveal depth={2.4} className="hidden lg:block">
-          <Float strength={-22}>
-            <HeroAlerts />
-          </Float>
-        </Reveal>
       </div>
 
       <div aria-hidden className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 font-aeonik-mono text-[10px] uppercase tracking-[0.25em] text-text-primary/45 deck:flex">

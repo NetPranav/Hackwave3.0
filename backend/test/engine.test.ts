@@ -274,3 +274,170 @@ describe('suggestion PR for a unit change (P5.10, v2 templates)', () => {
     expect(rename.error).toBe('unknown_event');
   });
 });
+
+describe('provider goes back to the shape the code reads (found live: a reverse alias was proposed)', () => {
+  it('a learned rename being reverted is reported as "restored" with no fix, never as alias display_name ← name', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    // Seismo learned the CHANGED shape (the rename happened during learning / before a reset), then the provider reverts
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename', false);
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const ev = e.list().find((x) => x.detector === 'D3')!;
+    expect(ev.title).toBe('Field restored: name is back (it was display_name); your code reads name');
+    expect(ev.fix).toBeUndefined();
+    expect(ev.state).toBe('normal');
+  });
+});
+
+describe('the app restarts with a new salt (found live: "New carrier value: value #d5ca07" after a restart)', () => {
+  const run = async (withSaltIds: boolean) => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const keep = (fp: Awaited<ReturnType<typeof capture>>[number]) => (withSaltIds ? fp : { ...fp, saltId: undefined });
+    for (let i = 0; i < 12; i++) for (const fp of await capture(s, '/shipments/sh_1', 20, { service: 'shipping', at: NOW - 15 * 60_000 + i * 5000, salt: 'salt-before' })) await ingest.add('dev', keep(fp));
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/shipments/sh_1', 20, { service: 'shipping', at: NOW - 30_000 + i * 5000, salt: 'salt-after-restart' })) await ingest.add('dev', keep(fp));
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW); await e.run(NOW + 5000);
+    return e.list().map((x) => x.title);
+  };
+  it('without salt ids a restart looks like new values (the old behaviour this guards against)', async () => {
+    expect((await run(false)).some((t) => t.startsWith('New '))).toBe(true);
+  });
+  it('with salt ids: no change, nothing reported', async () => {
+    expect(await run(true)).toEqual([]);
+  });
+});
+
+describe('learning progress (found live: a change made while Seismo was still learning was silently learned)', () => {
+  it('reports per endpoint how many baseline samples it has and whether changes count yet', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 5 * 60_000 })) await ingest.add('dev', fp);
+    for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 10_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    await e.run(NOW);
+    expect(e.readiness()).toEqual([{ service: 'users', endpoint: 'GET /users/{id}', samples: 20, needed: 50, ready: false }]);
+    for (let i = 1; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 5 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await e.run(NOW + 1000);
+    expect(e.readiness()[0]).toMatchObject({ samples: 60, ready: true });
+  });
+});
+
+describe('unit change explains the earlier "value distribution changed" (found by the pipeline run: 2 extra D6 events)', () => {
+  it('an open D6 on the same field is closed as explained once D5 sees the unit change', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/payments/pay_1', 20, { service: 'payments', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'payments-paise');
+    for (const fp of await capture(s, '/payments/pay_1', 40, { service: 'payments', at: NOW - 20_000 })) await ingest.add('dev', fp);
+    const e = new DriftEngine(ingest, async () => []);
+    // as in the live run: D6 fired while the window was still half old, half new
+    const d6 = { id: 'drift-d6', service: 'payments', endpoint: 'GET /payments/{id}', field: 'amount', detector: 'D6', title: 'Value distribution changed: amount', severity: 'warning' as const, state: 'suspected' as const, confidence: 0.7, detectedAt: new Date(NOW - 10_000).toISOString(), before: null, after: null, usages: [] };
+    (e as unknown as { events: Map<string, unknown> }).events.set('payments|GET|/payments/{id}|D6|amount', { event: d6, runs: 2, lastSeen: NOW - 5000 });
+    const changed = await e.run(NOW);
+    expect(e.list().some((x) => x.detector === 'D5')).toBe(true);
+    const closed = e.list().find((x) => x.id === 'drift-d6')!;
+    expect(closed.state).toBe('resolved');
+    expect(closed.title).toBe('Value distribution changed: amount (explained: unit change)');
+    expect(changed.map((c) => c.id)).toContain('drift-d6');
+  });
+});
+
+describe('a confirmed change whose severity dropped while the provider reverted (found by the pipeline run)', () => {
+  it('still resolves once the provider has gone back to normal', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    await feed(NOW - 15 * 60_000, 6);
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000);
+    const e = new DriftEngine(ingest, async () => []);   // nobody reads the field: the rename is only "normal" (info)
+    await e.run(NOW); await e.run(NOW + 5000);
+    const ev = e.list().find((x) => x.detector === 'D3')!;
+    expect(ev.state).toBe('normal');
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 20 * 60_000;
+    await feed(back - 30_000);
+    for (let i = 0; i < 3; i++) await e.run(back + i * 1000);
+    expect(e.list().find((x) => x.id === ev.id)!.state).toBe('resolved');
+  });
+});
+
+describe('detection reads only new fingerprints each pass (found on Render free: re-reading 24 h starved the CPU)', () => {
+  it('the first pass reads the baseline period, later passes only the last 10 minutes; results are the same', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    for (let i = 0; i < 6; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 15 * 60_000 + i * 5000 })) await ingest.add('dev', fp);
+    await toggle(s, 'users-rename');
+    for (let i = 0; i < 3; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: NOW - 30_000 + i * 5000 })) await ingest.add('dev', fp);
+    const asked: number[] = [];
+    const spy = { ...ingest, since: (p: string, ms: number) => { asked.push(ms); return ingest.since(p, ms); } };
+    const e = new DriftEngine(spy, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW);
+    const firstPass = asked.splice(0);
+    await e.run(NOW + 5000);
+    expect(Math.min(...firstPass)).toBe(NOW - 24 * 3600_000);      // the whole baseline period, read in slices
+    expect(Math.min(...asked)).toBe(NOW - 10 * 60_000);            // later: only the last 10 minutes
+    expect(e.list().find((x) => x.detector === 'D3')?.state).toBe('breaking');
+  });
+});
+
+describe('a restart keeps the periods of reverted changes out of the baseline (found on Render free)', () => {
+  it('rename, revert, RESTART, rename again: the new engine still flags it', async () => {
+    const { memoryEvents } = await import('../src/event-store.js');
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const store = memoryEvents();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    const maps = async () => [codeMap([{ field: 'name', usage: 'display' }])];
+    await feed(NOW - 15 * 60_000, 6);
+    // a long rename (6 windows): without its quarantine it would be ~half of the baseline
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000, 6);
+    const first = new DriftEngine(ingest, maps, undefined, undefined, store);
+    await first.run(NOW + 5000); await first.run(NOW + 10_000);
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 5 * 60_000;
+    await feed(back - 30_000);
+    for (let i = 0; i < 3; i++) await first.run(back + i * 1000);
+    expect(first.list().find((x) => x.detector === 'D3')!.state).toBe('resolved');
+    // restart: a new engine on the same stores
+    const second = new DriftEngine(ingest, maps, undefined, undefined, store);
+    await toggle(s, 'users-rename');
+    const again = NOW + 10 * 60_000;
+    await feed(again - 30_000);
+    await second.run(again); await second.run(again + 5000);
+    const d3 = second.list().filter((x) => x.detector === 'D3');
+    expect(d3.some((x) => x.state === 'breaking')).toBe(true);
+  });
+});
+
+describe('a different change to a field whose earlier change was fixed (found recording the demo)', () => {
+  it('name -> display_name fixed (resolved by a fix); later name -> full_name is a NEW change with its own event', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    await feed(NOW - 15 * 60_000, 6);
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const first = e.list().find((x) => x.detector === 'D3')!;
+    // as after a merged fix PR
+    const t = [...(e as unknown as { events: Map<string, { event: { id: string; state: string }; resolvedBy?: string }> }).events.values()].find((x) => x.event.id === first.id)!;
+    t.event = { ...t.event, state: 'resolved' }; t.resolvedBy = 'fix';
+    // the provider goes back, then renames the same field to something else
+    await toggle(s, 'users-rename', false);
+    await feed(NOW + 5 * 60_000 - 30_000);
+    for (let i = 0; i < 3; i++) await e.run(NOW + 5 * 60_000 + i * 1000);
+    await s.inject({ method: 'POST', url: '/admin/custom', headers: { 'x-admin-token': 'dev-admin' }, payload: { service: 'users', kind: 'rename', field: 'name', to: 'full_name' } });
+    const later = NOW + 10 * 60_000;
+    await feed(later - 30_000);
+    await e.run(later); await e.run(later + 5000);
+    const second = e.list().find((x) => x.detector === 'D3' && x.title.includes('full_name'))!;
+    expect(second).toBeDefined();
+    expect(second.id).not.toBe(first.id);
+    expect(second.state).toBe('breaking');
+  });
+});

@@ -1,3 +1,4 @@
+import { prHref } from "@/lib/links";
 import Link from "next/link";
 import { Card } from "@/components/dashboard/Card";
 import AnimatedNumber from "@/components/dashboard/AnimatedNumber";
@@ -64,7 +65,7 @@ export default function DriftHero({ drift }: { drift: DriftDetailData }) {
           </Link>
           {drift.fixPrNumber ? (
             <a
-              href={"https://github.com/NetPranav/seismo-demo-shop/pull/" + drift.fixPrNumber}
+              href={prHref(drift.fixPrNumber, drift.prUrl)}
               target="_blank"
               rel="noreferrer"
               className={PRIMARY_BUTTON}

@@ -89,6 +89,8 @@ export const DriftEvent = z.object({
   detectedAt: z.string().datetime(), before: z.unknown(), after: z.unknown(),
   usages: z.array(Usage), explanation: AiExplanation.optional(),
   fix: z.object({ rung: FixRung, rule: SeismoRule.optional(), validation: ValidationResult.optional() }).optional(),
+  /** v3-P2: self-healing status (served live to the SDK, responses healed so far, last time one was healed) */
+  heal: z.object({ live: z.boolean(), hits: z.number(), lastAt: z.string().optional() }).optional(),
 });
 export type DriftEvent = z.infer<typeof DriftEvent>;
 
@@ -111,6 +113,8 @@ export const NotificationSettings = z.object({
   email: z.object({ enabled: z.boolean(), to: z.string().optional(), ...ChannelThreshold }),
   github: z.object({ enabled: z.boolean(), ...ChannelThreshold }),
   minSeverity: Severity, aiEnabled: z.boolean(),
+  /** v3-P2: serve confirmed rename rules live to the SDK (self-healing) before their PR is merged */
+  autoHeal: z.boolean().optional(),
 });
 export type NotificationSettings = z.infer<typeof NotificationSettings>;
 

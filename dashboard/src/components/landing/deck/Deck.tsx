@@ -39,7 +39,7 @@ const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)"
  * A presentation deck: each child is one full-screen slide. A small scroll, an arrow key or a swipe moves one slide.
  * Elements marked data-enter slide in at different speeds (data-depth), which gives the parallax on every change.
  */
-export default function Deck({ slides, nav, children }: { slides: SlideMeta[]; nav?: React.ReactNode; children: React.ReactNode }) {
+export default function Deck({ slides, nav, paged = true, children }: { slides: SlideMeta[]; nav?: React.ReactNode; paged?: boolean; children: React.ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
@@ -47,7 +47,8 @@ export default function Deck({ slides, nav, children }: { slides: SlideMeta[]; n
   const lastWheelRef = useRef(0);
   const wheelSumRef = useRef(0);
   const [active, setActive] = useState(0);
-  const enabled = useDeckEnabled();
+  // paged={false} keeps a normal scrolling page: no slide snapping, no wheel or key takeover.
+  const enabled = useDeckEnabled() && paged;
 
   const entering = (index: number) => Array.from(trackRef.current?.children[index]?.querySelectorAll("[data-enter]") ?? []);
 
@@ -220,7 +221,7 @@ export default function Deck({ slides, nav, children }: { slides: SlideMeta[]; n
   return (
     <DeckContext.Provider value={value}>
       {nav}
-      <div ref={rootRef} className="relative deck:fixed deck:inset-0 deck:overflow-hidden">
+      <div ref={rootRef} className={paged ? "relative deck:fixed deck:inset-0 deck:overflow-hidden" : "relative"}>
         <div ref={trackRef}>
           {children}
         </div>

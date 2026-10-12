@@ -1399,6 +1399,25 @@
                           "rung"
                         ],
                         "additionalProperties": false
+                      },
+                      "heal": {
+                        "type": "object",
+                        "properties": {
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "hits": {
+                            "type": "number"
+                          },
+                          "lastAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "live",
+                          "hits"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -2031,6 +2050,25 @@
                             },
                             "required": [
                               "rung"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "heal": {
+                            "type": "object",
+                            "properties": {
+                              "live": {
+                                "type": "boolean"
+                              },
+                              "hits": {
+                                "type": "number"
+                              },
+                              "lastAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "live",
+                              "hits"
                             ],
                             "additionalProperties": false
                           }
@@ -2878,6 +2916,9 @@
                     },
                     "aiEnabled": {
                       "type": "boolean"
+                    },
+                    "autoHeal": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -3028,6 +3069,9 @@
                   },
                   "aiEnabled": {
                     "type": "boolean"
+                  },
+                  "autoHeal": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -3174,6 +3218,9 @@
                       ]
                     },
                     "aiEnabled": {
+                      "type": "boolean"
+                    },
+                    "autoHeal": {
                       "type": "boolean"
                     }
                   },
@@ -3468,6 +3515,14 @@
                   "v": {
                     "type": "number",
                     "const": 1
+                  },
+                  "batchId": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "saltId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8,16}$"
                   },
                   "service": {
                     "type": "string"

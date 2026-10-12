@@ -1,6 +1,6 @@
 {
   "name": "@seismo/sdk",
-  "version": "0.1.5",
+  "version": "0.1.9",
   "description": "Read-only, fail-open API drift sensor for Node.js",
   "type": "module",
   "main": "dist/index.js",
@@ -13,6 +13,10 @@
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "default": "./dist/runtime.js"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "default": "./dist/auto.js"
     }
   },
   "files": [

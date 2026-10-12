@@ -43,6 +43,7 @@ export default function FinalCta() {
             <Link href="/docs/sdk" className="hover:text-accent">Docs</Link>
             <a href="https://github.com/NetPranav/Hackwave3.0" target="_blank" rel="noopener noreferrer" className="hover:text-accent">GitHub</a>
             <Link href="/app" className="hover:text-accent">Dashboard</Link>
+            <Link href="/deck" className="text-accent hover:text-text-primary">Pitch deck &rarr;</Link>
           </nav>
           <p className="font-aeonik-mono text-[11px] uppercase tracking-wider text-text-primary/40">Seismo · HackWave 3.0</p>
         </div>

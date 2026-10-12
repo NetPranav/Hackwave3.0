@@ -11,7 +11,7 @@ export interface NodeInfo {
   title: string;
   subtitle?: string;
   rows: [string, string][];
-  sites: CodeSite[];
+  sites: (CodeSite & { url?: string })[];
   events: { id: string; title: string }[];
   rules: { text: string; prNumber?: number }[];
   related: string[];
@@ -101,7 +101,8 @@ function describeField(node: GraphNode, d: GraphData): NodeInfo {
     ["Typical size", field.p50Magnitude],
     ["Used in code", String(node.weight)],
   ];
-  info.sites = node.weight > 0 ? d.sitesFor(found.slug, field.path) : [];
+  // link to the line in the repo Seismo scanned (from the code map, not a fixed repo)
+  info.sites = node.weight > 0 ? d.sitesFor(found.slug, field.path).map((s) => ({ ...s, url: d.codeUrl(s.file, s.line) })) : [];
   if (field.status !== "match") {
     info.events = driftsOf(d).filter((e) => e.serviceSlug === found.slug && e.severity !== "info").map((e) => ({ id: e.id, title: e.title }));
   }

@@ -1,4 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { gzipSync } from 'fflate';
 import { BatchInterceptor } from '@mswjs/interceptors';
@@ -6,6 +9,7 @@ import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
 import { createHash } from 'node:crypto';
 import { normalise, percentile } from './classify.js';
 import { finish, observe, type FieldAcc, type FpConfig } from './fingerprint.js';
+import { drainRuleHits, setLiveAliasRules } from './runtime.js';
 
 export interface InitOptions {
   key: string;
@@ -21,6 +25,8 @@ export interface InitOptions {
   allowHosts?: string[];
   /** URL prefixes never recorded (e.g. a provider's admin or health routes). */
   ignore?: string[];
+  /** v3-P2: fetch live (self-healing) alias rules from Seismo; default true. Seismo only serves them when auto-heal is on. */
+  liveRules?: boolean;
   /** Map URL prefixes to service names, e.g. { 'http://localhost:4100/users': 'users' }. Default: the host. */
   services?: Record<string, string>;
   salt?: string;                  // default: random per process (set it to keep hashes comparable across restarts)
@@ -45,20 +51,29 @@ export class Seismo {
   private realFetch?: typeof fetch;
   private wrappedFetch?: typeof fetch;
   private windows = new Map<string, Window>();
-  private ready: unknown[] = [];
+  private ready: Record<string, unknown>[] = [];
+  /** fingerprints waiting to be delivered (kept across failed flushes, bounded by maxQueue) */
+  get pending() { return this.ready.length; }
   private timer?: NodeJS.Timeout;
+  private rulesTimer?: NodeJS.Timeout;
+  private rulesEtag = '';
+  /** v3-P3.1: do not send before this time (the backend asked us to wait with 429 Retry-After) */
+  private pausedUntil = 0;
   private starts = new Map<string, number>();
   private held = new Map<string, number[]>();
   private o!: Required<Pick<InitOptions, 'sampleRate' | 'flushMs' | 'maxBodyBytes' | 'maxQueue'>> & InitOptions;
   private cfg!: FpConfig;
   dropped = 0;
   errors = 0;
+  private saltId = '';
 
   init(opts: InitOptions) {
     try {
       this.stop();
       this.o = { sampleRate: 0.1, flushMs: 5000, maxBodyBytes: 256 * 1024, maxQueue: 1000, endpoint: 'http://localhost:4000', ...opts };
-      this.cfg = { salt: opts.salt ?? randomBytes(16).toString('hex'), enumAllowList: opts.enumAllowList ?? [], neverInspect: opts.neverInspect ?? [], maxFields: 500, maxDepth: 8, maxArrayItems: 50 };
+      const salt = opts.salt ?? process.env['SEISMO_SALT'] ?? stableSalt(opts.key);
+      this.saltId = createHash('sha256').update(`seismo-salt-id|${salt}`).digest('hex').slice(0, 12);
+      this.cfg = { salt, enumAllowList: opts.enumAllowList ?? [], neverInspect: opts.neverInspect ?? [], maxFields: 500, maxDepth: 8, maxArrayItems: 50 };
       // fetch: wrapped directly. The library's socket-level fetch interception misses requests on keep-alive
       // sockets opened before init() (verified: half of all calls were invisible), a direct wrapper sees every call.
       this.wrapFetch();
@@ -74,6 +89,11 @@ export class Seismo {
       });
       this.interceptor.apply();
       this.timer = setInterval(() => { this.rewrapIfReplaced(); void this.flush(); }, this.o.flushMs);
+      if (this.o.liveRules !== false) {
+        void this.pollRules();
+        this.rulesTimer = setInterval(() => void this.pollRules(), 30_000);
+        this.rulesTimer.unref();
+      }
       this.timer.unref();
     } catch (e) { this.fail(e); }
     return this;
@@ -85,6 +105,7 @@ export class Seismo {
     if (this.realFetch && globalThis.fetch === this.wrappedFetch) globalThis.fetch = this.realFetch;
     this.realFetch = this.wrappedFetch = undefined;
     if (this.timer) clearInterval(this.timer);
+    if (this.rulesTimer) clearInterval(this.rulesTimer);
     this.interceptor = undefined;
   }
 
@@ -125,14 +146,50 @@ export class Seismo {
     if (!this.shouldSample(url)) return;
     const clone = response.clone();
     const meta = { url, method, status: response.status, headers: response.headers };
-    setImmediate(() => { void this.capture(meta, clone, latency); });
+    const work = new Promise<void>((done) => setImmediate(() => { void this.capture(meta, clone, latency).finally(done); }));
+    this.keepAliveOnServerless(work);
+  }
+
+  /**
+   * Serverless (Vercel, and anything exposing the same request context): the function is frozen right after the response,
+   * so timers never fire and nothing would be sent. There, the capture plus one flush are handed to the platform's
+   * waitUntil, once per request. Elsewhere this does nothing. Never throws, never delays the response.
+   */
+  private pendingCaptures = 0;
+  private idleTimer?: ReturnType<typeof setTimeout>;
+  private flushed?: { promise: Promise<void>; resolve: () => void };
+  private keepAliveOnServerless(work: Promise<void>) {
+    try {
+      const ctx = (globalThis as Record<symbol, { get?: () => { waitUntil?: (p: Promise<unknown>) => void } | undefined } | undefined>)[Symbol.for('@vercel/request-context')]?.get?.();
+      if (!ctx?.waitUntil) return;
+      ctx.waitUntil(work);
+      // one flush once the request's calls are done (150 ms with nothing in flight), kept alive with waitUntil
+      if (!this.flushed) {
+        let resolve!: () => void;
+        const promise = new Promise<void>((r) => { resolve = r; });
+        this.flushed = { promise, resolve };
+        ctx.waitUntil(promise);
+      }
+      clearTimeout(this.idleTimer);
+      this.pendingCaptures++;
+      void work.finally(() => {
+        if (--this.pendingCaptures > 0) return;
+        this.idleTimer = setTimeout(() => {
+          const done = this.flushed;
+          this.flushed = undefined;
+          void this.flush().finally(() => done?.resolve());
+        }, 150);
+      });
+    } catch (e) { this.fail(e); }
   }
 
   private fail(e: unknown) { this.errors++; try { this.o?.onError?.(e); } catch { /* ignore */ } }
 
   private shouldSample(rawUrl: string) {
     const u = new URL(rawUrl);
-    if (this.o.endpoint && rawUrl.startsWith(this.o.endpoint)) return false;
+    // never its own uploads (/v1/ingest, /v1/sdk/*). Only those: a hosted engine may serve the APIs the app calls on
+    // the same host (found live: every provider call was skipped when engine and providers shared one URL)
+    if (this.o.endpoint && rawUrl.startsWith(`${this.o.endpoint.replace(/\/$/, '')}/v1/`)) return false;
     if (this.o.ignore?.some((p) => p && rawUrl.startsWith(p))) return false;
     if (this.o.allowHosts) { if (!this.o.allowHosts.includes(u.host)) return false; }
     else if (PRIVATE.test(u.hostname) && !this.o.services) return false;
@@ -140,8 +197,10 @@ export class Seismo {
   }
 
   private serviceOf(url: URL) {
-    for (const [prefix, name] of Object.entries(this.o.services ?? {})) if (url.href.startsWith(prefix)) return name;
-    return url.host;
+    // the most specific prefix wins ("http://x/orders" before "http://x")
+    let best: [string, string] | undefined;
+    for (const [prefix, name] of Object.entries(this.o.services ?? {})) if (url.href.startsWith(prefix) && (!best || prefix.length > best[0].length)) best = [prefix, name];
+    return best ? best[1] : url.host;
   }
 
   private async capture(meta: { url: string; method: string; status: number; headers: Headers }, res: Response, latency: number) {
@@ -218,24 +277,69 @@ export class Seismo {
         });
       }
       if (this.ready.length > this.o.maxQueue) { this.dropped += this.ready.length - this.o.maxQueue; this.ready = this.ready.slice(-this.o.maxQueue); }
+      const hits = drainRuleHits();
+      if (Object.keys(hits).length) void this.post('/v1/sdk/rule-hits', { hits });
+      if (Date.now() < this.pausedUntil) return;               // backend asked us to wait: keep everything queued
       const batch = this.ready.splice(0, this.ready.length);
-      for (const fp of batch) await this.send(fp);
+      for (let i = 0; i < batch.length; i++) {
+        const ok = await this.send(batch[i]!);
+        // v3-P3.1: not delivered -> back in the (bounded) queue for the next flush, in order, never dropped silently
+        if (!ok) { this.ready.unshift(...batch.slice(i)); break; }
+      }
     } catch (e) { this.fail(e); }
   }
 
-  private async send(fp: unknown) {
+  /** true = delivered (or rejected for good, e.g. a bad key); false = try again later. */
+  private async send(fp: Record<string, unknown>): Promise<boolean> {
+    fp['batchId'] ??= randomBytes(9).toString('base64url');   // the same id on every retry: the backend ignores repeats
+    if (this.saltId) fp['saltId'] ??= this.saltId;
     const body = gzipSync(new TextEncoder().encode(JSON.stringify(fp)));
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const r = await fetch(`${this.o.endpoint}/v1/ingest`, {
-          method: 'POST', body, signal: AbortSignal.timeout(3000),
-          headers: { 'content-type': 'application/json', 'content-encoding': 'gzip', 'x-seismo-key': this.o.key },
-        });
-        if (r.ok || r.status < 500) return;
-      } catch { /* retry once */ }
-    }
-    this.dropped++;
+    try {
+      const r = await fetch(`${this.o.endpoint}/v1/ingest`, {
+        method: 'POST', body, signal: AbortSignal.timeout(3000),
+        headers: { 'content-type': 'application/json', 'content-encoding': 'gzip', 'x-seismo-key': this.o.key },
+      });
+      if (r.status === 429) {
+        const wait = Number(r.headers.get('retry-after'));
+        this.pausedUntil = Date.now() + (Number.isFinite(wait) && wait > 0 ? Math.min(wait, 300) : 30) * 1000;
+        return false;
+      }
+      if (r.ok || r.status < 500) return true;
+      return false;
+    } catch { return false; }
+  }
+
+  private async post(path: string, body: unknown) {
+    try {
+      await fetch(`${this.o.endpoint}${path}`, { method: 'POST', body: JSON.stringify(body), signal: AbortSignal.timeout(3000), headers: { 'content-type': 'application/json', 'x-seismo-key': this.o.key } });
+    } catch { /* fail-open */ }
+  }
+
+  /** v3-P2: the alias rules Seismo serves live for this project. Keeps the last good set when Seismo is unreachable. */
+  async pollRules() {
+    try {
+      const r = await fetch(`${this.o.endpoint}/v1/sdk/rules`, { signal: AbortSignal.timeout(3000), headers: { 'x-seismo-key': this.o.key, ...(this.rulesEtag ? { 'if-none-match': this.rulesEtag } : {}) } });
+      if (r.status === 304 || !r.ok) return;
+      const j = (await r.json()) as { rules?: unknown };
+      setLiveAliasRules(j.rules);
+      this.rulesEtag = r.headers.get('etag') ?? '';
+    } catch { /* fail-open: keep the last rules */ }
   }
 }
 
 export const seismo = new Seismo();
+
+/**
+ * The salt must stay on this machine and should survive restarts: with a new salt every hashed value looks new, which
+ * hides renames (value similarity drops) and invents "new values". SEISMO_SALT wins; otherwise a random salt is kept
+ * in the OS temp dir (per key). Anything failing falls back to a per-process salt (saltId tells the backend it changed).
+ */
+function stableSalt(key: string): string {
+  try {
+    const file = join(tmpdir(), `seismo-salt-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`);
+    try { const s = readFileSync(file, 'utf8').trim(); if (/^[0-9a-f]{32}$/.test(s)) return s; } catch { /* first run */ }
+    const s = randomBytes(16).toString('hex');
+    writeFileSync(file, s, { mode: 0o600 });
+    return s;
+  } catch { return randomBytes(16).toString('hex'); }
+}
