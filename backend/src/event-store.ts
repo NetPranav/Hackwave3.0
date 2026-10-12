@@ -4,7 +4,7 @@ import { connect } from './db/index.js';
 import { driftEvents } from './db/schema.js';
 
 /** What the engine must remember across restarts: the event plus its bookkeeping (runs, PR dispatched, review reason). */
-export interface StoredEvent { key: string; event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string; /** passes in a row without the finding while the endpoint had traffic */ misses?: number; /** why it was resolved: the provider went back (a recurrence is a NEW change) or a fix */ resolvedBy?: 'recovered' | 'fix' }
+export interface StoredEvent { key: string; event: DriftEvent; runs: number; lastSeen: number; dispatched?: boolean; reviewReason?: string; /** passes in a row without the finding while the endpoint had traffic */ misses?: number; /** why it was resolved: the provider went back (a recurrence is a NEW change) or a fix */ resolvedBy?: 'recovered' | 'fix'; /** the period the reverted change was live [from, until] (ms): kept out of the baseline, also after a restart */ quarantine?: [number, number] }
 
 export interface EventStore {
   load(): Promise<StoredEvent[]>;

@@ -382,3 +382,32 @@ describe('detection reads only new fingerprints each pass (found on Render free:
     expect(e.list().find((x) => x.detector === 'D3')?.state).toBe('breaking');
   });
 });
+
+describe('a restart keeps the periods of reverted changes out of the baseline (found on Render free)', () => {
+  it('rename, revert, RESTART, rename again: the new engine still flags it', async () => {
+    const { memoryEvents } = await import('../src/event-store.js');
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const store = memoryEvents();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    const maps = async () => [codeMap([{ field: 'name', usage: 'display' }])];
+    await feed(NOW - 15 * 60_000, 6);
+    // a long rename (6 windows): without its quarantine it would be ~half of the baseline
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000, 6);
+    const first = new DriftEngine(ingest, maps, undefined, undefined, store);
+    await first.run(NOW + 5000); await first.run(NOW + 10_000);
+    await toggle(s, 'users-rename', false);
+    const back = NOW + 5 * 60_000;
+    await feed(back - 30_000);
+    for (let i = 0; i < 3; i++) await first.run(back + i * 1000);
+    expect(first.list().find((x) => x.detector === 'D3')!.state).toBe('resolved');
+    // restart: a new engine on the same stores
+    const second = new DriftEngine(ingest, maps, undefined, undefined, store);
+    await toggle(s, 'users-rename');
+    const again = NOW + 10 * 60_000;
+    await feed(again - 30_000);
+    await second.run(again); await second.run(again + 5000);
+    const d3 = second.list().filter((x) => x.detector === 'D3');
+    expect(d3.some((x) => x.state === 'breaking')).toBe(true);
+  });
+});

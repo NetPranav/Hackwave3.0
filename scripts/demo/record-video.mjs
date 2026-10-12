@@ -26,7 +26,7 @@ const OUT = join(ROOT, 'docs', 'demo');
 const RAW = join(OUT, 'raw');
 const BROWSER = [process.env.VIDEO_BROWSER, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'].find((p) => p && existsSync(p));
 const W = 1440, H = 900;
-const RENAME_TO = process.env.VIDEO_RENAME_TO ?? 'full_name';
+const RENAME_TO = process.env.VIDEO_RENAME_TO ?? 'fullName';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -147,7 +147,9 @@ async function waitForShopFixed(page, path, isFixed, label) {
 }
 
 async function record(ctx) {
-  const page = ctx.pages()[0] ?? (await ctx.newPage());
+  // the profile may restore tabs from an earlier run: record in one fresh tab only
+  const page = await ctx.newPage();
+  for (const p of ctx.pages()) if (p !== page) await p.close().catch(() => undefined);
   t0 = Date.now();
   log('recording');
 

@@ -49,7 +49,19 @@ export class DriftEngine {
 
   /** Load remembered events (once). Call at startup so list() is complete before the first detection pass. */
   init(): Promise<void> {
-    this.loaded ??= this.store.load().then((items) => { for (const i of items) if (!this.events.has(i.key)) this.events.set(i.key, { event: i.event, runs: i.runs, lastSeen: i.lastSeen, dispatched: i.dispatched, reviewReason: i.reviewReason }); }).catch(() => undefined);
+    // everything a pass relies on is restored, also why an event was resolved and the periods kept out of the baseline
+    // (found on Render free: each restart forgot them, the reverted test changes leaked into the baseline and a real
+    // rename was never confirmed; a recurrence after a restart stayed "resolved")
+    this.loaded ??= this.store.load().then((items) => {
+      for (const { key, ...tracked } of items) {
+        if (this.events.has(key)) continue;
+        this.events.set(key, tracked);
+        if (tracked.quarantine && tracked.resolvedBy === 'recovered') {
+          const ep = `${tracked.event.service}|${tracked.event.endpoint}`;
+          this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []), tracked.quarantine]);
+        }
+      }
+    }).catch(() => undefined);
     return this.loaded;
   }
 
@@ -346,6 +358,7 @@ export class DriftEngine {
       this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []).filter(([, u]) => now - u < this.opts.baselineMs), [from, now - this.opts.windowMs]]);
       t.event = { ...t.event, state: 'resolved' };
       t.resolvedBy = 'recovered';
+      t.quarantine = [from, now - this.opts.windowMs];
       seen.add(k);
       changed.push(t.event);
     }
