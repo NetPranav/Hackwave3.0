@@ -155,114 +155,142 @@ async function mergeOnGitHub(page, prUrl, what) {
 async function waitForShopFixed(page, path, isFixed, label) {
   const mergedAt = Date.now();
   await waiting(label, async () => {
-    const deadline = Date.now() + 6 * 60_000;
+    const deadline = Date.now() + 8 * 60_000;
     while (Date.now() < deadline) {
       await go(page, `${SHOP}${path}`).catch(() => undefined);
       await caption(page, label);
-      if (Date.now() - mergedAt > 30_000 && (await isFixed(page))) return;
+      // positive proof only: a loaded page that shows the right thing (an error page is never "fixed")
+      const text = await page.locator('body').innerText().catch(() => '');
+      if (Date.now() - mergedAt > 30_000 && !/couldn.t load|server error|Application error/i.test(text) && (await isFixed(page, text))) return;
       await sleep(8000);
     }
-    throw new Error(`the shop was not fixed in 6 minutes (${path})`);
+    throw new Error(`the shop was not fixed in 8 minutes (${path})`);
   });
 }
 
-async function record(ctx) {
+/** A shop page that really loaded (Vercel/Render hiccups show an error page; retry those). */
+async function shopPage(page, path, ok = (txt) => true) {
+  for (let i = 0; i < 8; i++) {
+    await go(page, `${SHOP}${path}`).catch(() => undefined);
+    const text = await page.locator('body').innerText().catch(() => '');
+    if (!/couldn.t load|server error|Application error/i.test(text) && ok(text) && (await page.locator('.demo-fab').count())) return text;
+    await sleep(4000);
+  }
+  throw new Error(`the shop page ${path} did not load`);
+}
+
+const PARTS = {
+  async intro(page) {
+    await card(page, `<div class="k">HackWave 3.0 · PS 3 · The Internet After the API</div>
+      <h1>APIs change <b>silently</b>.</h1>
+      <p>Apps are built from APIs they don't control: payments, users, shipping. A provider renames a field or changes a type and the API still answers <b>200 OK</b> with valid JSON.</p>
+      <p>Nothing crashes. Dashboards stay green. The app shows wrong names and wrong totals, and the team finds out from a customer.</p>
+      <p class="src">1,970 of 3,075 web APIs did not always flag breaking changes in minor/patch releases (Confirmed, ICWE 2024).</p>`, 11_000);
+    await card(page, `<div class="k">Seismo · Dependabot for the APIs you depend on</div>
+      <h1>Detect the change. <b>Fix it with a pull request.</b></h1>
+      <ul><li>Watches <b>real traffic</b> from inside the app: shapes and statistics only, never a record's values</li>
+      <li>Deterministic detectors: rename, type change, unit change, new values, silent truncation…</li>
+      <li>Knows which line of <b>your code</b> reads the field, so it knows what breaks</li>
+      <li>Opens a <b>safe fix PR</b>: one data rule, stress-tested. The AI explains; it never writes code. A human merges.</li></ul>`, 13_000);
+  },
+
+  async rename(page) {
+    await shopPage(page, '/');
+    await caption(page, 'A live demo shop (Vercel) that calls four third-party APIs: users, payments, shipping, orders.');
+    await sleep(5000);
+    await shopPage(page, '/checkout', (txt) => /Order placed|Order received/.test(txt) && !/name missing/.test(txt));
+    await caption(page, 'Checkout reads the customer name from the users API. All good.', 'good');
+    await sleep(5000);
+    await applyChange(page, { service: 'users', kind: 'rename', field: 'name', input: RENAME_TO });
+    await caption(page, `The users provider silently renames "name" → "${RENAME_TO}". Still 200 OK. No changelog, no error.`, 'bad');
+    await sleep(4500);
+    await shopPage(page, '/checkout', (txt) => /name missing/.test(txt));
+    await caption(page, 'The shop breaks quietly: "name missing". No crash, no alert, nothing in the logs.', 'bad');
+    await sleep(6000);
+    await go(page, `${DASH}/app/timeline`);
+    const label = 'Seismo compares live traffic with what it learned. Detecting (about a minute)…';
+    await caption(page, label);
+    const ev = await waitForEvent((e) => e.detector === 'D3' && e.title.includes(RENAME_TO) && !['resolved', 'expected'].includes(e.state), (e) => !!e.fix?.validation?.prUrl, page, label);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await caption(page, `Found: "${ev.title}", breaking, because the checkout reads "name". Fix PR opened automatically.`, 'good');
+    await sleep(6000);
+    await go(page, `${DASH}/app/drift/${ev.id}`);
+    await caption(page, 'The evidence, the exact code line that reads the field, and an AI explanation (Nemotron). Detection itself is deterministic.');
+    await sleep(8000);
+    await mergeOnGitHub(page, ev.fix.validation.prUrl, 'Rename');
+    await waitForShopFixed(page, '/checkout', async (_p, txt) => /Order placed|Order received/.test(txt) && !/name missing/.test(txt), 'Vercel is rebuilding the shop from main…');
+    await caption(page, `Fixed. The provider still sends "${RENAME_TO}"; the merged rule puts "name" back for the code. Nobody touched the app's code.`, 'good');
+    await sleep(7000);
+  },
+
+  async type(page) {
+    const fine = (txt) => /orders, total ₹[\d,]+ \(/.test(txt) && !/total ₹0\d/.test(txt);
+    await shopPage(page, '/orders', fine);
+    await caption(page, 'Second change: the orders API starts sending total_rupees as text instead of a number.');
+    await sleep(4000);
+    await applyChange(page, { service: 'orders', kind: 'type', field: 'total_rupees', input: 'string' });
+    await shopPage(page, '/orders', (txt) => !fine(txt));
+    await caption(page, 'The order total is now nonsense: the numbers are glued together as text. Still 200 OK.', 'bad');
+    await sleep(6000);
+    await go(page, `${DASH}/app/review`);
+    const label = 'Type changes touch money and logic: Seismo sends them to Review, never fixes them alone. Detecting…';
+    await caption(page, label);
+    const ev = await waitForEvent((e) => e.detector === 'D4' && e.title.includes('total_rupees') && !['resolved', 'expected'].includes(e.state), (e) => ['breaking', 'suspected'].includes(e.state), page, label);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await caption(page, `Found: "${ev.title}". Proposed fix: convert it back to a number (a fixed template, not AI code).`);
+    await sleep(3500);
+    await page.getByText(ev.title).first().click().catch(() => undefined);
+    await sleep(2000);
+    const open = page.getByRole('button', { name: /Open fix PR \(stress-tested\)/ }).first();
+    await open.waitFor({ timeout: 60_000 });
+    await open.scrollIntoViewIfNeeded().catch(() => undefined);
+    await caption(page, 'A person decides: "Open fix PR". Seismo stress-tests the rule on 2000 generated responses first.');
+    await sleep(3500);
+    await open.click();
+    const prLink = page.getByRole('link', { name: /PR #\d+ · needs review/ }).first();
+    await waiting('opening the PR', () => prLink.waitFor({ timeout: 180_000 }));
+    await sleep(2500);
+    await mergeOnGitHub(page, await prLink.getAttribute('href'), 'Type change');
+    await waitForShopFixed(page, '/orders', async (_p, txt) => fine(txt), 'Vercel is rebuilding the shop from main…');
+    await caption(page, 'Fixed: the total is a real number again. The provider still sends text.', 'good');
+    await sleep(7000);
+  },
+
+  async outro(page) {
+    await card(page, `<div class="k">What you just saw</div>
+      <h1>Silent API change → <b>merged fix</b>, in minutes.</h1>
+      <ul><li>Caught from real traffic, about a minute after the change: no polling, no spec needed</li>
+      <li>Mapped to the code that breaks, so it knows how serious it is</li>
+      <li>Fixed as data, not code: one rule, additive, proven safe and stress-tested before the PR opens</li>
+      <li>Renames get a PR by themselves; money and logic changes wait for a person</li></ul>
+      <p class="src">Seismo · github.com/NetPranav/Hackwave3.0 · live shop: github.com/NetPranav/seismo-demo-shop</p>`, 12_000);
+  },
+};
+const ORDER = ['intro', 'rename', 'type', 'outro'];
+
+async function recordPart(name) {
+  const dir = join(RAW, name);
+  rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
+  const ctx = await chromium.launchPersistentContext(PROFILE, { executablePath: BROWSER, headless: false, viewport: { width: W, height: H }, recordVideo: { dir, size: { width: W, height: H } }, args: [`--window-size=${W},${H + 90}`] });
+  const { encode } = await import(join(ROOT, 'dashboard', 'node_modules', '@auth', 'core', 'jwt.js'));
+  const login = (process.env.SEISMO_PROJECT_OWNERS ?? 'NetPranav').split(',')[0];
+  await ctx.addCookies([{ name: 'authjs.session-token', value: await encode({ token: { name: login, login, sub: login }, secret: process.env.AUTH_SECRET, salt: 'authjs.session-token', maxAge: 8 * 3600 }), domain: 'localhost', path: '/' }]);
   // the profile may restore tabs from an earlier run: record in one fresh tab only
   const page = await ctx.newPage();
   for (const p of ctx.pages()) if (p !== page) await p.close().catch(() => undefined);
+  waits.length = 0;
   t0 = Date.now();
-  log('recording');
-
-  // 1. the problem (docs/PS/problem.md, evidence.md; numbers carry their label)
-  await card(page, `<div class="k">HackWave 3.0 · PS 3 · The Internet After the API</div>
-    <h1>APIs change <b>silently</b>.</h1>
-    <p>Apps are built from APIs they don't control: payments, users, shipping. A provider renames a field or changes a type and the API still answers <b>200 OK</b> with valid JSON.</p>
-    <p>Nothing crashes. Dashboards stay green. The app shows wrong names and wrong totals, and the team finds out from a customer.</p>
-    <p class="src">1,970 of 3,075 web APIs did not always flag breaking changes in minor/patch releases (Confirmed, ICWE 2024).</p>`, 11_000);
-  await card(page, `<div class="k">Seismo · Dependabot for the APIs you depend on</div>
-    <h1>Detect the change. <b>Fix it with a pull request.</b></h1>
-    <ul><li>Watches <b>real traffic</b> from inside the app: shapes and statistics only, never a record's values</li>
-    <li>Deterministic detectors: rename, type change, unit change, new values, silent truncation…</li>
-    <li>Knows which line of <b>your code</b> reads the field, so it knows what breaks</li>
-    <li>Opens a <b>safe fix PR</b>: one data rule, stress-tested. The AI explains; it never writes code. A human merges.</li></ul>`, 13_000);
-
-  // 2. rename: the shop works
-  await go(page, SHOP);
-  await caption(page, 'A live demo shop (Vercel) that calls four third-party APIs: users, payments, shipping, orders.');
-  await sleep(5000);
-  await page.getByRole('button', { name: /Buy now/ }).first().click().catch(() => undefined);
-  await page.waitForURL(/checkout/, { timeout: 15_000 }).catch(() => page.goto(`${SHOP}/checkout`, { waitUntil: 'domcontentloaded' }));
-  await caption(page, 'Checkout reads the customer name from the users API. All good.', 'good');
-  await sleep(5000);
-
-  // 3. the silent change
-  await applyChange(page, { service: 'users', kind: 'rename', field: 'name', input: RENAME_TO });
-  await caption(page, `The users provider silently renames "name" → "${RENAME_TO}". Still 200 OK. No changelog, no error.`, 'bad');
-  await sleep(4500);
-  for (let i = 0; i < 6; i++) {
-    await go(page, `${SHOP}/checkout`);
-    if (await page.getByText('name missing').count()) break;
-    await sleep(2000);
-  }
-  await caption(page, 'The shop breaks quietly: "name missing". No crash, no alert, nothing in the logs.', 'bad');
-  await sleep(6000);
-
-  // 4. Seismo detects it and opens the fix PR by itself
-  await go(page, `${DASH}/app/timeline`);
-  await caption(page, 'Seismo compares live traffic with what it learned. Detecting (about a minute)…');
-  const rename = await waitForEvent((e) => e.detector === 'D3' && e.title.includes(RENAME_TO), (e) => !!e.fix?.validation?.prUrl, page, 'Seismo compares live traffic with what it learned. Detecting (about a minute)…');
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await caption(page, `Found: "${rename.title}", breaking, because the checkout reads "name". Fix PR opened automatically.`, 'good');
-  await sleep(6000);
-  await go(page, `${DASH}/app/drift/${rename.id}`);
-  await caption(page, 'The evidence, the exact code line that reads the field, and an AI explanation (Nemotron). Detection itself is deterministic.');
-  await sleep(8000);
-
-  // 5. GitHub: review + merge
-  await mergeOnGitHub(page, rename.fix.validation.prUrl, 'Rename');
-
-  // 6. fixed
-  await waitForShopFixed(page, '/checkout', async (p) => !(await p.getByText('name missing').count()), 'Vercel is rebuilding the shop from main…');
-  await caption(page, `Fixed. The provider still sends "${RENAME_TO}"; the merged rule puts "name" back for the code. Nobody touched the app's code.`, 'good');
-  await sleep(7000);
-
-  // 7. type change: money/logic field, goes to review, a person opens the stress-tested PR
-  await go(page, `${SHOP}/orders`);
-  await caption(page, 'Second change: the orders API starts sending total_rupees as text instead of a number.');
-  await sleep(4000);
-  await applyChange(page, { service: 'orders', kind: 'type', field: 'total_rupees', input: 'string' });
-  await go(page, `${SHOP}/orders`);
-  await caption(page, 'The order total is now nonsense: the numbers are glued together as text. Still 200 OK.', 'bad');
-  await sleep(6000);
-  await go(page, `${DASH}/app/review`);
-  const type = await waitForEvent((e) => e.detector === 'D4' && e.title.includes('total_rupees'), (e) => ['breaking', 'suspected'].includes(e.state), page, 'Type changes touch money and logic: Seismo sends them to Review, never fixes them alone. Detecting…');
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await caption(page, `Found: "${type.title}". Proposed fix: convert it back to a number (a fixed template, not AI code).`);
-  await sleep(3500);
-  await page.getByText(type.title).first().click().catch(() => undefined);
-  await sleep(2000);
-  const open = page.getByRole('button', { name: /Open fix PR \(stress-tested\)/ }).first();
-  await open.scrollIntoViewIfNeeded().catch(() => undefined);
-  await caption(page, 'A person decides: "Open fix PR". Seismo stress-tests the rule on 2000 generated responses first.');
-  await sleep(3500);
-  await open.click();
-  const prLink = page.getByRole('link', { name: /PR #\d+ · needs review/ }).first();
-  await waiting('opening the PR', () => prLink.waitFor({ timeout: 180_000 }));
-  await sleep(2500);
-  const typePr = await prLink.getAttribute('href');
-  await mergeOnGitHub(page, typePr, 'Type change');
-  await waitForShopFixed(page, '/orders', async (p) => /total ₹[\d,]+ \(/.test(await p.locator('body').innerText().catch(() => '')) && !/total ₹0\d/.test(await p.locator('body').innerText().catch(() => '')), 'Vercel is rebuilding the shop from main…');
-  await caption(page, 'Fixed: the total is a real number again. The provider still sends text.', 'good');
-  await sleep(7000);
-
-  // 8. close
-  await card(page, `<div class="k">What you just saw</div>
-    <h1>Silent API change → <b>merged fix</b>, in minutes.</h1>
-    <ul><li>Caught from real traffic, about a minute after the change: no polling, no spec needed</li>
-    <li>Mapped to the code that breaks, so it knows how serious it is</li>
-    <li>Fixed as data, not code: one rule, additive, proven safe and stress-tested before the PR opens</li>
-    <li>Renames get a PR by themselves; money and logic changes wait for a person</li></ul>
-    <p class="src">Seismo · github.com/NetPranav/Hackwave3.0</p>`, 12_000);
+  log(`recording part "${name}"`);
+  let failed;
+  try { await PARTS[name](page); } catch (e) { failed = e; }
+  const video = page.video();
+  await ctx.close();
+  try { for (const c of await (await admin('/admin/custom')).json()) await admin(`/admin/custom/${c.id}`, { method: 'DELETE' }); }
+  catch (e) { console.error(`cleanup: could not turn the demo changes off (${e.message}); use the shop panel`); }
+  if (failed) throw failed;
+  const raw = await video.path();
+  writeFileSync(join(OUT, `part-${name}.json`), JSON.stringify({ waits }, null, 2));
+  edit(raw, join(OUT, `part-${name}.mp4`));
 }
 
 async function main() {
@@ -274,7 +302,6 @@ async function main() {
     await page.bringToFront();
     log('sign in to GitHub in the window that opened (waiting up to 20 minutes)…');
     for (let i = 0; i < 400; i++) {
-      // GitHub sets <meta name="user-login"> on every page once signed in; look on github.com itself now and then
       if (i % 10 === 9 && !/\/(login|session|sessions)/.test(page.url())) await page.goto('https://github.com/').catch(() => undefined);
       const who = await page.locator('meta[name="user-login"]').getAttribute('content').catch(() => '');
       if (who) { log(`signed in as ${who}`); await ctx.close(); return; }
@@ -282,41 +309,39 @@ async function main() {
     }
     throw new Error('not signed in after 20 minutes');
   }
-
-  // preconditions: nobody else's change on, the engine learned the traffic, self-heal off (the break must be visible)
-  if ((await (await admin('/admin/custom')).json()).length) throw new Error('a panel change is still on: turn it off first (shop panel -> undo)');
-  const ready = await api('/v1/readiness');
-  if (ready.length < 4 || ready.some((r) => !r.ready)) throw new Error(`Seismo is still learning: ${JSON.stringify(ready)}`);
-  if ((await api('/v1/settings/notifications')).autoHeal) throw new Error('turn off Settings -> Self-heal renames for the video (the break must stay visible until the merge)');
-  // a rule already targeting "name" makes the planner (check C5) refuse a second one: the rename would go to review
-  const rules = JSON.parse(execFileSync('gh', ['api', 'repos/NetPranav/seismo-demo-shop/contents/seismo/aliases.json', '-H', 'Accept: application/vnd.github.raw'], { encoding: 'utf8' })).rules;
-  if (rules.some((r) => (!r.kind || r.kind === 'alias') && r.target === 'name')) throw new Error('the shop already has an alias rule for "name" (seismo/aliases.json): remove it first, or the rename gets no automatic PR');
-
-  rmSync(RAW, { recursive: true, force: true }); mkdirSync(RAW, { recursive: true });
-  const ctx = await chromium.launchPersistentContext(PROFILE, { executablePath: BROWSER, headless: false, viewport: { width: W, height: H }, recordVideo: { dir: RAW, size: { width: W, height: H } }, args: [`--window-size=${W},${H + 90}`] });
-  const { encode } = await import(join(ROOT, 'dashboard', 'node_modules', '@auth', 'core', 'jwt.js'));
-  const login = (process.env.SEISMO_PROJECT_OWNERS ?? 'NetPranav').split(',')[0];
-  await ctx.addCookies([{ name: 'authjs.session-token', value: await encode({ token: { name: login, login, sub: login }, secret: process.env.AUTH_SECRET, salt: 'authjs.session-token', maxAge: 8 * 3600 }), domain: 'localhost', path: '/' }]);
-  try { await record(ctx); }
-  finally {
-    await ctx.close();
-    // put the providers back (the merged rules keep the shop working either way); never hide the real error
-    try { for (const c of await (await admin('/admin/custom')).json()) await admin(`/admin/custom/${c.id}`, { method: 'DELETE' }); }
-    catch (e) { console.error(`cleanup: could not turn the demo changes off (${e.message}); use the shop panel`); }
+  // --parts rename,type records only those (a failed part is redone alone); then all existing parts are joined
+  const want = args.includes('--parts') ? args[args.indexOf('--parts') + 1].split(',') : ORDER;
+  mkdirSync(OUT, { recursive: true });
+  if (want.some((p) => p === 'rename' || p === 'type')) {
+    // preconditions: nobody else's change on, the engine learned the traffic, self-heal off (the break must be visible)
+    if ((await (await admin('/admin/custom')).json()).length) throw new Error('a panel change is still on: turn it off first (shop panel -> undo)');
+    const ready = await api('/v1/readiness');
+    if (ready.length < 4 || ready.some((r) => !r.ready)) throw new Error(`Seismo is still learning: ${JSON.stringify(ready)}`);
+    if ((await api('/v1/settings/notifications')).autoHeal) throw new Error('turn off Settings -> Self-heal renames for the video (the break must stay visible until the merge)');
   }
-  const raw = readdirSync(RAW).filter((f) => f.endsWith('.webm')).map((f) => join(RAW, f)).sort((a, b) => statSync(b).size - statSync(a).size)[0];
-  writeFileSync(join(OUT, 'segments.json'), JSON.stringify({ waits }, null, 2));
-  edit(raw, join(OUT, 'seismo-demo.mp4'));
+  if (want.includes('rename')) {
+    // a rule already targeting "name" makes the planner (check C5) refuse a second one: the rename would go to review
+    const rules = JSON.parse(execFileSync('gh', ['api', 'repos/NetPranav/seismo-demo-shop/contents/seismo/aliases.json', '-H', 'Accept: application/vnd.github.raw'], { encoding: 'utf8' })).rules;
+    if (rules.some((r) => (!r.kind || r.kind === 'alias') && r.target === 'name')) throw new Error('the shop already has an alias rule for "name" (seismo/aliases.json): remove it first, or the rename gets no automatic PR');
+  }
+  for (const name of ORDER.filter((p) => want.includes(p))) await recordPart(name);
+  const parts = ORDER.map((p) => join(OUT, `part-${p}.mp4`));
+  if (parts.every((f) => existsSync(f))) {
+    const list = join(OUT, 'parts.txt');
+    writeFileSync(list, parts.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', join(OUT, 'seismo-demo.mp4')]);
+    log(`video: ${join(OUT, 'seismo-demo.mp4')}`);
+  } else log(`parts still missing: ${ORDER.filter((p) => !existsSync(join(OUT, `part-${p}.mp4`))).join(', ')}`);
 }
 
-/** Speed up the waiting periods (8x), keep everything else real-time, encode H.264 MP4. */
+/** Speed up the waiting periods (8x, or more so each lasts at most ~12 s), keep the rest real-time, H.264 MP4. */
 function edit(input, output) {
   const parts = [];
   let at = 0;
   for (const w of waits.sort((a, b) => a.start - b.start)) {
     if (w.end - w.start < 4000) continue;
     if (w.start > at) parts.push({ from: at, to: w.start, speed: 1 });
-    parts.push({ from: w.start, to: w.end, speed: 8 });
+    parts.push({ from: w.start, to: w.end, speed: Math.max(8, Math.ceil((w.end - w.start) / 12_000)) });
     at = w.end;
   }
   parts.push({ from: at, to: null, speed: 1 });
