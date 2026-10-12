@@ -29,17 +29,17 @@ const SIGNAL_AT: Partial<Signal>[] = [
   { reveal: 1, calm: 1, quake: 0, heat: 0, y: 470 }, // 5a. Detect (the tremor comes from the scene)
   { reveal: 1, calm: 1, quake: 0, heat: 0, y: 470 }, // 5b. Impact
   { reveal: 1, calm: 1, quake: 0, heat: 0, y: 470 }, // 5c. Fix
-  { reveal: 1, calm: 1, quake: 0, heat: 0, y: 900 }, // 6. Live demo card (the next click leaves for the real product)
-  { reveal: 1, calm: 0.6, quake: 0, heat: 0, y: 470 }, // 7a. Safe by design: the line is the request path
-  { reveal: 1, calm: 0.6, quake: 0, heat: 0, y: 470 }, // 7b. Safe by design: the rules
-  { reveal: 1, calm: 0.4, quake: 0, heat: 0, y: 1030 }, // 8. Why us: the line steps aside for the table
+  { reveal: 1, calm: 0.6, quake: 0, heat: 0, y: 470 }, // 6a. Safe by design: the line is the request path
+  { reveal: 1, calm: 0.6, quake: 0, heat: 0, y: 470 }, // 6b. Safe by design: the rules
+  { reveal: 1, calm: 0.4, quake: 0, heat: 0, y: 1030 }, // 7. Why us: the line steps aside for the table
+  { reveal: 1, calm: 1, quake: 0, heat: 0, y: 900 }, // 8. Live demo card (the next click leaves for the real product)
   { reveal: 1, calm: 1, quake: 0, heat: 0, y: 820 }, // 9. Close: calm again, under the promise
 ];
 
 /** Where the live demo starts (opened in a new tab). Change it with NEXT_PUBLIC_PITCH_DEMO_URL. */
-const DEMO_URL = process.env.NEXT_PUBLIC_PITCH_DEMO_URL || "/onboarding";
+const DEMO_URL = process.env.NEXT_PUBLIC_PITCH_DEMO_URL || "https://seismo-demo-shop.vercel.app/checkout?product=chai";
 
-const LABELS = ["Seismo", "The quake", "Nobody told you", "It keeps happening", "Nothing watches APIs", "The question", "The answer", "Detect", "Impact", "Fix", "Live demo", "It never touches", "It never acts alone", "Why us", "Thank you"];
+const LABELS = ["Seismo", "The quake", "Nobody told you", "It keeps happening", "Nothing watches APIs", "The question", "The answer", "Detect", "Impact", "Fix", "It never touches", "It never acts alone", "Why us", "Live demo", "Thank you"];
 
 /** The pitch as one pinned stage: scenes change what is on it. The only page change is the hand-off to the live demo. */
 export default function PitchDeck() {
@@ -49,6 +49,8 @@ export default function PitchDeck() {
   // behind it. If the browser blocks the tab, it goes there in this tab instead.
   const gate = useCallback((from: number) => {
     if (from !== DEMO_STEP) return false;
+    // Browsers only allow a new tab right after a key press, click or tap. A mouse wheel is not one, so ignore it here.
+    if (!navigator.userActivation?.isActive) return true;
     overlay.current?.open(DEMO_URL, DEMO_STEP + 1, () => goRef.current(DEMO_STEP + 1));
     return true;
   }, []);

@@ -35,9 +35,9 @@ const LaunchOverlay = forwardRef<LaunchOverlayHandle>(function LaunchOverlay(_, 
     open(url, resumeAt, done) {
       if (label.current) label.current.textContent = "Switching to the live product";
       const tl = gsap.timeline({ onComplete: done });
-      tl.fromTo(panel.current, { y: 0, yPercent: 100 }, { y: 0, yPercent: 0, duration: 0.7, ease: "power4.inOut" });
-      tl.fromTo(text.current, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.45);
-      // Still inside the key press's short permission window, so the browser allows the new tab.
+      tl.fromTo(panel.current, { y: 0, yPercent: 100 }, { y: 0, yPercent: 0, duration: 1.3, ease: "power3.inOut" });
+      tl.fromTo(text.current, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power3.out" }, 0.9);
+      // Still inside the key press's permission window (about 5 s in Chrome and Firefox, about 1 s in Safari), so the new tab is allowed.
       tl.call(() => {
         const tab = window.open(url, "_blank");
         if (!tab) {
@@ -46,9 +46,9 @@ const LaunchOverlay = forwardRef<LaunchOverlayHandle>(function LaunchOverlay(_, 
           sessionStorage.setItem(RETURN_KEY, "1");
           window.location.assign(url);
         }
-      }, [], 1.05);
-      tl.to(text.current, { opacity: 0, duration: 0.3 }, "+=0.6");
-      tl.to(panel.current, { yPercent: -100, duration: 0.8, ease: "power4.inOut" });
+      }, [], 1.3);
+      tl.to(text.current, { opacity: 0, duration: 0.5 }, "+=1");
+      tl.to(panel.current, { yPercent: -100, duration: 1.3, ease: "power3.inOut" });
       tl.set(panel.current, { yPercent: 100 });
     },
   }));

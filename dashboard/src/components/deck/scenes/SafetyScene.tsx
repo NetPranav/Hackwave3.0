@@ -4,8 +4,8 @@ import { useRef } from "react";
 import { gsap, useGSAP } from "@/lib/gsap";
 
 /** Steps this scene owns: it watches without touching, then it never acts alone. */
-const WATCH = 11;
-const RULES = 12;
+const WATCH = 10;
+const RULES = 11;
 
 const CARDS = [
   { title: "AI explains. Code decides.", text: "Detection is plain code. AI only writes the explanation and never sees raw data." },
@@ -17,8 +17,8 @@ const MUTED = "#9a9590";
 const INK = "#1a1918";
 
 /**
- * Slide 7, two clicks. Step 11: the line is the request path; the SDK reads a copy beside it, sends only a shape,
- * and when Seismo goes offline the app keeps working. Step 12: the three rules that keep a person in charge.
+ * Slide 6, two clicks. Step 10: the line is the request path; the SDK reads a copy beside it, sends only a shape,
+ * and when Seismo goes offline the app keeps working. Step 11: the three rules that keep a person in charge.
  */
 export default function SafetyScene({ step }: { step: number }) {
   const root = useRef<HTMLDivElement>(null);
@@ -100,17 +100,17 @@ export default function SafetyScene({ step }: { step: number }) {
         &#10003; Checkout still working
       </p>
 
-      <div data-tap className="absolute left-[959px] top-[478px] h-[142px] w-0 border-l-[3px] border-dashed border-accent" />
+      <div data-tap className="absolute left-[628px] top-[478px] h-[142px] w-0 border-l-[3px] border-dashed border-accent" />
 
-      <div data-safe="sdk" className="absolute left-[770px] top-[620px] flex h-[120px] w-[380px] flex-col items-center justify-center rounded-2xl border-[3px] border-accent bg-section">
+      <div data-safe="sdk" className="absolute left-[440px] top-[620px] flex h-[120px] w-[380px] flex-col items-center justify-center rounded-2xl border-[3px] border-accent bg-section">
         <p className="font-aeonik text-[36px] leading-none tracking-tight text-text-primary">Seismo SDK</p>
         <p className="mt-2 font-aeonik-mono text-[18px] uppercase tracking-[0.15em] text-accent">Reads a copy only</p>
       </div>
 
       <div data-safe="cloud">
-        <div data-packet className="absolute left-[1150px] top-[680px] h-0 w-[330px] border-t-[3px] border-text-primary" />
-        <p data-packet className="absolute left-[1166px] top-[636px] whitespace-nowrap font-aeonik-mono text-[18px] text-text-primary">amount: number, 4 digits</p>
-        <p data-packet className="absolute left-[1166px] top-[694px] font-aeonik-mono text-[16px] uppercase tracking-[0.15em] text-ok">Never the value</p>
+        <div data-packet className="absolute left-[820px] top-[680px] h-0 w-[660px] border-t-[3px] border-text-primary" />
+        <p data-packet className="absolute left-[856px] top-[636px] whitespace-nowrap font-aeonik-mono text-[18px] text-text-primary">amount: number, 4 digits</p>
+        <p data-packet className="absolute left-[856px] top-[694px] font-aeonik-mono text-[16px] uppercase tracking-[0.15em] text-ok">Never the value</p>
         <div data-cloud className="absolute left-[1480px] top-[620px] flex h-[120px] w-[344px] items-center justify-center rounded-2xl border-[3px] border-text-primary bg-section font-aeonik text-[36px] tracking-tight text-text-primary">
           Seismo cloud
           <span data-offline className="absolute -top-5 right-6 rounded-md bg-text-primary px-3 py-1 font-aeonik-mono text-[18px] uppercase tracking-[0.2em] text-white opacity-0">

@@ -4,11 +4,11 @@ import { useRef } from "react";
 import { gsap, useGSAP } from "@/lib/gsap";
 
 /** The step that shows the demo card. The next click leaves the deck for the real product (see PitchDeck). */
-export const DEMO_STEP = 10;
+export const DEMO_STEP = 13;
 
 const ROUTE = ["Demo shop", "Seismo dashboard", "Pull request on GitHub"];
 
-/** Slide 6: the hand-off card before the live demo. Big title, and the route the demo will take. */
+/** Slide 9: the hand-off card before the live demo. Big title, and the route the demo will take. */
 export default function DemoScene({ step }: { step: number }) {
   const root = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);

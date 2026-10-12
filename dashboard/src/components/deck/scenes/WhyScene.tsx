@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { gsap, useGSAP } from "@/lib/gsap";
 
 /** The step this scene owns. */
-const WHY = 13;
+const WHY = 12;
 
 type Mark = "yes" | "partial" | "no";
 
@@ -28,7 +28,7 @@ const ROWS: { label: string; marks: [Mark, Mark, Mark] }[] = [
 
 const GLYPH: Record<Mark, string> = { yes: "✓", partial: "Partly", no: "—" };
 
-/** Slide 8, one click: the comparison builds row by row and the Seismo column lights up. */
+/** Slide 7, one click: the comparison builds row by row and the Seismo column lights up. */
 export default function WhyScene({ step }: { step: number }) {
   const root = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
