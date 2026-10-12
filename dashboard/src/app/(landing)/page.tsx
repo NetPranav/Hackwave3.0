@@ -13,13 +13,15 @@ import Safety from "@/components/landing/Safety";
 import Compare from "@/components/landing/Compare";
 import Faq from "@/components/landing/Faq";
 import FinalCta from "@/components/landing/FinalCta";
+import ScrollParallax from "@/components/landing/ScrollParallax";
+import { SmoothScroll } from "@/components/layout/SmoothScroll";
 
 export const metadata: Metadata = {
   title: "Seismo · Dependabot for the APIs you depend on",
   description: "Seismo catches silent changes in the APIs you depend on, shows which of your code breaks, and opens a safe fix pull request.",
 };
 
-/** The landing page is a deck: one slide per screen, in the order of the pitch. */
+/** The landing page: one full-height section per idea, scrolled normally (the pitch deck lives at /deck). */
 const SLIDES: (SlideMeta & { render: () => React.ReactNode })[] = [
   { id: "start", label: "Start", render: () => <Hero /> },
   { id: "problem", label: "The problem", render: () => <Problem /> },
@@ -38,12 +40,16 @@ const META: SlideMeta[] = SLIDES.map(({ id, label, dark }) => ({ id, label, dark
 
 export default function LandingPage() {
   return (
-    <Deck slides={META} nav={<DeckNav />}>
-      {SLIDES.map((s, i) => (
-        <Slide key={s.id} index={i} id={s.id} label={s.label} dark={s.dark}>
-          {s.render()}
-        </Slide>
-      ))}
-    </Deck>
+    <SmoothScroll>
+      <ScrollParallax>
+        <Deck slides={META} nav={<DeckNav />} paged={false}>
+          {SLIDES.map((s, i) => (
+            <Slide key={s.id} index={i} id={s.id} label={s.label} dark={s.dark}>
+              {s.render()}
+            </Slide>
+          ))}
+        </Deck>
+      </ScrollParallax>
+    </SmoothScroll>
   );
 }
