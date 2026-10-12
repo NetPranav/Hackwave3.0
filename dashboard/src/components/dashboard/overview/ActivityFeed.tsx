@@ -48,7 +48,7 @@ export default function ActivityFeed() {
   }, [newest]);
   if (USE_MOCKS) return null;
 
-  const items = (data ?? []).filter((a) => showTraffic || a.kind !== "traffic").slice(0, 14);
+  const items = (data ?? []).filter((a) => showTraffic || a.kind !== "traffic").slice(0, 10);
   const calls = (data ?? []).filter((a) => a.kind === "traffic").length;
 
   return (

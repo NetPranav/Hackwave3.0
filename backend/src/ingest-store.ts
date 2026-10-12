@@ -14,13 +14,22 @@ export interface IngestStore {
   prune(beforeMs: number): Promise<number>;
 }
 
-export function memoryIngest(): IngestStore {
-  const rows: { projectId: string; at: number; fp: Fingerprint }[] = [];
+/**
+ * Fingerprints in memory only, never in the database (lead's decision 2026-10-12: live traffic filled the free Postgres).
+ * Bounded twice: by age (prune, run every minute with FINGERPRINT_RETENTION_HOURS) and by count (oldest dropped past
+ * `max`). The engine keeps its own 10 s rollups, so detection needs only the recent rows. A restart forgets them:
+ * Seismo relearns normal traffic in a few minutes.
+ */
+export function memoryIngest(max = Number(process.env.SEISMO_MAX_FINGERPRINTS ?? 50_000)): IngestStore {
+  let rows: { projectId: string; at: number; fp: Fingerprint }[] = [];
   return {
-    add: async (projectId, fp) => void rows.push({ projectId, at: Date.parse(fp.windowStart), fp }),
+    add: async (projectId, fp) => {
+      rows.push({ projectId, at: Date.parse(fp.windowStart), fp });
+      if (rows.length > max) rows = rows.slice(rows.length - max);
+    },
     since: async (projectId, sinceMs, untilMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs && (untilMs === undefined || r.at < untilMs)).map((r) => r.fp),
-    clear: async (projectId) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.projectId === projectId) rows.splice(i, 1); },
-    prune: async (beforeMs) => { let n = 0; for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.at < beforeMs) { rows.splice(i, 1); n++; } return n; },
+    clear: async (projectId) => { rows = rows.filter((r) => r.projectId !== projectId); },
+    prune: async (beforeMs) => { const n = rows.length; rows = rows.filter((r) => r.at >= beforeMs); return n - rows.length; },
   };
 }
 
