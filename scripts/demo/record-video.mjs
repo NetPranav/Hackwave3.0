@@ -89,8 +89,20 @@ async function applyChange(page, c) {
   if (c.kind === 'type') await page.selectOption('select[aria-label="New type"]', c.input);
   else await page.fill('input[aria-label="New name"]', c.input);
   await sleep(900);
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await sleep(1500);
+  // the panel greys its buttons while it refreshes: wait until Apply is enabled, then make sure the provider really has
+  // the change (found in a recording: a click on a greyed-out Apply did nothing and the shop never broke)
+  const apply = page.getByRole('button', { name: 'Apply' });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await apply.waitFor({ state: 'visible' });
+    for (let i = 0; i < 40 && !(await apply.isEnabled()); i++) await sleep(250);
+    await apply.click();
+    for (let i = 0; i < 20; i++) {
+      const live = await (await admin('/admin/custom')).json();
+      if (live.some((x) => x.service === c.service && x.field === c.field && x.kind === c.kind)) { await sleep(1000); return; }
+      await sleep(500);
+    }
+  }
+  throw new Error(`the panel did not apply ${c.service} ${c.kind} ${c.field}`);
 }
 
 async function waitForEvent(match, until, page, label) {
@@ -171,7 +183,7 @@ async function record(ctx) {
   await caption(page, 'A live demo shop (Vercel) that calls four third-party APIs: users, payments, shipping, orders.');
   await sleep(5000);
   await page.getByRole('button', { name: /Buy now/ }).first().click().catch(() => undefined);
-  await page.waitForURL(/checkout/, { timeout: 30_000 }).catch(() => page.goto(`${SHOP}/checkout`));
+  await page.waitForURL(/checkout/, { timeout: 15_000 }).catch(() => page.goto(`${SHOP}/checkout`, { waitUntil: 'domcontentloaded' }));
   await caption(page, 'Checkout reads the customer name from the users API. All good.', 'good');
   await sleep(5000);
 
@@ -179,7 +191,11 @@ async function record(ctx) {
   await applyChange(page, { service: 'users', kind: 'rename', field: 'name', input: RENAME_TO });
   await caption(page, `The users provider silently renames "name" → "${RENAME_TO}". Still 200 OK. No changelog, no error.`, 'bad');
   await sleep(4500);
-  await page.goto(`${SHOP}/checkout`, { waitUntil: 'domcontentloaded' });
+  for (let i = 0; i < 6; i++) {
+    await page.goto(`${SHOP}/checkout`, { waitUntil: 'domcontentloaded' });
+    if (await page.getByText('name missing').count()) break;
+    await sleep(2000);
+  }
   await caption(page, 'The shop breaks quietly: "name missing". No crash, no alert, nothing in the logs.', 'bad');
   await sleep(6000);
 
@@ -264,7 +280,9 @@ async function main() {
   const ready = await api('/v1/readiness');
   if (ready.length < 4 || ready.some((r) => !r.ready)) throw new Error(`Seismo is still learning: ${JSON.stringify(ready)}`);
   if ((await api('/v1/settings/notifications')).autoHeal) throw new Error('turn off Settings -> Self-heal renames for the video (the break must stay visible until the merge)');
-  if (JSON.parse(readFileSync(join(SHOP_DIR, 'seismo', 'aliases.json'), 'utf8')).rules.some((r) => r.source === RENAME_TO)) throw new Error(`the shop already has a rule for ${RENAME_TO}: set VIDEO_RENAME_TO to a new name`);
+  // a rule already targeting "name" makes the planner (check C5) refuse a second one: the rename would go to review
+  const rules = JSON.parse(execFileSync('gh', ['api', 'repos/NetPranav/seismo-demo-shop/contents/seismo/aliases.json', '-H', 'Accept: application/vnd.github.raw'], { encoding: 'utf8' })).rules;
+  if (rules.some((r) => (!r.kind || r.kind === 'alias') && r.target === 'name')) throw new Error('the shop already has an alias rule for "name" (seismo/aliases.json): remove it first, or the rename gets no automatic PR');
 
   rmSync(RAW, { recursive: true, force: true }); mkdirSync(RAW, { recursive: true });
   const ctx = await chromium.launchPersistentContext(PROFILE, { executablePath: BROWSER, headless: false, viewport: { width: W, height: H }, recordVideo: { dir: RAW, size: { width: W, height: H } }, args: [`--window-size=${W},${H + 90}`] });
