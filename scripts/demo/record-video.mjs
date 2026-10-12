@@ -76,6 +76,14 @@ p{font-size:23px;line-height:1.5;color:#cfcfcf;margin:14px 0}li{font-size:22px;l
 .k{font:600 14px ui-monospace,Menlo,monospace;letter-spacing:.2em;text-transform:uppercase;color:#ff6e3e;margin-bottom:18px}.src{font-size:15px;color:#8a8a8a;margin-top:26px}`;
 async function card(page, html, ms) { await page.setContent(`<style>${CARD_CSS}</style><main>${html}</main>`); await sleep(ms); }
 
+/** page.goto with a longer timeout and one retry (network blips happen during a 10-minute recording) */
+async function go(page, url) {
+  for (let i = 0; ; i++) {
+    try { return await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }); }
+    catch (e) { if (i >= 1) throw e; await sleep(3000); }
+  }
+}
+
 // ---- the demo ---------------------------------------------------------------------------------------------------------
 async function openPanel(page) {
   if (!(await page.locator('select[aria-label="Provider"]').count())) await page.locator('.demo-fab').click();
@@ -120,10 +128,10 @@ async function waitForEvent(match, until, page, label) {
 }
 
 async function mergeOnGitHub(page, prUrl, what) {
-  await page.goto(`${prUrl}/files`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${prUrl}/files`);
   await caption(page, `${what}: the whole fix is one data rule in seismo/aliases.json. No code is generated.`);
   await sleep(6500);
-  await page.goto(prUrl, { waitUntil: 'domcontentloaded' });
+  await go(page, prUrl);
   await caption(page, 'Seismo already ran the safety checks (C1–C9 incl. a 2000-response stress test). A human merges.');
   await sleep(4500);
   // A person merges. Signed in here: this browser's Merge button. Otherwise in your own signed-in browser (e.g. Safari):
@@ -149,7 +157,7 @@ async function waitForShopFixed(page, path, isFixed, label) {
   await waiting(label, async () => {
     const deadline = Date.now() + 6 * 60_000;
     while (Date.now() < deadline) {
-      await page.goto(`${SHOP}${path}`, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
+      await go(page, `${SHOP}${path}`).catch(() => undefined);
       await caption(page, label);
       if (Date.now() - mergedAt > 30_000 && (await isFixed(page))) return;
       await sleep(8000);
@@ -179,7 +187,7 @@ async function record(ctx) {
     <li>Opens a <b>safe fix PR</b>: one data rule, stress-tested. The AI explains; it never writes code. A human merges.</li></ul>`, 13_000);
 
   // 2. rename: the shop works
-  await page.goto(SHOP, { waitUntil: 'domcontentloaded' });
+  await go(page, SHOP);
   await caption(page, 'A live demo shop (Vercel) that calls four third-party APIs: users, payments, shipping, orders.');
   await sleep(5000);
   await page.getByRole('button', { name: /Buy now/ }).first().click().catch(() => undefined);
@@ -192,7 +200,7 @@ async function record(ctx) {
   await caption(page, `The users provider silently renames "name" → "${RENAME_TO}". Still 200 OK. No changelog, no error.`, 'bad');
   await sleep(4500);
   for (let i = 0; i < 6; i++) {
-    await page.goto(`${SHOP}/checkout`, { waitUntil: 'domcontentloaded' });
+    await go(page, `${SHOP}/checkout`);
     if (await page.getByText('name missing').count()) break;
     await sleep(2000);
   }
@@ -200,13 +208,13 @@ async function record(ctx) {
   await sleep(6000);
 
   // 4. Seismo detects it and opens the fix PR by itself
-  await page.goto(`${DASH}/app/timeline`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${DASH}/app/timeline`);
   await caption(page, 'Seismo compares live traffic with what it learned. Detecting (about a minute)…');
   const rename = await waitForEvent((e) => e.detector === 'D3' && e.title.includes(RENAME_TO), (e) => !!e.fix?.validation?.prUrl, page, 'Seismo compares live traffic with what it learned. Detecting (about a minute)…');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await caption(page, `Found: "${rename.title}", breaking, because the checkout reads "name". Fix PR opened automatically.`, 'good');
   await sleep(6000);
-  await page.goto(`${DASH}/app/drift/${rename.id}`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${DASH}/app/drift/${rename.id}`);
   await caption(page, 'The evidence, the exact code line that reads the field, and an AI explanation (Nemotron). Detection itself is deterministic.');
   await sleep(8000);
 
@@ -219,14 +227,14 @@ async function record(ctx) {
   await sleep(7000);
 
   // 7. type change: money/logic field, goes to review, a person opens the stress-tested PR
-  await page.goto(`${SHOP}/orders`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${SHOP}/orders`);
   await caption(page, 'Second change: the orders API starts sending total_rupees as text instead of a number.');
   await sleep(4000);
   await applyChange(page, { service: 'orders', kind: 'type', field: 'total_rupees', input: 'string' });
-  await page.goto(`${SHOP}/orders`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${SHOP}/orders`);
   await caption(page, 'The order total is now nonsense: the numbers are glued together as text. Still 200 OK.', 'bad');
   await sleep(6000);
-  await page.goto(`${DASH}/app/review`, { waitUntil: 'domcontentloaded' });
+  await go(page, `${DASH}/app/review`);
   const type = await waitForEvent((e) => e.detector === 'D4' && e.title.includes('total_rupees'), (e) => ['breaking', 'suspected'].includes(e.state), page, 'Type changes touch money and logic: Seismo sends them to Review, never fixes them alone. Detecting…');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await caption(page, `Found: "${type.title}". Proposed fix: convert it back to a number (a fixed template, not AI code).`);
