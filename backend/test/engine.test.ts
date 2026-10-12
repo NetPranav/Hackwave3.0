@@ -411,3 +411,31 @@ describe('a restart keeps the periods of reverted changes out of the baseline (f
     expect(d3.some((x) => x.state === 'breaking')).toBe(true);
   });
 });
+
+describe('a different change to a field whose earlier change was fixed (found recording the demo)', () => {
+  it('name -> display_name fixed (resolved by a fix); later name -> full_name is a NEW change with its own event', async () => {
+    const s = buildServices();
+    const ingest = memoryIngest();
+    const feed = async (at: number, n = 3) => { for (let i = 0; i < n; i++) for (const fp of await capture(s, '/users/u_1', 20, { service: 'users', at: at + i * 5000 })) await ingest.add('dev', fp); };
+    await feed(NOW - 15 * 60_000, 6);
+    await toggle(s, 'users-rename'); await feed(NOW - 30_000);
+    const e = new DriftEngine(ingest, async () => [codeMap([{ field: 'name', usage: 'display' }])]);
+    await e.run(NOW); await e.run(NOW + 5000);
+    const first = e.list().find((x) => x.detector === 'D3')!;
+    // as after a merged fix PR
+    const t = [...(e as unknown as { events: Map<string, { event: { id: string; state: string }; resolvedBy?: string }> }).events.values()].find((x) => x.event.id === first.id)!;
+    t.event = { ...t.event, state: 'resolved' }; t.resolvedBy = 'fix';
+    // the provider goes back, then renames the same field to something else
+    await toggle(s, 'users-rename', false);
+    await feed(NOW + 5 * 60_000 - 30_000);
+    for (let i = 0; i < 3; i++) await e.run(NOW + 5 * 60_000 + i * 1000);
+    await s.inject({ method: 'POST', url: '/admin/custom', headers: { 'x-admin-token': 'dev-admin' }, payload: { service: 'users', kind: 'rename', field: 'name', to: 'full_name' } });
+    const later = NOW + 10 * 60_000;
+    await feed(later - 30_000);
+    await e.run(later); await e.run(later + 5000);
+    const second = e.list().find((x) => x.detector === 'D3' && x.title.includes('full_name'))!;
+    expect(second).toBeDefined();
+    expect(second.id).not.toBe(first.id);
+    expect(second.state).toBe('breaking');
+  });
+});

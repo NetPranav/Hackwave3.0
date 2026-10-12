@@ -281,6 +281,10 @@ export class DriftEngine {
       let prev = this.events.get(key);
       // the provider went back to normal earlier and now made the same change again: that is a new change, not the old one
       if (prev?.event.state === 'resolved' && prev.resolvedBy === 'recovered') { await this.store.remove([prev.event.id]).catch(() => undefined); this.events.delete(key); prev = undefined; }
+      // ...and a DIFFERENT change to the same field (name -> fullName was fixed, now name -> customerName) is new too.
+      // The same change after its fix stays resolved: the merged rule covers it. (Found recording the demo: the second
+      // rename of "name" was filed under the first one's fixed event and never reported.)
+      if (prev && ['resolved', 'expected'].includes(prev.event.state) && prev.event.title !== f.title) { await this.store.remove([prev.event.id]).catch(() => undefined); this.events.delete(key); prev = undefined; }
       const runs = (prev?.runs ?? 0) + 1;
       const confirmed = runs >= this.opts.confirmRuns;
       let state: DriftState = !confirmed ? (s.label === 'info' ? 'normal' : 'suspected') : s.label === 'breaking' ? 'breaking' : s.label === 'warning' ? 'suspected' : 'normal';
@@ -348,6 +352,19 @@ export class DriftEngine {
     const observed = new Set(wins.filter((w) => w.samples >= minSamples).map((w) => `${w.service}|${w.method} ${w.endpoint}`));
     for (const [k, t] of this.events) {
       if (seen.has(k)) { t.misses = 0; continue; }
+      // a change that was FIXED and later went away (the provider went back): its period is set aside as well, or the
+      // changed shape would stay in the baseline for hours and hide the next change to the same field (event stays resolved)
+      if (t.event.state === 'resolved' && t.resolvedBy === 'fix' && !t.quarantine && observed.has(`${t.event.service}|${t.event.endpoint}`)) {
+        t.misses = (t.misses ?? 0) + 1;
+        if (t.misses >= RECOVER_RUNS) {
+          const ep = `${t.event.service}|${t.event.endpoint}`;
+          t.quarantine = [Date.parse(t.event.detectedAt) - this.opts.windowMs, now - this.opts.windowMs];
+          t.resolvedBy = 'recovered';
+          this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []), t.quarantine]);
+          seen.add(k);
+        }
+        continue;
+      }
       // any confirmed change, also one whose severity dropped to 'normal' while the provider was reverting (found by the
       // pipeline run: "New status value: lost" stayed on the timeline for good after the provider stopped sending it)
       if (t.runs < this.opts.confirmRuns || CLOSED.includes(t.event.state) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
