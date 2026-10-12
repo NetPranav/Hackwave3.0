@@ -45,3 +45,8 @@ venv/
 
 # hosted demo shop: its SDK key + salt (npm run demo:online)
 .seismo-online.json
+
+# demo video: the recording browser profile (GitHub sign-in) and raw recordings
+.demo-browser/
+docs/demo/raw/
+docs/demo/*.mp4

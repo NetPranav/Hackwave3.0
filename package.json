@@ -26,7 +26,8 @@
     "demo:online": "node --env-file=.env scripts/demo/online.mjs",
     "verify:pipeline": "node --env-file=.env scripts/verify/pipeline.mjs",
     "deploy:render": "node --env-file=.env scripts/deploy/render.mjs",
-    "github:webhook": "node --env-file=.env scripts/deploy/github-webhook.mjs"
+    "github:webhook": "node --env-file=.env scripts/deploy/github-webhook.mjs",
+    "demo:video": "node --env-file=.env scripts/demo/record-video.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

@@ -194,7 +194,7 @@ export function buildApp(opts: AppOptions = {}) {
     return { token: await signUserToken(req.user!, '60s', 'sse') };
   });
   app.get('/v1/overview', async () => {
-    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
+    const fps = await engine.recent(Date.now() - 10 * 60_000);
     const maps = await store.all();
     if (!fps.length && !maps.length && mocks) return mockOverview();
     const st = buildStatus(fps);
@@ -290,8 +290,8 @@ export function buildApp(opts: AppOptions = {}) {
   });
   app.get('/v1/metrics', async (req) => {
     // ?range=live: last 32 minutes per minute (what a demo audience sees move); default: 7 days per 6 h
-    if ((req.query as { range?: string }).range === 'live') return buildLiveMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 33 * 60_000), engine.list());
-    return buildMetrics(await ingestStore.since(PROJECT_ID(), Date.now() - 7 * 86_400_000), engine.list());
+    if ((req.query as { range?: string }).range === 'live') return buildLiveMetrics(await engine.recent(Date.now() - 33 * 60_000), engine.list());
+    return buildMetrics(await engine.recent(Date.now() - 7 * 86_400_000), engine.list());
   });
   // v2 demo: the app itself (holding its SDK key) may ask what Seismo has detected for its project: titles and states
   // only, no evidence, no code locations. Used by the demo shop's "Demo changes" panel.
@@ -367,7 +367,7 @@ export function buildApp(opts: AppOptions = {}) {
     return maps.length || !mocks ? coverage(maps) : { endpointsMapped: 8, endpointsSeen: 9, fieldsMapped: 41, fieldsSeen: 50 };
   });
   app.get('/v1/status', async () => {
-    const fps = await ingestStore.since(PROJECT_ID(), Date.now() - 10 * 60_000);
+    const fps = await engine.recent(Date.now() - 10 * 60_000);
     if (!fps.length) return { services: mocks ? mockStatus() : [] };
     const services = [...new Set(fps.map((f) => f.service))];
     const provider = Object.fromEntries(await Promise.all(services.map(async (sv) => [sv, await providerStatus(sv)] as const)));
@@ -460,7 +460,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.get('/v1/compare', async (req, reply) => {
     const { service, endpoint } = req.query as { service?: string; endpoint?: string };
     if (!service || !endpoint) return reply.code(400).send({ error: 'bad_request', message: 'service and endpoint (e.g. "GET /users/{id}") are required' });
-    return compare(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000), service, endpoint);
+    return compare(await engine.recent(Date.now() - 24 * 3600_000), service, endpoint);
   });
   app.post('/v1/simulate', async (req, reply) => {
     const parsed = SimulateRequest.safeParse(req.body);
@@ -512,7 +512,7 @@ export function buildApp(opts: AppOptions = {}) {
     const p = req.params as { id: string; keyId: string };
     return keys.revoke(p.keyId, p.id) ? { ok: true } : reply.code(404).send({ error: 'not_found' });
   });
-  app.get('/v1/baselines', async () => buildBaselines(await ingestStore.since(PROJECT_ID(), Date.now() - 24 * 3600_000)));
+  app.get('/v1/baselines', async () => buildBaselines(await engine.recent(Date.now() - 24 * 3600_000)));
 
   // SSE stub (P0.4). Real events arrive with P2/P4.
   app.get('/v1/events', async (req, reply) => {

@@ -138,6 +138,16 @@ export class DriftEngine {
     return this.cache;
   }
 
+  /**
+   * Recent fingerprints for the API (status, charts, compare) from the same in-memory history the detector uses, so a
+   * dashboard poll does not re-read and re-parse thousands of rows (found on Render free: the 7-day chart read every
+   * row on each poll and the engine missed its health check). Covers the baseline period (what is kept anyway).
+   */
+  async recent(sinceMs: number, now = Date.now()): Promise<Fingerprint[]> {
+    const all = this.cachedUntil && now - this.cachedUntil < 30_000 ? this.cache : await this.history(now);
+    return all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 >= sinceMs);
+  }
+
   /** Demo reset (P8.5): forget every event, in memory and in the store. */
   async clear(): Promise<void> {
     await this.init();
