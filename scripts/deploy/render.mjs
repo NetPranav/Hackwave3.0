@@ -47,6 +47,8 @@ function engineEnv(databaseUrl, sdkKeys) {
     // Render free has ~0.1 CPU: every detection pass re-reads the baseline history, so keep it short (2 h history,
     // 3 h stored, a pass every 10 s). Measured: with 24 h the engine stalled > 5 s and Render restarted it.
     FINGERPRINT_RETENTION_HOURS: '3', SEISMO_BASELINE_HOURS: '2', SEISMO_DETECT_INTERVAL_MS: '10000',
+    // the hosted demo shop sends far less traffic than the local generator: judge an endpoint from 10 responses a minute
+    SEISMO_MIN_SAMPLES: '10',
     // the engine accepts these keys besides the project keys in its database; a random one switches off 'dev-key'
     SEISMO_SDK_KEYS: sdkKeys,
     DASHBOARD_URL: process.env.DASHBOARD_URL ?? `http://localhost:${process.env.DASHBOARD_PORT ?? 3000}`,
