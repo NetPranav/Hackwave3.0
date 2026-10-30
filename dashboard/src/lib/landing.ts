@@ -61,16 +61,28 @@ export const PROMISES = [
 ];
 
 export type Cell = "yes" | "partial" | "no";
-export const COMPARE_COLUMNS = ["Drift pollers", "Spec diff", "Contract tests", "Observability", "Seismo"];
-export const COMPARE_ROWS: { label: string; cells: Cell[] }[] = [
-  { label: "Watches third-party APIs you call", cells: ["yes", "no", "partial", "partial", "yes"] },
-  { label: "Uses real production traffic", cells: ["no", "no", "no", "yes", "yes"] },
-  { label: "Needs no spec or provider help", cells: ["yes", "no", "no", "yes", "yes"] },
-  { label: "Shape changes", cells: ["yes", "yes", "yes", "partial", "yes"] },
-  { label: "Behaviour changes (limits, pagination)", cells: ["no", "no", "no", "partial", "yes"] },
-  { label: "Meaning changes (units, enums)", cells: ["partial", "no", "no", "no", "yes"] },
-  { label: "Knows which of your code is hit", cells: ["no", "no", "partial", "no", "yes"] },
-  { label: "Opens a safe fix pull request", cells: ["no", "no", "no", "no", "yes"] },
+
+/** Named tools, from docs/PS/competitors.md section 2. Cells are our reading of their public material (vendor claims). */
+export const COMPARE_COLUMNS = [
+  { name: "FlareCanary", kind: "Drift poller" },
+  { name: "DriftGuard", kind: "Drift poller" },
+  { name: "oasdiff", kind: "Spec diff" },
+  { name: "Pact", kind: "Contract tests" },
+  { name: "Postman Insights", kind: "Observability" },
+  { name: "Datadog APM", kind: "Observability" },
+  { name: "Seismo", kind: "Us" },
+];
+
+export const COMPARE_ROWS: { label: string; cells: Cell[]; seismoNote?: string }[] = [
+  { label: "Watches third-party APIs you call", cells: ["yes", "yes", "no", "partial", "no", "partial", "yes"] },
+  { label: "Uses real production traffic", cells: ["no", "no", "no", "no", "yes", "yes", "yes"] },
+  { label: "Needs no spec or provider help", cells: ["yes", "yes", "no", "partial", "yes", "yes", "yes"] },
+  { label: "Shape changes", cells: ["yes", "yes", "yes", "yes", "partial", "no", "yes"] },
+  { label: "Behaviour changes (limits, pagination)", cells: ["no", "no", "no", "no", "no", "partial", "yes"] },
+  { label: "Meaning changes (units, enums)", cells: ["no", "no", "no", "no", "no", "no", "yes"] },
+  { label: "Knows which of your code is hit", cells: ["no", "no", "no", "partial", "no", "no", "yes"] },
+  { label: "Opens a safe fix pull request", cells: ["no", "no", "no", "no", "no", "no", "yes"] },
+  { label: "Zero install in the app", cells: ["yes", "yes", "yes", "no", "partial", "no", "no"], seismoNote: "One-line SDK" },
 ];
 
 export const FAQ = [

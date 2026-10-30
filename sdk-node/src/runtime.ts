@@ -92,7 +92,9 @@ export function applyAliases<T>(raw: T, rules: readonly AliasRule[] | undefined,
       if (!endpointMatches(rule.endpoint, endpoint)) continue;
       const segs = parsePath(rule.path ?? '$');
       if (!segs) continue;
+      const before = cur;
       cur = applyAt(cur, segs, 0, rule);
+      if (cur !== before && (rule as { id?: string }).id) countHit((rule as { id?: string }).id!);
     }
     return cur as T;
   } catch {
@@ -186,4 +188,37 @@ export function applyTransforms<T>(raw: T, rules: readonly unknown[] | undefined
   } catch {
     return raw;
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// v3-P2 live rules (self-healing renames). The SDK client fetches alias rules for its project and stores them under a
+// global symbol; the app's withAliases adds them to the repo's rules. Only ALIAS rules are ever served live: they can
+// only add a missing field (G1-G4). Each rule application is counted, so Seismo can show (and verify) the healing.
+
+const LIVE = Symbol.for('seismo.liveRules');
+const HITS = Symbol.for('seismo.ruleHits');
+type G = Record<symbol, unknown>;
+
+/** Alias rules Seismo is serving live right now (empty when auto-heal is off or the SDK is not started). */
+export function liveAliasRules(): AliasRule[] {
+  const v = (globalThis as unknown as G)[LIVE];
+  return Array.isArray(v) ? (v as AliasRule[]) : [];
+}
+/** Used by the SDK client; anything that is not a valid alias rule is dropped. */
+export function setLiveAliasRules(rules: unknown): void {
+  const ok = Array.isArray(rules) ? rules.filter((r): r is AliasRule => !!r && typeof r === 'object' && (r as AliasRule).kind === 'alias' && safeName((r as AliasRule).target) && safeName((r as AliasRule).source)) : [];
+  (globalThis as unknown as G)[LIVE] = ok;
+}
+function countHit(id: string) {
+  const g = globalThis as unknown as G;
+  const m = (g[HITS] as Map<string, number> | undefined) ?? new Map<string, number>();
+  if (m.size < 1000 || m.has(id)) m.set(id, (m.get(id) ?? 0) + 1);
+  g[HITS] = m;
+}
+/** Rule id -> how many responses it changed since the last call (the SDK client reports and resets these). */
+export function drainRuleHits(): Record<string, number> {
+  const g = globalThis as unknown as G;
+  const m = g[HITS] as Map<string, number> | undefined;
+  g[HITS] = new Map<string, number>();
+  return m ? Object.fromEntries(m) : {};
 }

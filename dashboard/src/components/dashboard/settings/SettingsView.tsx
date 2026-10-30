@@ -10,6 +10,7 @@ import SdkKeysCard from "./SdkKeysCard";
 import ChannelStrip from "./ChannelStrip";
 import ChannelPanel from "./ChannelPanel";
 import AiFlagCard from "./AiFlagCard";
+import AutoHealCard from "./AutoHealCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -21,6 +22,7 @@ export default function SettingsView() {
   const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS);
   const [selected, setSelected] = useState<ChannelId>("whatsapp");
   const [aiOn, setAiOn] = useState(true);
+  const [heal, setHeal] = useState(false);
   const [save, setSave] = useState<SaveState>("idle");
   const loaded = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -32,15 +34,16 @@ export default function SettingsView() {
     loaded.current = true;
     setChannels(channelsFromSettings(server.data, repos ? repos.split("|") : []));
     setAiOn(server.data.aiEnabled);
+    setHeal(!!server.data.autoHeal);
   }, [server.data, repos]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  const persist = (next: ChannelsState, ai: boolean) => {
+  const persist = (next: ChannelsState, ai: boolean, healOn = heal) => {
     if (!live || !loaded.current) return;
     clearTimeout(timer.current);
     setSave("saving");
     timer.current = setTimeout(() => {
-      api("/v1/settings/notifications", { method: "PUT", body: settingsFromChannels(next, ai) })
+      api("/v1/settings/notifications", { method: "PUT", body: settingsFromChannels(next, ai, healOn) })
         .then(() => setSave("saved"))
         .catch(() => setSave("error"));
     }, 600);
@@ -48,7 +51,10 @@ export default function SettingsView() {
 
   const meta = CHANNELS.find((c) => c.id === selected) ?? CHANNELS[0];
   const patch = (id: ChannelId, change: Partial<ChannelConfig>) => {
-    const next = { ...channels, [id]: { ...channels[id], ...change } };
+    // typing a number / address / webhook into a channel that is off switches it on (found live: the number was saved,
+    // the channel stayed off, and no alert was ever sent)
+    const autoOn = change.value && change.value.trim() && !channels[id].enabled && change.enabled === undefined ? { enabled: true } : {};
+    const next = { ...channels, [id]: { ...channels[id], ...change, ...autoOn } };
     setChannels(next);
     persist(next, aiOn);
   };
@@ -57,11 +63,17 @@ export default function SettingsView() {
     persist(channels, on);
   };
 
+  const setHealOn = (on: boolean) => {
+    setHeal(on);
+    persist(channels, aiOn, on);
+  };
+
   return (
     <main className="mx-auto max-w-[1440px] space-y-6 px-6 py-6 md:px-10 lg:px-16">
       <ChannelStrip channels={channels} selected={selected} onSelect={setSelected} />
       <ChannelPanel key={meta.id} meta={meta} config={channels[meta.id]} onChange={(change) => patch(meta.id, change)} />
       <AiFlagCard aiOn={aiOn} onChange={setAi} />
+      {live && <AutoHealCard on={heal} onChange={setHealOn} />}
       {live && <SdkKeysCard />}
       <p className="px-1 font-aeonik-light text-[11px] leading-relaxed text-text-primary/50 dark:text-white/45">
         {live

@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-11T23:47:12.455Z",
+  "browser": "Brave Browser",
+  "learning": {
+    "GET /users/{id}": 125602,
+    "GET /shipments/{id}": 145797,
+    "POST /payments": 145798,
+    "GET /payments/{id}": 311361,
+    "GET /orders": 318842
+  },
+  "results": [
+    {
+      "id": "rename",
+      "change": "users: rename name → customer_name",
+      "expected": {
+        "detector": "D3",
+        "field": "name",
+        "fix": "alias PR + self-heal"
+      },
+      "applied": false,
+      "states": [],
+      "t": {},
+      "alsoFlagged": [],
+      "event": null,
+      "falseAlarms": [],
+      "rule": null,
+      "oracle": {
+        "verdict": "no rule",
+        "detail": "no data rule proposed"
+      },
+      "shopShowsName": true,
+      "rerun": true
+    }
+  ],
+  "screens": []
+}

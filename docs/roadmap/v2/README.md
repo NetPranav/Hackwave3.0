@@ -1,5 +1,7 @@
 # Seismo roadmap v2: integration (after the merge)
 
+> **Done (see `COMPLETION.md`). What is left is in [v3](../v3/README.md)**, which lists only remaining work.
+
 **Status (2026-10-11):** v1 is done and merged into `main` (PR #4 engine, PR #5 dashboard), and the tag `before-merge` marks it. v1 built:
 - the engine (old P0–P8: contracts, fake APIs, scanner, SDK, detectors, safe alias PRs, AI, alerts, radar, Docker);
 - the dashboard screens, all on mock data (old A0–A6).

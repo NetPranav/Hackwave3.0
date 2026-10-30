@@ -4,6 +4,7 @@ import type { AliasRule, SeismoRule } from '@seismo/contracts';
 import { ALIASES_PATH, CHECK_NAME, openAliasPr, type Check, type OctokitFix } from './fix-pr.js';
 import { upsertIssue, type OctokitIssues } from './issues.js';
 import { publishCodeMap, scanRepo, withCheckout } from './scan-repo.js';
+import { sdkSource } from './install-sdk.js';
 import { openSetupPr, planSetup, type OctokitGit } from './setup-pr.js';
 import { resetDemoRepo, type OctokitReset } from './demo-reset.js';
 
@@ -173,7 +174,7 @@ export function internalRoutes(app: Probot, opts: ApplicationFunctionOptions, sc
       const b = (await readJson(req)) as { repo: string };
       const { owner, name, kit } = await octokitFor(b.repo);
       const base = (await kit.rest.repos.get({ owner, repo: name })).data.default_branch;
-      const plan = await withCheckout(kit as never, owner, name, base, (dir) => planSetup(dir, b.repo));
+      const plan = await withCheckout(kit as never, owner, name, base, (dir) => planSetup(dir, b.repo, sdkSource()));
       // already wired (every API read wrapped, seismo/ files present): not an error, there is simply no PR to open
       if (!plan.files.length) return send(res, 200, { url: `https://github.com/${b.repo}/blob/${base}/seismo/aliases.json`, number: 0, created: false, wrapped: 0, skipped: plan.skipped, alreadySetUp: true });
       const pr = await openSetupPr(kit as unknown as OctokitGit, owner, name, plan);
@@ -199,6 +200,19 @@ export function watchFixCi(app: Probot) {
   app.on('check_suite.completed', async (ctx) => {
     const suite = ctx.payload.check_suite;
     const ref = suite.head_branch ?? '';
+    if (ref === 'seismo/setup' && suite.app?.slug !== process.env.APP_SLUG) {
+      // v3-P1.4: the setup PR is a draft until the repo's own CI passes on it
+      const { owner, name } = { owner: ctx.payload.repository.owner.login, name: ctx.payload.repository.name };
+      const prs = (await ctx.octokit.rest.pulls.list({ owner, repo: name, head: `${owner}:seismo/setup`, state: 'open' })).data;
+      for (const pr of prs) {
+        if (suite.conclusion === 'success' && pr.draft) {
+          await ctx.octokit.graphql('mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { clientMutationId } }', { id: pr.node_id }).catch((err: unknown) => app.log.error({ err }, 'ready-for-review failed'));
+        } else if (suite.conclusion && suite.conclusion !== 'success') {
+          await ctx.octokit.rest.issues.createComment({ owner, repo: name, issue_number: pr.number, body: `Seismo: your CI did not pass on this setup PR (${suite.conclusion}), so it stays a draft. Nothing in it changes behaviour; the usual causes are the lockfile or a lint rule. Push a fix to \`seismo/setup\` and Seismo marks it ready when CI is green.` }).catch(() => undefined);
+        }
+      }
+      return;
+    }
     const m = /^seismo\/(?:alias|fix|scale)-(.+)$/.exec(ref);
     if (!m || suite.app?.slug === process.env.APP_SLUG) return;     // ignore our own check suite
     const ruleId = m[1]!;

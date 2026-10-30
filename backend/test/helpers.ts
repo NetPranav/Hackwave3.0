@@ -12,7 +12,7 @@ export type Services = ReturnType<typeof buildServices>;
 export const toggle = (s: Services, id: string, enabled = true) => s.inject({ method: 'POST', url: `/admin/scenarios/${id}`, headers: h, payload: { enabled } });
 
 /** Call `path` n times and return the Fingerprint windows an SDK would send (split by status class). */
-export async function capture(s: Services, path: string, n: number, opts: { service: string; method?: 'GET' | 'POST'; at: number; windowSeconds?: number }): Promise<Fingerprint[]> {
+export async function capture(s: Services, path: string, n: number, opts: { service: string; method?: 'GET' | 'POST'; at: number; windowSeconds?: number; salt?: string }): Promise<Fingerprint[]> {
   const byClass = new Map<string, { accs: Map<string, FieldAcc>; statuses: Record<string, number>; count: number; headers: Record<string, string>; lat: number[] }>();
   const url = new URL(`http://x${path}`);
   const { endpoint, queryKeys, limit } = normalise(url);
@@ -23,7 +23,7 @@ export async function capture(s: Services, path: string, n: number, opts: { serv
     byClass.set(cls, w);
     w.count++; w.statuses[String(res.statusCode)] = (w.statuses[String(res.statusCode)] ?? 0) + 1; w.lat.push(20 + (i % 7));
     for (const k of ['sunset', 'deprecation'] as const) if (res.headers[k]) w.headers[k] = String(res.headers[k]);
-    observe(res.json(), w.accs, cfg);
+    observe(res.json(), w.accs, opts.salt ? { ...cfg, salt: opts.salt } : cfg);
   }
   return [...byClass].map(([cls, w]) => {
     const { fields } = finish(w.accs);
@@ -33,6 +33,7 @@ export async function capture(s: Services, path: string, n: number, opts: { serv
       latencyMs: { p50: 22, p95: 26 }, headers: w.headers, reqQueryKeys: queryKeys, ...(limit !== undefined ? { reqLimit: limit } : {}),
       shapeHash: createHash('sha256').update(JSON.stringify(Object.entries(fields).map(([p, f]) => [p, Object.keys((f as { types: object }).types).sort()]).sort())).digest('hex').slice(0, 16),
       fields: fields as Fingerprint['fields'],
+      ...(opts.salt ? { saltId: createHash('sha256').update(`seismo-salt-id|${opts.salt}`).digest('hex').slice(0, 12) } : {}),
     };
   });
 }

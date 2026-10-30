@@ -46,6 +46,11 @@ export default function FixHeader({ fix }: { fix: FixRuleData }) {
         </div>
 
         <div className="flex items-center gap-4">
+          {fix.healedHits !== undefined && (
+          <span className="inline-flex items-center gap-1 rounded border border-accent/60 px-2 py-0.5 font-aeonik-mono text-[10px] uppercase tracking-wider text-accent">
+            Healed live · {fix.healedHits} response{fix.healedHits === 1 ? "" : "s"}
+          </span>
+        )}
           <Link
             href={`/app/drift/${fix.driftId}`}
             className="font-aeonik-mono text-xs uppercase tracking-wider text-text-primary/60 underline-offset-4 transition-colors hover:text-text-primary hover:underline dark:text-white/60 dark:hover:text-white"

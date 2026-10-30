@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/layout/Logo";
@@ -10,7 +11,23 @@ const pad = (n: number) => String(n).padStart(2, "0");
 /** Minimal chrome: logo and sign in on top, slide counter, and a dot rail on the right. Turns white on dark slides. */
 export default function DeckNav() {
   const { active, enabled, slides, go } = useDeck();
-  const onDark = enabled && Boolean(slides[active]?.dark);
+  const [scrolledOverDark, setScrolledOverDark] = useState(false);
+  const onDark = enabled ? Boolean(slides[active]?.dark) : scrolledOverDark;
+
+  // Normal scrolling page: turn the header white while a dark section sits under it.
+  useEffect(() => {
+    if (enabled) return;
+    const check = () => {
+      const under = slides.find((s) => {
+        const r = document.getElementById(s.id)?.getBoundingClientRect();
+        return r && r.top <= 40 && r.bottom > 40;
+      });
+      setScrolledOverDark(Boolean(under?.dark));
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, [enabled, slides]);
 
   return (
     <div className={cn("pointer-events-none fixed inset-0 z-50", onDark && "dark")}>

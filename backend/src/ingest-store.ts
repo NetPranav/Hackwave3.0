@@ -1,22 +1,35 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Fingerprint } from '@seismo/contracts';
-import { eq, gt } from 'drizzle-orm';
+import { and, eq, gt, lt } from 'drizzle-orm';
 import { connect } from './db/index.js';
 import { fingerprints, projects, sdkKeys } from './db/schema.js';
 
 export interface IngestStore {
   add(projectId: string, fp: Fingerprint): Promise<void>;
-  since(projectId: string, sinceMs: number): Promise<Fingerprint[]>;
+  /** fingerprints with windowStart after sinceMs (and before untilMs when given) */
+  since(projectId: string, sinceMs: number, untilMs?: number): Promise<Fingerprint[]>;
   /** Demo reset only. */
   clear(projectId: string): Promise<void>;
+  /** v3-P0.3 retention: delete fingerprints whose window started before `beforeMs`; returns how many. */
+  prune(beforeMs: number): Promise<number>;
 }
 
-export function memoryIngest(): IngestStore {
-  const rows: { projectId: string; at: number; fp: Fingerprint }[] = [];
+/**
+ * Fingerprints in memory only, never in the database (lead's decision 2026-10-12: live traffic filled the free Postgres).
+ * Bounded twice: by age (prune, run every minute with FINGERPRINT_RETENTION_HOURS) and by count (oldest dropped past
+ * `max`). The engine keeps its own 10 s rollups, so detection needs only the recent rows. A restart forgets them:
+ * Seismo relearns normal traffic in a few minutes.
+ */
+export function memoryIngest(max = Number(process.env.SEISMO_MAX_FINGERPRINTS ?? 50_000)): IngestStore {
+  let rows: { projectId: string; at: number; fp: Fingerprint }[] = [];
   return {
-    add: async (projectId, fp) => void rows.push({ projectId, at: Date.parse(fp.windowStart), fp }),
-    since: async (projectId, sinceMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs).map((r) => r.fp),
-    clear: async (projectId) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.projectId === projectId) rows.splice(i, 1); },
+    add: async (projectId, fp) => {
+      rows.push({ projectId, at: Date.parse(fp.windowStart), fp });
+      if (rows.length > max) rows = rows.slice(rows.length - max);
+    },
+    since: async (projectId, sinceMs, untilMs) => rows.filter((r) => r.projectId === projectId && r.at >= sinceMs && (untilMs === undefined || r.at < untilMs)).map((r) => r.fp),
+    clear: async (projectId) => { rows = rows.filter((r) => r.projectId !== projectId); },
+    prune: async (beforeMs) => { const n = rows.length; rows = rows.filter((r) => r.at >= beforeMs); return n - rows.length; },
   };
 }
 
@@ -26,11 +39,12 @@ export function pgIngest(url = process.env.DATABASE_URL): IngestStore {
     async add(projectId, fp) {
       await db.insert(fingerprints).values({ id: randomBytes(8).toString('hex'), projectId, service: fp.service, endpoint: fp.endpoint, windowStart: new Date(fp.windowStart), payload: fp });
     },
-    async since(projectId, sinceMs) {
-      const rows = await db.select().from(fingerprints).where(gt(fingerprints.windowStart, new Date(sinceMs)));
-      return rows.filter((r) => r.projectId === projectId).map((r) => r.payload as Fingerprint);
+    async since(projectId, sinceMs, untilMs) {
+      const rows = await db.select({ payload: fingerprints.payload }).from(fingerprints).where(and(eq(fingerprints.projectId, projectId), gt(fingerprints.windowStart, new Date(sinceMs)), ...(untilMs === undefined ? [] : [lt(fingerprints.windowStart, new Date(untilMs))])));
+      return rows.map((r) => r.payload as Fingerprint);
     },
     async clear(projectId) { await db.delete(fingerprints).where(eq(fingerprints.projectId, projectId)); },
+    async prune(beforeMs) { return (await db.delete(fingerprints).where(lt(fingerprints.windowStart, new Date(beforeMs))).returning({ id: fingerprints.id })).length; },
   };
 }
 

@@ -17,7 +17,9 @@ export interface Finding {
 
 /** minSamples: window size before shape detectors speak; minEnumSamples: baseline size before a field counts as an enum (D7/D8). */
 export interface Ctx { minSamples: number; minEnumSamples: number }
-export const DEFAULT_CTX: Ctx = { minSamples: 20, minEnumSamples: 200 };
+// SEISMO_MIN_SAMPLES: responses a 60 s window needs before an endpoint is judged. A low-traffic host needs fewer
+// (found on the hosted demo: orders had 6 calls a minute, so a change there could never be judged with 20).
+export const DEFAULT_CTX: Ctx = { minSamples: Number(process.env.SEISMO_MIN_SAMPLES ?? 20), minEnumSamples: 200 };
 type Detector = (base: EndpointBaseline, win: EndpointBaseline, ctx: Ctx) => Finding[];
 
 const where = (b: EndpointBaseline) => ({ service: b.service, method: b.method, endpoint: b.endpoint });

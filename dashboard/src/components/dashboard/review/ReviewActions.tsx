@@ -1,5 +1,6 @@
 "use client";
 
+import { prHref } from "@/lib/links";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { SNOOZE_OPTIONS } from "./types";
@@ -67,7 +68,7 @@ export default function ReviewActions({ canOpenPr = true, prNumber, prUrl, error
 
       {prNumber ? (
         <a
-          href={prUrl ?? "https://github.com/NetPranav/seismo-demo-shop/pull/" + prNumber}
+          href={prHref(prNumber, prUrl)}
           target="_blank"
           rel="noreferrer"
           className="ml-auto font-aeonik-mono text-xs uppercase tracking-wider text-text-primary/70 underline-offset-4 hover:text-text-primary hover:underline dark:text-white/70 dark:hover:text-white"

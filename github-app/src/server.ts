@@ -2,6 +2,12 @@ import { Probot, Server } from 'probot';
 import SmeeClient from 'smee-client';
 import app from './app.js';
 
+// v3-P0.4: never run in production with a missing or default INTERNAL_TOKEN
+if (process.env.NODE_ENV === 'production' && ((process.env.INTERNAL_TOKEN ?? '').length < 16 || process.env.INTERNAL_TOKEN === 'dev-internal')) {
+  console.error('Refusing to start in production: INTERNAL_TOKEN must be a random secret of at least 16 characters');
+  process.exit(1);
+}
+
 const server = new Server({
   Probot: Probot.defaults({
     appId: process.env.APP_ID,

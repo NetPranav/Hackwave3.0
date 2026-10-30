@@ -1,0 +1,53 @@
+# v3-P0.6 Render blueprint (`npm run deploy:render` does the same through Render's API, with the values from .env): the Seismo engine as ONE free web service (backend + GitHub App + demo providers) and a
+# free Postgres. Dashboard and demo shop go on Vercel. Secrets marked sync:false are entered in the Render dashboard.
+services:
+  - type: web
+    name: seismo-engine
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase: { name: seismo-db, property: connectionString }
+      - key: AUTH_SECRET            # same value as the dashboard's AUTH_SECRET
+        sync: false
+      - key: INTERNAL_TOKEN         # same value as .env: the dashboard's Demo Control and demo:online call /internal
+        sync: false
+      - key: DEMO_ADMIN_TOKEN       # same value in the shop (demo panel) and the dashboard (Demo Control)
+        sync: false
+      - key: SEISMO_SDK_KEYS        # key(s) the demo shop uses
+        sync: false
+      - key: SEISMO_PROJECT_OWNERS  # e.g. NetPranav,adarzhpathade
+        sync: false
+      - key: DASHBOARD_URL          # https://<dashboard>.vercel.app
+        sync: false
+      - key: APP_ID
+        sync: false
+      - key: PRIVATE_KEY            # base64 of the GitHub App private key, as in .env
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: DEMO_REPO
+        value: NetPranav/seismo-demo-shop
+      - key: NIM_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: FINGERPRINT_RETENTION_HOURS
+        value: "26"
+databases:
+  - name: seismo-db
+    plan: free

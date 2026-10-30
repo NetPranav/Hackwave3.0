@@ -127,3 +127,12 @@ body {
     translate: none;
   }
 }
+
+/* Hide scrollbars across the whole UI. Scrolling still works with the wheel, trackpad, keys and touch. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

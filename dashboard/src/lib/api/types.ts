@@ -167,6 +167,8 @@ export interface DriftEvent {
     rule?: SeismoRule;
     validation?: { driftId: string; checks: CheckResult[]; ci: "pending" | "green" | "red"; prUrl?: string };
   };
+  /** v3-P2: the rename rule is served live to the SDK (auto-heal on) and how many responses it has healed */
+  heal?: { live: boolean; hits: number; lastAt?: string };
 }
 
 export interface ReviewItemApi {
@@ -202,6 +204,8 @@ export interface NotificationSettings {
   github: { enabled: boolean } & Threshold;
   minSeverity: Severity;
   aiEnabled: boolean;
+  /** v3-P2: serve checked rename rules to the SDK at once, before the PR is merged */
+  autoHeal?: boolean;
 }
 
 export interface RadarItemApi {

@@ -9,6 +9,13 @@ set -a; [ -f .env ] && . ./.env; set +a
 [ -n "$cli_port" ] && PORT=$cli_port
 [ -n "$cli_dash" ] && DASHBOARD_PORT=$cli_dash
 trap 'kill 0' EXIT
+# Hosted engine (npm run deploy:render): only the dashboard runs here, pointed at it. Running a local engine as well
+# would mean two engines watching the same repo (duplicate PRs), so none is started.
+if [ -n "${SEISMO_ENGINE_URL:-}" ]; then
+  echo "dashboard only, engine: $SEISMO_ENGINE_URL"
+  [ -d dashboard/node_modules ] || (cd dashboard && npm install --no-audit --no-fund)
+  cd dashboard && SEISMO_API_URL="$SEISMO_ENGINE_URL" SERVICES_URL="$SEISMO_ENGINE_URL" DEMO_MODE="${DEMO_MODE:-true}" exec npx next dev -p "${DASHBOARD_PORT:-3000}"
+fi
 backend_port=${PORT:-4000}
 # the backend reaches the GitHub App (PRs, issues, installations) over HTTP
 export GITHUB_APP_PORT=${GITHUB_APP_PORT:-3060}

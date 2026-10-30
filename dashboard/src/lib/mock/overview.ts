@@ -40,7 +40,7 @@ export const OVERVIEW_STATS = overviewStats(MOCK_INPUT);
 // ---- Services table -------------------------------------------------------------------------
 
 export type RowAction =
-  | { type: "pr"; number: number }
+  | { type: "pr"; number: number; url?: string }
   | { type: "review" }
   | { type: "status" };
 
@@ -66,7 +66,7 @@ export function overviewRows(d: OverviewInput): OverviewRow[] {
   const openPrs = openPrsOf(d.fixes);
   const actionFor = (name: string, slug: string, state: DriftState): RowAction => {
     const pr = openPrs.find((f) => f.serviceSlug === slug);
-    if (pr?.fixPrNumber) return { type: "pr", number: pr.fixPrNumber };
+    if (pr?.fixPrNumber) return { type: "pr", number: pr.fixPrNumber, ...(pr.prUrl ? { url: pr.prUrl } : {}) };
     if (state !== "normal" && d.review.some((r) => r.service === name)) return { type: "review" };
     return { type: "status" };
   };

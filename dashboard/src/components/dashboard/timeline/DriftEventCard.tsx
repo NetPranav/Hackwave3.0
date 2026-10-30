@@ -1,5 +1,6 @@
 "use client";
 
+import { prHref } from "@/lib/links";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,7 @@ interface DriftEventCardProps {
 }
 
 function EventFooter({ event, expanded, onToggleDiff }: DriftEventCardProps) {
-  const prUrl = `https://github.com/NetPranav/seismo-demo-shop/pull/${event.fixPrNumber}`;
+  const prUrl = prHref(event.fixPrNumber, event.prUrl);
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-box-outline/30 pt-3 font-aeonik-mono text-xs dark:border-dark-border/30">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -77,6 +78,11 @@ function EventFooter({ event, expanded, onToggleDiff }: DriftEventCardProps) {
         <Link href={"/app/drift/" + event.id} className={QUIET_BUTTON}>
           Details ↗
         </Link>
+{event.healedHits !== undefined && (
+          <span className="inline-flex items-center gap-1 rounded border border-accent/60 px-2 py-0.5 font-aeonik-mono text-[10px] uppercase tracking-wider text-accent">
+            Healed live · {event.healedHits} response{event.healedHits === 1 ? "" : "s"}
+          </span>
+        )}
         {event.fixPrNumber && (
           <a
             href={prUrl}

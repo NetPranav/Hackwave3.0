@@ -20,7 +20,7 @@ export function channelsFromSettings(s: NotificationSettings, repos: string[]): 
 /** WhatsApp numbers are sent as E.164 (+91…): spaces and dashes are removed. */
 const phone = (v: string) => v.replace(/[\s()-]/g, "");
 
-export function settingsFromChannels(c: ChannelsState, aiEnabled: boolean): NotificationSettings {
+export function settingsFromChannels(c: ChannelsState, aiEnabled: boolean, autoHeal = false): NotificationSettings {
   const chat = { enabled: c.chat.enabled, webhookUrl: c.chat.value || undefined, minSeverity: toSeverity[c.chat.threshold] };
   const off = { enabled: false };
   return {
@@ -31,5 +31,6 @@ export function settingsFromChannels(c: ChannelsState, aiEnabled: boolean): Noti
     github: { enabled: c.github.enabled, minSeverity: toSeverity[c.github.threshold] },
     minSeverity: toSeverity[c.dashboard.threshold],
     aiEnabled,
+    autoHeal,
   };
 }

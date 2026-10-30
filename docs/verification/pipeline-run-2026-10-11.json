@@ -1,0 +1,478 @@
+{
+  "date": "2026-10-11T20:03:29.907Z",
+  "browser": "Brave Browser",
+  "learning": {
+    "GET /users/{id}": 98178,
+    "GET /shipments/{id}": 108192,
+    "POST /payments": 108192,
+    "GET /orders": 188331,
+    "GET /payments/{id}": 188331
+  },
+  "results": [
+    {
+      "id": "rename",
+      "change": "users: rename name → customer_name",
+      "expected": {
+        "detector": "D3",
+        "field": "name",
+        "fix": "alias PR + self-heal"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 63973
+        },
+        {
+          "state": "fix_pending",
+          "at": 78091
+        }
+      ],
+      "t": {
+        "firstSeen": 63973,
+        "dashboard": 63986,
+        "confirmed": 74086,
+        "pr": 78091,
+        "healed": 82102,
+        "resolvedAfterUndo": 19057
+      },
+      "prUrl": "https://github.com/NetPranav/seismo-demo-shop/pull/37",
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-k0pyx7",
+        "detector": "D3",
+        "field": "name",
+        "title": "Field renamed: name → customer_name",
+        "state": "fix_pending",
+        "severity": "breaking",
+        "usages": 2
+      },
+      "falseAlarms": [],
+      "rule": {
+        "id": "a-k0pyx7",
+        "kind": "alias",
+        "endpoint": "GET /users/{id}",
+        "path": "$",
+        "target": "name",
+        "source": "customer_name",
+        "driftEvent": "drift-k0pyx7",
+        "addedAt": "2026-10-11"
+      },
+      "oracle": {
+        "verdict": "PASS",
+        "detail": "restored name = \"Asha Rao\" (provider before the change: \"Asha Rao\")"
+      },
+      "shopShowsName": true,
+      "rerun": false
+    },
+    {
+      "id": "scale",
+      "change": "payments: scale amount → 100",
+      "expected": {
+        "detector": "D5",
+        "field": "amount",
+        "fix": "scale rule (review)"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 53887
+        },
+        {
+          "state": "breaking",
+          "at": 59993
+        }
+      ],
+      "t": {
+        "firstSeen": 53887,
+        "dashboard": 55907,
+        "confirmed": 59993,
+        "resolvedAfterUndo": 28916
+      },
+      "alsoFlagged": [
+        "GET /payments/{id}: Unit change: amount ×100"
+      ],
+      "event": {
+        "id": "drift-z7t6y1",
+        "detector": "D5",
+        "field": "amount",
+        "title": "Unit change: amount ×100",
+        "state": "breaking",
+        "severity": "breaking",
+        "usages": 1
+      },
+      "falseAlarms": [],
+      "review": {
+        "suggestion": "Every amount is now 100 times what it was (a unit change). In the payments adapter, divide amount by 100 before using it (lib/api/payments.ts:17), or confirm th",
+        "reason": "Only renames get automatic PRs; this change needs a human decision. Fix template: Divide amount by 100 (unit change)."
+      },
+      "rule": {
+        "id": "s-z7t6y1",
+        "endpoint": "POST /payments",
+        "path": "$",
+        "field": "amount",
+        "driftEvent": "drift-z7t6y1",
+        "addedAt": "2026-10-11",
+        "kind": "scale",
+        "divideBy": 100
+      },
+      "oracle": {
+        "verdict": "PASS",
+        "detail": "restored amount = 499 (provider before the change: 499)"
+      },
+      "rerun": false
+    },
+    {
+      "id": "type",
+      "change": "orders: type total_rupees → string",
+      "expected": {
+        "detector": "D4",
+        "field": "data[].total_rupees",
+        "fix": "coerce rule (review)"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 53953
+        },
+        {
+          "state": "breaking",
+          "at": 60077
+        }
+      ],
+      "t": {
+        "firstSeen": 53953,
+        "dashboard": 53976,
+        "confirmed": 60077,
+        "resolvedAfterUndo": 28954
+      },
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-7vy3kx",
+        "detector": "D4",
+        "field": "data[].total_rupees",
+        "title": "Type changed: data[].total_rupees integer → string",
+        "state": "breaking",
+        "severity": "breaking",
+        "usages": 2
+      },
+      "falseAlarms": [],
+      "review": {
+        "suggestion": "data[].total_rupees changed type. Convert it explicitly where it is read (app/orders/page.tsx:7, app/orders/page.tsx:17), e.g. Number(total_rupees), and add a t",
+        "reason": "Only renames get automatic PRs; this change needs a human decision. Fix template: Convert total_rupees back to a number when the text is a plain number."
+      },
+      "rule": {
+        "id": "f-7vy3kx",
+        "endpoint": "GET /orders",
+        "path": "$.data[*]",
+        "field": "total_rupees",
+        "driftEvent": "drift-7vy3kx",
+        "addedAt": "2026-10-11",
+        "kind": "coerce",
+        "to": "number"
+      },
+      "oracle": {
+        "verdict": "PASS",
+        "detail": "restored total_rupees = [199,236,273,310,347] (provider before the change: [199,236,273,310,347])"
+      },
+      "rerun": false
+    },
+    {
+      "id": "value",
+      "change": "shipping: value status → lost",
+      "expected": {
+        "detector": "D7",
+        "field": "status",
+        "fix": "map rule only with a confident AI judge (review)"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "normal",
+          "at": 9695
+        },
+        {
+          "state": "suspected",
+          "at": 19853
+        }
+      ],
+      "t": {
+        "firstSeen": 9695,
+        "dashboard": 9719,
+        "confirmed": 19853,
+        "resolvedAfterUndo": 73108
+      },
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-hrwn59",
+        "detector": "D7",
+        "field": "status",
+        "title": "New status value: lost",
+        "state": "suspected",
+        "severity": "warning",
+        "usages": 2
+      },
+      "falseAlarms": [],
+      "review": {
+        "suggestion": "status has a value your code has never seen. Add an explicit case for it in every if/switch that reads status (app/checkout/page.tsx:19, lib/api/shipping.ts:10)",
+        "reason": "Only renames get automatic PRs; this change needs a human decision. \"lost\" is a new status with its own meaning (the AI judge guessed \"delivered\", but mapping a new meaning onto an old value would hide it). Add a case for it in the code."
+      },
+      "rule": null,
+      "oracle": {
+        "verdict": "no rule",
+        "detail": "no data rule proposed"
+      },
+      "rerun": false
+    },
+    {
+      "id": "remove",
+      "change": "users: remove email",
+      "expected": {
+        "detector": "D1",
+        "field": "email",
+        "fix": "none (code change, review)"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 65712
+        },
+        {
+          "state": "breaking",
+          "at": 69816
+        }
+      ],
+      "t": {
+        "firstSeen": 65712,
+        "dashboard": 65727,
+        "confirmed": 69816,
+        "resolvedAfterUndo": 18930
+      },
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-8swm47",
+        "detector": "D1",
+        "field": "email",
+        "title": "Field removed: email",
+        "state": "breaking",
+        "severity": "breaking",
+        "usages": 1
+      },
+      "falseAlarms": [],
+      "review": {
+        "suggestion": "The provider stopped sending email. Handle its absence where it is read (app/checkout/page.tsx:28) or ask the provider whether it moved.",
+        "reason": "Only renames get automatic PRs; this change needs a human decision. No data rule can fix this kind of change: it needs a code change."
+      },
+      "rule": null,
+      "oracle": {
+        "verdict": "n/a",
+        "detail": "no data rule can fix this kind of change: review with a suggestion is the right outcome"
+      },
+      "rerun": false
+    },
+    {
+      "id": "cap",
+      "change": "orders: cap data → 2",
+      "expected": {
+        "detector": "D9",
+        "field": "data",
+        "fix": "none (code change, review)"
+      },
+      "applied": true,
+      "states": [
+        {
+          "state": "suspected",
+          "at": 65920
+        },
+        {
+          "state": "breaking",
+          "at": 70014
+        }
+      ],
+      "t": {
+        "firstSeen": 65920,
+        "dashboard": 65936,
+        "confirmed": 70014,
+        "resolvedAfterUndo": 18890
+      },
+      "alsoFlagged": [],
+      "event": {
+        "id": "drift-vxntro",
+        "detector": "D9",
+        "field": "data",
+        "title": "Silent truncation: asked 500, got exactly 2 in 100% of calls",
+        "state": "breaking",
+        "severity": "breaking",
+        "usages": 3
+      },
+      "falseAlarms": [],
+      "review": {
+        "suggestion": "The provider now returns at most 2 items per request. Request pages until a page comes back with fewer than 2 items (or an empty page) and merge them, at the ca",
+        "reason": "Only renames get automatic PRs; this change needs a human decision. No data rule can fix this kind of change: it needs a code change."
+      },
+      "rule": null,
+      "oracle": {
+        "verdict": "n/a",
+        "detail": "no data rule can fix this kind of change: review with a suggestion is the right outcome"
+      },
+      "rerun": false
+    }
+  ],
+  "screens": [
+    {
+      "url": "http://localhost:3000/",
+      "status": 200,
+      "ms": 1375,
+      "chars": 6330,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/login",
+      "status": 200,
+      "ms": 762,
+      "chars": 452,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/docs/sdk",
+      "status": 200,
+      "ms": 767,
+      "chars": 4701,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/onboarding",
+      "status": 200,
+      "ms": 1603,
+      "chars": 674,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app",
+      "status": 200,
+      "ms": 1751,
+      "chars": 2151,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/status",
+      "status": 200,
+      "ms": 1325,
+      "chars": 1115,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/status/users",
+      "status": 200,
+      "ms": 1314,
+      "chars": 1065,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/timeline",
+      "status": 200,
+      "ms": 1242,
+      "chars": 3930,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/graph",
+      "status": 200,
+      "ms": 1477,
+      "chars": 774,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/fixes",
+      "status": 200,
+      "ms": 1305,
+      "chars": 2048,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/review",
+      "status": 200,
+      "ms": 1144,
+      "chars": 386,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/compare",
+      "status": 200,
+      "ms": 1195,
+      "chars": 933,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/radar",
+      "status": 200,
+      "ms": 1076,
+      "chars": 293,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/settings",
+      "status": 200,
+      "ms": 1358,
+      "chars": 1882,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3000/app/demo",
+      "status": 200,
+      "ms": 1173,
+      "chars": 1219,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3100/",
+      "status": 200,
+      "ms": 889,
+      "chars": 427,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3100/checkout",
+      "status": 200,
+      "ms": 781,
+      "chars": 241,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3100/orders",
+      "status": 200,
+      "ms": 779,
+      "chars": 330,
+      "errorOverlay": false,
+      "consoleErrors": []
+    },
+    {
+      "url": "http://localhost:3100/invoice",
+      "status": 200,
+      "ms": 772,
+      "chars": 150,
+      "errorOverlay": false,
+      "consoleErrors": []
+    }
+  ]
+}

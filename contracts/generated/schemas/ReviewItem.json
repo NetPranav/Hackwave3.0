@@ -472,6 +472,25 @@
             "rung"
           ],
           "additionalProperties": false
+        },
+        "heal": {
+          "type": "object",
+          "properties": {
+            "live": {
+              "type": "boolean"
+            },
+            "hits": {
+              "type": "number"
+            },
+            "lastAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "live",
+            "hits"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

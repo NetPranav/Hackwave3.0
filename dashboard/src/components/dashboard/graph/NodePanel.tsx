@@ -146,14 +146,20 @@ function Detail({ node, graph, onSelect }: { node: GraphNode; graph: BuiltGraph;
           <ul className="space-y-3">
             {info.sites.map((s) => (
               <li key={s.file + s.line} className="font-aeonik-mono text-xs">
-                <a
-                  href={"https://github.com/NetPranav/seismo-demo-shop/blob/main/" + s.file + "#L" + s.line}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-text-primary underline-offset-4 transition-colors hover:text-accent hover:underline dark:text-white dark:hover:text-accent"
-                >
-                  {s.file}:{s.line} ↗
-                </a>
+                {s.url ? (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-text-primary underline-offset-4 transition-colors hover:text-accent hover:underline dark:text-white dark:hover:text-accent"
+                  >
+                    {s.file}:{s.line} ↗
+                  </a>
+                ) : (
+                  <span className="font-semibold text-text-primary dark:text-white">
+                    {s.file}:{s.line}
+                  </span>
+                )}
                 <p className="mt-0.5 text-[11px] text-text-primary/45 dark:text-white/40">
                   {plainUsage(s.usageKind)} · {s.workflow}
                 </p>

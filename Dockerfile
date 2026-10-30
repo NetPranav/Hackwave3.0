@@ -16,6 +16,7 @@ COPY sdk-node sdk-node
 COPY backend backend
 COPY github-app github-app
 COPY services services
+COPY scripts scripts
 RUN npx turbo run build
 
 FROM node:22-alpine
@@ -27,4 +28,5 @@ RUN addgroup -S seismo && adduser -S seismo -G seismo && chown -R seismo:seismo 
 USER seismo
 EXPOSE 4000 4100 3001
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- "http://127.0.0.1:${PORT:-4000}/health" || exit 1
-CMD ["sh", "-c", "npm run db:migrate -w backend && node backend/dist/server.js"]
+# default: the whole engine as one service (backend on $PORT; providers + GitHub App behind it). One process: override CMD.
+CMD ["sh", "-c", "npm run db:migrate -w backend && node scripts/start-all.mjs"]

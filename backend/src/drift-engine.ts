@@ -1,6 +1,7 @@
 import { PROJECT_ID } from './projects.js';
-import type { AliasRule, CodeMap, DriftEvent, DriftState, SeismoRule } from '@seismo/contracts';
-import { buildBaselines } from './baseline.js';
+import type { AliasRule, CodeMap, DriftEvent, DriftState, Fingerprint, SeismoRule } from '@seismo/contracts';
+import { alignSalts, buildBaselines } from './baseline.js';
+import { bucketKey, bucketMsFor, mergeInto, startBucket } from './rollup.js';
 import { stressCheck, stressTest, templateFor } from './fix-templates.js';
 import { DEFAULT_CTX, runDetectors, runStatusMixDetectors, type Ctx, type Finding } from './detectors/index.js';
 import type { IngestStore } from './ingest-store.js';
@@ -15,10 +16,13 @@ export interface EngineOptions {
   confirmRuns: number;       // consecutive runs a finding must persist before it is confirmed
   ctx?: Partial<Ctx>;        // detector thresholds (tests and demos use smaller sample sizes)
 }
-export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: 24 * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
+// SEISMO_BASELINE_HOURS: how much history a pass reads. Every pass re-reads it (until v3-P3.3 rollups), so a small host
+// needs a short one (found on Render free: 24 h of per-request fingerprints starved the CPU and the health check failed)
+export const ENGINE_DEFAULTS: EngineOptions = { windowMs: 60_000, baselineMs: Number(process.env.SEISMO_BASELINE_HOURS ?? 24) * 3600_000, minBaselineSamples: 50, confirmRuns: 2 };
 
 type Tracked = Omit<StoredEvent, 'key'>;
 
+const LATE_MS = 10 * 60_000;   // fingerprints delivered up to 10 min late still reach the in-memory history
 const CLOSED: string[] = ['resolved', 'expected', 'snoozed'];
 
 /** Passes (5 s apart) without a confirmed change before it counts as gone: the provider went back to normal. */
@@ -37,6 +41,8 @@ export class DriftEngine {
   private events = new Map<string, Tracked>();
   /** endpoint -> when the first finding of the current investigation was seen (baseline frozen from there) */
   private investigating = new Map<string, number>();
+  /** learning progress per endpoint (2xx history samples) from the last pass: a change before `ready` is learned, not reported */
+  private learned = new Map<string, { service: string; endpoint: string; samples: number }>();
   /** endpoint -> time ranges when a change was live and later reverted: kept out of the baseline (they were not normal) */
   private quarantine = new Map<string, [number, number][]>();
   private loaded?: Promise<void>;
@@ -44,7 +50,19 @@ export class DriftEngine {
 
   /** Load remembered events (once). Call at startup so list() is complete before the first detection pass. */
   init(): Promise<void> {
-    this.loaded ??= this.store.load().then((items) => { for (const i of items) if (!this.events.has(i.key)) this.events.set(i.key, { event: i.event, runs: i.runs, lastSeen: i.lastSeen, dispatched: i.dispatched, reviewReason: i.reviewReason }); }).catch(() => undefined);
+    // everything a pass relies on is restored, also why an event was resolved and the periods kept out of the baseline
+    // (found on Render free: each restart forgot them, the reverted test changes leaked into the baseline and a real
+    // rename was never confirmed; a recurrence after a restart stayed "resolved")
+    this.loaded ??= this.store.load().then((items) => {
+      for (const { key, ...tracked } of items) {
+        if (this.events.has(key)) continue;
+        this.events.set(key, tracked);
+        if (tracked.quarantine && tracked.resolvedBy === 'recovered') {
+          const ep = `${tracked.event.service}|${tracked.event.endpoint}`;
+          this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []), tracked.quarantine]);
+        }
+      }
+    }).catch(() => undefined);
     return this.loaded;
   }
 
@@ -58,6 +76,12 @@ export class DriftEngine {
   /** Events that need a human: everything non-alias, and renames the planner blocked. */
   reviewQueue(): { event: DriftEvent; reason: string }[] {
     return [...this.events.values()].filter((t) => t.reviewReason && !['resolved', 'expected', 'snoozed'].includes(t.event.state)).map((t) => ({ event: t.event, reason: t.reviewReason! }));
+  }
+
+  /** Endpoints seen in the last minute and how far their baseline is (needs `minBaselineSamples` before changes count). */
+  readiness() {
+    const needed = this.opts.minBaselineSamples;
+    return [...this.learned.values()].map((r) => ({ ...r, needed, ready: r.samples >= needed })).sort((a, b) => a.endpoint.localeCompare(b.endpoint));
   }
 
   list(): DriftEvent[] {
@@ -104,12 +128,59 @@ export class DriftEngine {
     return { event: t.event };
   }
 
+  /**
+   * The fingerprints of the baseline period, kept in memory: each pass fetches only rows newer than the last pass (with a
+   * 10-minute overlap for late deliveries, e.g. the SDK retry queue after an outage, deduplicated) instead of re-reading and re-parsing the whole history (found on
+   * Render free: re-reading starved the CPU).
+   */
+  private buckets = new Map<string, Fingerprint>();      // 10 s rollups (see rollup.ts)
+  private seenFps = new Map<string, number>();            // fingerprints already folded in (late re-reads are skipped)
+  private cachedUntil = 0;
+  private get cache(): Fingerprint[] { return [...this.buckets.values()]; }
+  private async history(now: number): Promise<Fingerprint[]> {
+    const floor = now - this.opts.baselineMs;
+    const from = this.cachedUntil ? Math.max(floor, this.cachedUntil - LATE_MS) : floor;
+    // read in 10-minute slices, yielding between them: a cold start reads hours of history and must not block the
+    // event loop (a small host's health check would time out and restart the engine in a loop)
+    const fresh: Fingerprint[] = [];
+    for (let a = from; a < now; a += 10 * 60_000) {
+      fresh.push(...(await this.ingest.since(PROJECT_ID(), a, Math.min(now + 60_000, a + 10 * 60_000))));
+      if (now - a > 10 * 60_000) await new Promise((r) => setImmediate(r));
+    }
+    fresh.push(...(await this.ingest.since(PROJECT_ID(), now + 60_000)));
+    for (const f of fresh) {
+      const k = f.batchId ?? `${f.service}|${f.method}|${f.endpoint}|${f.statusClass}|${f.windowStart}|${f.count}|${f.shapeHash}|${f.saltId ?? ''}`;
+      if (this.seenFps.has(k)) continue;
+      this.seenFps.set(k, Date.parse(f.windowStart));
+      const ms = bucketMsFor(this.opts.windowMs);
+      const bk = bucketKey(f, ms);
+      const b = this.buckets.get(bk);
+      if (b) mergeInto(b, f); else this.buckets.set(bk, startBucket(f, ms));
+    }
+    this.cachedUntil = now;
+    for (const [k, b] of this.buckets) if (Date.parse(b.windowStart) + b.windowSeconds * 1000 <= floor) this.buckets.delete(k);
+    for (const [k, at] of this.seenFps) if (at < floor - LATE_MS) this.seenFps.delete(k);
+    return this.cache;
+  }
+
+  /**
+   * Recent fingerprints for the API (status, charts, compare) from the same in-memory history the detector uses, so a
+   * dashboard poll does not re-read and re-parse thousands of rows (found on Render free: the 7-day chart read every
+   * row on each poll and the engine missed its health check). Covers the baseline period (what is kept anyway).
+   */
+  async recent(sinceMs: number, now = Date.now()): Promise<Fingerprint[]> {
+    const all = this.cachedUntil && now - this.cachedUntil < 30_000 ? this.cache : await this.history(now);
+    return all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 >= sinceMs);
+  }
+
   /** Demo reset (P8.5): forget every event, in memory and in the store. */
   async clear(): Promise<void> {
     await this.init();
+    this.buckets.clear(); this.seenFps.clear(); this.cachedUntil = 0;
     const ids = [...this.events.values()].map((t) => t.event.id);
     this.events.clear();
     this.investigating.clear();
+    this.learned.clear();
     this.quarantine.clear();
     await this.store.remove(ids).catch(() => undefined);
   }
@@ -145,7 +216,7 @@ export class DriftEngine {
   /** One detection pass. Returns the events that were created or changed in this pass. */
   async run(now = Date.now()): Promise<DriftEvent[]> {
     await this.init();
-    const all = await this.ingest.since(PROJECT_ID(), now - this.opts.baselineMs);
+    const all = await this.history(now);
     const cut = now - this.opts.windowMs;
     // Baseline freeze: while a confirmed change is open on an endpoint, traffic from after it started (detection time minus
     // one window) never becomes "history" for that endpoint. Otherwise a restart, or simply time passing, would teach the
@@ -186,13 +257,20 @@ export class DriftEngine {
     });
     const winFps = all.filter((f) => Date.parse(f.windowStart) + f.windowSeconds * 1000 >= cut);
     const bases = buildBaselines(baseFps, now), wins = buildBaselines(winFps, now);
+    this.learned = new Map();
+    for (const w of wins.filter((x) => x.statusClass === '2xx')) {
+      const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === '2xx');
+      this.learned.set(`${w.service}|${w.method} ${w.endpoint}`, { service: w.service, endpoint: `${w.method} ${w.endpoint}`, samples: b?.samples ?? 0 });
+    }
     const maps = await this.maps();
 
     const findings: Finding[] = [];
     const ctxOf = new Map<Finding, { base: ReturnType<typeof buildBaselines>[number]; win: ReturnType<typeof buildBaselines>[number] }>();
-    for (const w of wins) {
-      const b = bases.find((x) => x.service === w.service && x.method === w.method && x.endpoint === w.endpoint && x.statusClass === w.statusClass);
-      if (b && b.samples >= this.opts.minBaselineSamples) for (const f of runDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
+    for (const w0 of wins) {
+      const b0 = bases.find((x) => x.service === w0.service && x.method === w0.method && x.endpoint === w0.endpoint && x.statusClass === w0.statusClass);
+      if (!b0 || b0.samples < this.opts.minBaselineSamples) continue;
+      const [b, w] = alignSalts(b0, w0);
+      for (const f of runDetectors(b, w, { ...DEFAULT_CTX, ...this.opts.ctx })) { findings.push(f); ctxOf.set(f, { base: b, win: w }); }
     }
     const basesAll = buildBaselines(baseFps, now, true);
     for (const w of buildBaselines(winFps, now, true)) {
@@ -203,14 +281,23 @@ export class DriftEngine {
     const changed: DriftEvent[] = [];
     const seen = new Set<string>();
     for (const f of findings) { const ep = `${f.service}|${f.method} ${f.endpoint}`; if (!this.investigating.has(ep)) this.investigating.set(ep, now); }
-    for (const f of findings) {
+    for (let f of findings) {
       const key = `${f.service}|${f.method}|${f.endpoint}|${f.detector}|${f.field ?? f.title}`;
       seen.add(key);
       const usages = usagesFor(f, maps);
+      // A 'rename' whose NEW name is the field your code reads, while the old name is read nowhere, is the provider going
+      // back to the shape your code expects (after Seismo had learned the changed shape, e.g. during learning or after a
+      // reset). Proposing the reverse alias would add the throwaway name from the real field: report it, never fix it.
+      const restored = f.detector === 'D3' && !!f.rename && !usages.length && usagesFor({ ...f, field: f.rename.to }, maps).length > 0;
+      if (restored) f = { ...f, title: `Field restored: ${f.rename!.to} is back (it was ${f.rename!.from}); your code reads ${f.rename!.to}`, rung: 'review', rename: undefined };
       const s = score(f, usages);
       let prev = this.events.get(key);
       // the provider went back to normal earlier and now made the same change again: that is a new change, not the old one
       if (prev?.event.state === 'resolved' && prev.resolvedBy === 'recovered') { await this.store.remove([prev.event.id]).catch(() => undefined); this.events.delete(key); prev = undefined; }
+      // ...and a DIFFERENT change to the same field (name -> fullName was fixed, now name -> customerName) is new too.
+      // The same change after its fix stays resolved: the merged rule covers it. (Found recording the demo: the second
+      // rename of "name" was filed under the first one's fixed event and never reported.)
+      if (prev && ['resolved', 'expected'].includes(prev.event.state) && prev.event.title !== f.title) { await this.store.remove([prev.event.id]).catch(() => undefined); this.events.delete(key); prev = undefined; }
       const runs = (prev?.runs ?? 0) + 1;
       const confirmed = runs >= this.opts.confirmRuns;
       let state: DriftState = !confirmed ? (s.label === 'info' ? 'normal' : 'suspected') : s.label === 'breaking' ? 'breaking' : s.label === 'warning' ? 'suspected' : 'normal';
@@ -259,6 +346,18 @@ export class DriftEngine {
       seen.add(k);
       changed.push(t.event);
     }
+    // Same for a unit change (D5): while the window is half old, half new, D6 "value distribution changed" fires first on
+    // the same field (found by the pipeline run: two extra D6 events per unit change). D5 explains it.
+    for (const f of findings) {
+      if (f.detector !== 'D5' || !f.field) continue;
+      for (const [k, t] of this.events) {
+        if (t.event.detector !== 'D6' || t.event.field !== f.field || t.event.service !== f.service || t.event.endpoint !== `${f.method} ${f.endpoint}`) continue;
+        if (seen.has(k) || ['resolved', 'expected', 'snoozed'].includes(t.event.state)) continue;
+        t.event = { ...t.event, state: 'resolved', title: `${t.event.title} (explained: unit change)` };
+        seen.add(k);
+        changed.push(t.event);
+      }
+    }
     // The provider went back to normal: a confirmed change that is no longer found for RECOVER_RUNS passes in a row,
     // while its endpoint has enough traffic to judge, is closed as resolved (and its baseline unfreezes).
     // No traffic means no evidence either way, so the count only moves when the endpoint was actually observed.
@@ -266,7 +365,22 @@ export class DriftEngine {
     const observed = new Set(wins.filter((w) => w.samples >= minSamples).map((w) => `${w.service}|${w.method} ${w.endpoint}`));
     for (const [k, t] of this.events) {
       if (seen.has(k)) { t.misses = 0; continue; }
-      if (!OPEN_CONFIRMED(t, this.opts.confirmRuns) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
+      // a change that was FIXED and later went away (the provider went back): its period is set aside as well, or the
+      // changed shape would stay in the baseline for hours and hide the next change to the same field (event stays resolved)
+      if (t.event.state === 'resolved' && t.resolvedBy === 'fix' && !t.quarantine && observed.has(`${t.event.service}|${t.event.endpoint}`)) {
+        t.misses = (t.misses ?? 0) + 1;
+        if (t.misses >= RECOVER_RUNS) {
+          const ep = `${t.event.service}|${t.event.endpoint}`;
+          t.quarantine = [Date.parse(t.event.detectedAt) - this.opts.windowMs, now - this.opts.windowMs];
+          t.resolvedBy = 'recovered';
+          this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []), t.quarantine]);
+          seen.add(k);
+        }
+        continue;
+      }
+      // any confirmed change, also one whose severity dropped to 'normal' while the provider was reverting (found by the
+      // pipeline run: "New status value: lost" stayed on the timeline for good after the provider stopped sending it)
+      if (t.runs < this.opts.confirmRuns || CLOSED.includes(t.event.state) || !observed.has(`${t.event.service}|${t.event.endpoint}`)) continue;
       t.misses = (t.misses ?? 0) + 1;
       if (t.misses < RECOVER_RUNS) { seen.add(k); continue; }
       const ep = `${t.event.service}|${t.event.endpoint}`;
@@ -274,6 +388,7 @@ export class DriftEngine {
       this.quarantine.set(ep, [...(this.quarantine.get(ep) ?? []).filter(([, u]) => now - u < this.opts.baselineMs), [from, now - this.opts.windowMs]]);
       t.event = { ...t.event, state: 'resolved' };
       t.resolvedBy = 'recovered';
+      t.quarantine = [from, now - this.opts.windowMs];
       seen.add(k);
       changed.push(t.event);
     }

@@ -21,7 +21,7 @@ Then read **your** section below and do only that work, **on your own branch**.
 - Work, commit and push only on your own branch. Never push to `main` or another person's branch. Never merge PRs.
 - At session start, check the TEAM BRIEFING for **open requests addressed to you** and do those first.
 
-**Current plan: [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md)** (v2 integration: NetPranav P0–P6, Adarsh A0–A3; NetPranav's Claude may also edit `dashboard/` for integration). Full workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md) · v1 roadmap (done): [`docs/roadmap/README.md`](docs/roadmap/README.md) (NetPranav's phases are **P0–P8**, Adarsh's are **A0–A8**; ignore any mention of `develop`, feature branches and per-task PRs: we use the personal branches above).
+**Current plan (only what is left): [`docs/roadmap/v3/README.md`](docs/roadmap/v3/README.md)** · done: [`COMPLETION.md`](COMPLETION.md) · integration plan (done): [`docs/roadmap/v2/README.md`](docs/roadmap/v2/README.md) (v2 integration: NetPranav P0–P6, Adarsh A0–A3; NetPranav's Claude may also edit `dashboard/` for integration). Full workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md) · v1 roadmap (done): [`docs/roadmap/README.md`](docs/roadmap/README.md) (NetPranav's phases are **P0–P8**, Adarsh's are **A0–A8**; ignore any mention of `develop`, feature branches and per-task PRs: we use the personal branches above).
 
 ---
 

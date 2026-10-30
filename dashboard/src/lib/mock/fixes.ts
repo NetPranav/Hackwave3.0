@@ -26,6 +26,8 @@ export interface FixRuleData {
   driftType: string;
   branchName: string;
   fixPrNumber?: number;
+  /** v3-P2: responses this rename rule has healed live in the app (auto-heal on) */
+  healedHits?: number;
   prUrl?: string;
   detectedAt: string;
   impactWorkflows: string[];

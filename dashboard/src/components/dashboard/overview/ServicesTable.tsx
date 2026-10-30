@@ -1,5 +1,6 @@
 "use client";
 
+import { prHref } from "@/lib/links";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import RubberSegment, { type RubberSegmentItem } from "@/components/ui/RubberSegment";
@@ -44,7 +45,7 @@ function RowAction({ row }: { row: OverviewRow }) {
   if (a.type === "pr") {
     return (
       <a
-        href={"https://github.com/NetPranav/seismo-demo-shop/pull/" + a.number}
+        href={prHref(a.number, a.url)}
         target="_blank"
         rel="noreferrer"
         className={cn(
