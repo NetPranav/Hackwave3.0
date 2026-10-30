@@ -41,6 +41,12 @@ const DEMO_URL = process.env.NEXT_PUBLIC_PITCH_DEMO_URL || "https://seismo-demo-
 
 const LABELS = ["Seismo", "The quake", "Nobody told you", "It keeps happening", "Nothing watches APIs", "The question", "The answer", "Detect", "Impact", "Fix", "It never touches", "It never acts alone", "Why us", "Live demo", "Thank you"];
 
+/** Hides a scene whenever the deck is on another step, so a fade-out cut short by a quick click can never leave a ghost behind. */
+function SceneGate({ at, step, children }: { at: [number, number]; step: number; children: React.ReactNode }) {
+  const active = step >= at[0] && step <= at[1];
+  return <div className={cn("absolute inset-0 transition-opacity duration-300", active ? "opacity-100" : "opacity-0")}>{children}</div>;
+}
+
 /** The pitch as one pinned stage: scenes change what is on it. The only page change is the hand-off to the live demo. */
 export default function PitchDeck() {
   const overlay = useRef<LaunchOverlayHandle>(null);
@@ -80,15 +86,33 @@ export default function PitchDeck() {
     <>
       <Stage>
         <Seismograph signal={signal} />
-        <TitleScene step={step} />
-        <HookScene step={step} />
-        <EvidenceScene step={step} signal={signal} />
-        <QuestionScene step={step} />
-        <SolutionScene step={step} signal={signal} />
-        <DemoScene step={step} />
-        <SafetyScene step={step} />
-        <WhyScene step={step} />
-        <CloseScene step={step} />
+        <SceneGate at={[0, 0]} step={step}>
+          <TitleScene step={step} />
+        </SceneGate>
+        <SceneGate at={[1, 2]} step={step}>
+          <HookScene step={step} />
+        </SceneGate>
+        <SceneGate at={[3, 4]} step={step}>
+          <EvidenceScene step={step} signal={signal} />
+        </SceneGate>
+        <SceneGate at={[5, 6]} step={step}>
+          <QuestionScene step={step} />
+        </SceneGate>
+        <SceneGate at={[7, 9]} step={step}>
+          <SolutionScene step={step} signal={signal} />
+        </SceneGate>
+        <SceneGate at={[10, 11]} step={step}>
+          <SafetyScene step={step} />
+        </SceneGate>
+        <SceneGate at={[12, 12]} step={step}>
+          <WhyScene step={step} />
+        </SceneGate>
+        <SceneGate at={[DEMO_STEP, DEMO_STEP]} step={step}>
+          <DemoScene step={step} />
+        </SceneGate>
+        <SceneGate at={[14, 14]} step={step}>
+          <CloseScene step={step} />
+        </SceneGate>
       </Stage>
 
       <LaunchOverlay ref={overlay} />
